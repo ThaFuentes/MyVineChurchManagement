@@ -1,0 +1,50 @@
+<!-- app/templates/auth/index.html -->
+<!-- Full path: myvinechurchonline/app/templates/auth/index.html -->
+<!-- File name: index.html -->
+<!-- Brief, detailed purpose: True landing/welcome page (route '/').
+   Warm hero with primary guest CTA.
+   Uses unified base_public.html – inherits full header, full public navigation, flash messages, footer, clock.
+   Clean, spacious hero with church details, Bible verse, and prominent guest CTA.
+   No duplicated navigation – relies on base_public.html for consistency. -->
+
+{% extends "base_public.html" %}
+
+{% block content %}
+  <section class="landing-hero" style="padding:6rem 2rem 8rem; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+    <h1 style="font-size:clamp(3rem, 8vw, 4.5rem); margin-bottom:1rem; color:var(--primary); text-shadow:0 0 20px var(--primary-glow);">
+      Welcome to {{ g.settings.get('church_name', 'MyVineChurch.Online') }}
+    </h1>
+
+    <p style="font-size:1.8rem; max-width:900px; margin:1rem auto 3rem; line-height:1.8; opacity:0.95;">
+      A loving community rooted in faith, growing together in Christ.<br>
+      Join us for worship, fellowship, and spiritual growth.
+    </p>
+
+    {% if g.settings.get('address') or g.settings.get('phone_number') %}
+    <div style="max-width:700px; margin:0 auto 4rem; padding:2.5rem; background:rgba(0,255,255,0.06); border:1px solid rgba(0,255,255,0.3); border-radius:var(--radius-large); box-shadow:0 0 25px rgba(0,255,255,0.15);">
+      {% if g.settings.get('address') %}
+      <p style="margin:0 0 1rem; font-size:1.4rem;"><strong>Location:</strong><br>{{ g.settings.get('address') | nl2br }}</p>
+      {% endif %}
+      {% if g.settings.get('phone_number') %}
+      <p style="margin:0; font-size:1.4rem;"><strong>Phone:</strong> {{ g.settings.get('phone_number') }}</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="primary-cta" style="margin:3rem 0;">
+      <a href="{{ url_for('public.public_dashboard') }}" class="btn-primary large" style="font-size:1.8rem; padding:1.4rem 3.5rem; box-shadow:0 0 30px rgba(0,255,255,0.6);">
+        Continue as Guest → Explore Prayers, Sermons & Events
+      </a>
+    </div>
+
+    <p style="font-size:1.5rem; color:var(--text-muted); max-width:800px;">
+      Use the navigation above to explore Events, Sermons, Announcements, Prayers, Dreams & Visions, and more.
+    </p>
+
+    <p class="bible-verse" style="font-size:1.4rem; max-width:700px; margin:3rem auto 0; font-style:italic; opacity:0.9; line-height:1.5;">
+      "I am the vine; you are the branches. If you remain in me and I in you,<br>
+      you will bear much fruit."<br>
+      — John 15:5 (NIV)
+    </p>
+  </section>
+{% endblock %}

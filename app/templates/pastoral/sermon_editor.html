@@ -1,0 +1,205 @@
+{# app/templates/pastoral/sermon_editor.html #}
+{# Full path: WebChurchMan/app/templates/pastoral/sermon_editor.html #}
+{# File name: sermon_editor.html #}
+{# Brief, detailed purpose:
+#   Full sermon editor for create/edit in the Pastoral Sermon Builder.
+#   Quill editor for sections, metadata fields, visibility, collaborators.
+#   Autosave support, censorship enforcement, audit logging via routes.
+#   Cancel button returns to sermon list (fixed endpoint).
+#   Rebuilt for smoothness, consistent styling, and correct blueprint endpoints. #}
+
+{% extends "pastoral/base_pastoral.html" %}
+
+{% block title %}{{ 'New Sermon' if not sermon else 'Edit: ' + sermon.title }}{% endblock %}
+
+{% block pastoral_content %}
+<div class="container-fluid py-5">
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="card glass-card shadow">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="mb-0 text-cyan">
+                        {{ 'Create New Sermon' if not sermon else 'Edit Sermon' }}
+                    </h2>
+                    <div>
+                        <a href="{{ url_for('pastoral.sermons.list') }}" class="btn btn-outline-cyan">
+                            Cancel
+                        </a>
+                        <button type="button" id="save-btn" class="btn btn-success ms-2">
+                            Save Sermon
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <form id="sermon-form">
+                        <!-- Hidden field for sermon ID (used on edit) -->
+                        {% if sermon %}
+                            <input type="hidden" name="sermon_id" value="{{ sermon.id }}">
+                        {% endif %}
+
+                        <!-- Core Metadata -->
+                        <div class="row mb-4">
+                            <div class="col-md-8">
+                                <label class="form-label text-cyan">Title <span class="text-danger">*</span></label>
+                                <input type="text" name="title" class="form-control form-control-dark"
+                                       value="{{ sermon.title if sermon else '' }}" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-cyan">Visibility</label>
+                                <select name="visibility" class="form-select form-control-dark">
+                                    <option value="private" {{ 'selected' if sermon.visibility == 'private' or not sermon }}>Private</option>
+                                    <option value="collaborators" {{ 'selected' if sermon.visibility == 'collaborators' }}>Collaborators</option>
+                                    <option value="pastoral_group" {{ 'selected' if sermon.visibility == 'pastoral_group' }}>Pastoral Group</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label text-cyan">Primary Passage</label>
+                                <input type="text" name="primary_passage" class="form-control form-control-dark"
+                                       value="{{ sermon.primary_passage if sermon else '' }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-cyan">Service Date</label>
+                                <input type="date" name="service_date" class="form-control form-control-dark"
+                                       value="{{ sermon.service_date if sermon else '' }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-cyan">Preacher</label>
+                                <select name="preacher_id" class="form-select form-control-dark">
+                                    <option value="">—</option>
+                                    {% for user in pastoral_users %}
+                                        <option value="{{ user.id }}" {{ 'selected' if sermon.preacher_id == user.id }}>
+                                            {{ user.full_name or user.username }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Series Tags -->
+                        <div class="mb-4">
+                            <label class="form-label text-cyan">Series Tags (comma-separated)</label>
+                            <input type="text" name="series_tags" class="form-control form-control-dark"
+                                   value="{{ sermon.series_tags|join(', ') if sermon.series_tags else '' }}"
+                                   placeholder="Easter 2026, Faith, Grace">
+                        </div>
+
+                        <!-- Quill Editor for Sections -->
+                        <div class="mb-4">
+                            <label class="form-label text-cyan">Sermon Sections</label>
+                            <div id="quill-editor" class="quill-dark" style="height: 600px;"></div>
+                            <textarea name="sections_json" id="sections-json" style="display:none;"></textarea>
+                        </div>
+
+                        <!-- Collaborators -->
+                        <div class="mb-4">
+                            <label class="form-label text-cyan">Collaborators</label>
+                            <div class="d-flex gap-2 mb-2">
+                                <select id="collaborator-select" class="form-select form-control-dark" style="width: auto;">
+                                    <option value="">Add collaborator...</option>
+                                    {% for user in pastoral_users %}
+                                        <option value="{{ user.id }}">{{ user.full_name or user.username }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" id="add-collaborator-btn" class="btn btn-outline-cyan">Add</button>
+                            </div>
+                            <div id="collaborators-list">
+                                {% for collab in collaborators %}
+                                    <span class="badge bg-info text-dark me-2 mb-2">
+                                        {{ collab.full_name or collab.username }}
+                                        <a href="#" class="text-dark ms-1 remove-collab" data-id="{{ collab.id }}">×</a>
+                                    </span>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Additional Text Fields -->
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <label class="form-label text-cyan">Header Text</label>
+                                <textarea name="header_text" class="form-control form-control-dark" rows="3">{{ sermon.header_text if sermon else '' }}</textarea>
+                            </div>
+                            <div class="col-md-6 mb-4">
+                                <label class="form-label text-cyan">Footer Text</label>
+                                <textarea name="footer_text" class="form-control form-control-dark" rows="3">{{ sermon.footer_text if sermon else '' }}</textarea>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label text-cyan">Conclusion Text</label>
+                            <textarea name="conclusion_text" class="form-control form-control-dark" rows="4">{{ sermon.conclusion_text if sermon else '' }}</textarea>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label text-cyan">Notes</label>
+                            <textarea name="notes" class="form-control form-control-dark" rows="5">{{ sermon.notes if sermon else '' }}</textarea>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+<script src="{{ url_for('static', filename='js/global/pastoral/sermon_editor.js') }}"></script>
+<script>
+    // Initialize Quill (dark theme)
+    var quill = new Quill('#quill-editor', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{'header': [1, 2, 3, false]}],
+                ['bold', 'italic', 'underline'],
+                [{'list': 'ordered'}, {'list': 'bullet'}],
+                ['link', 'image'],
+                ['clean']
+            ]
+        }
+    });
+
+    // Load existing sections on edit
+    {% if sections %}
+        quill.setContents({{ sections|tojson|safe }});
+    {% endif %}
+
+    // Save handler
+    document.getElementById('save-btn').addEventListener('click', function() {
+        document.getElementById('sections-json').value = JSON.stringify(quill.getContents().ops);
+        // Submit form (handled by route)
+        document.getElementById('sermon-form').submit();
+    });
+
+    // Collaborator management
+    document.getElementById('add-collaborator-btn').addEventListener('click', function() {
+        const select = document.getElementById('collaborator-select');
+        const userId = select.value;
+        if (!userId) return;
+
+        // Add badge (client-side)
+        const list = document.getElementById('collaborators-list');
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-info text-dark me-2 mb-2';
+        badge.innerHTML = select.options[select.selectedIndex].text +
+                         '<a href="#" class="text-dark ms-1 remove-collab" data-id="' + userId + '">×</a>';
+        list.appendChild(badge);
+
+        // Reset select
+        select.value = '';
+    });
+
+    // Remove collaborator
+    document.querySelectorAll('.remove-collab').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            this.parentElement.remove();
+        });
+    });
+</script>
+{% endblock %}

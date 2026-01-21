@@ -1,0 +1,50 @@
+<!-- myvinechurchonline/app/templates/members/base_members.html -->
+<!-- Full path: myvinechurchonline/app/templates/members/base_members.html -->
+<!-- File name: base_members.html -->
+<!-- Brief, detailed purpose: Common base template for ALL Members module pages (dashboard, add/edit member, email roster).
+   Provides consistent glass wrapper, flash messages, and navigation menu with active state highlighting.
+   Pure global CSS only – no extra links. -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="form-page-wrapper">
+    <div class="form-container">
+        <h1 class="page-title">{% block page_title %}Members{% endblock %}</h1>
+        <p class="page-description">{% block page_description %}{% endblock %}</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="menu">
+            <a href="{{ url_for('members.members_directory') }}"
+               {% if request.endpoint == 'members.members_directory' %}class="active"{% endif %}>
+                Members Dashboard
+            </a>
+
+            {% if session.get('user_role') in ['Staff', 'Admin', 'Owner'] %}
+            <a href="{{ url_for('members.add_member') }}"
+               {% if request.endpoint == 'members.add_member' and request.view_args.get('member_id') is none %}class="active"{% endif %}>
+                Add Member
+            </a>
+            {% endif %}
+
+            {% if session.get('user_role') in ['Admin', 'Owner'] %}
+            <a href="{{ url_for('members.email_roster') }}"
+               {% if request.endpoint == 'members.email_roster' %}class="active"{% endif %}>
+                Email Roster
+            </a>
+            {% endif %}
+        </div>
+
+        {% block members_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}

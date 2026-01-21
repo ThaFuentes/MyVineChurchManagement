@@ -1,0 +1,112 @@
+<!-- app/templates/public/prayers/view_prayer.html -->
+<!-- Full path: WebChurchMan/app/templates/public/prayers/view_prayer.html -->
+<!-- File name: view_prayer.html -->
+<!-- Brief, detailed purpose: PUBLIC single prayer request detail view.
+   All visitors (logged-in or guests) can view public prayer requests.
+   Guests can add responses (name optional → defaults to Anonymous).
+   All submissions checked against censor list before saving (handled server-side).
+   No edit/delete buttons shown (public read-only for management).
+   Responses table always visible.
+   Uses ONLY global classes.
+   Mirrors view_event.html structure for consistency. -->
+
+{% extends "base.html" %}
+
+{% block page_title %}{{ prayer.title|title }}{% endblock %}
+
+{% block content %}
+
+<section class="content-section">
+
+    <!-- Header: Title + Info (no actions – management hidden in public view) -->
+    <div class="event-header-flex">
+        <div class="event-title-info">
+            <h2 class="page-title">{{ prayer.title|title }}</h2>
+            <p class="event-key-info">
+                Posted {{ prayer.date_posted.strftime('%B %d, %Y') if prayer.date_posted else 'date unknown' }}
+                by {{ prayer.creator_name }}
+                {% if responses %} • {{ responses|length }} response{{ 's' if responses|length != 1 else '' }}{% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Description -->
+    <section class="content-section">
+        <h3 class="section-title">Prayer Request</h3>
+        <div class="card glass">
+            {{ prayer.description | nl2br | censor }}
+        </div>
+    </section>
+
+    <!-- Responses – COLLAPSIBLE and COLLAPSED by default -->
+    <details class="collapsible-section glass" open>
+        <summary class="collapsible-summary section-title">
+            Responses {% if responses %}({{ responses|length }}){% endif %}
+        </summary>
+
+        <div class="collapsible-content">
+
+            {% if responses %}
+            <div class="table-wrapper glass">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>By</th>
+                            <th>Response</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in responses %}
+                        <tr>
+                            <td>{{ r.date_added.strftime('%b %d, %Y') }}</td>
+                            <td><strong>{{ r.responder_name }}</strong></td>
+                            <td>{{ r.prayer | nl2br | censor }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="card glass">
+                <p><em>No responses yet – be the first to pray!</em></p>
+            </div>
+            {% endif %}
+
+            <!-- Add Response Form – shown to everyone (guests + logged-in) -->
+            <section class="content-section" style="margin-top:2rem;">
+                <h3 class="section-subtitle">Add Your Prayer Response</h3>
+                <form action="{{ url_for('prayers.view_prayer', prayer_id=prayer.id) }}" method="POST" class="styled-form">
+
+                    {% if not is_logged_in %}
+                    <div class="form-group">
+                        <label class="control-label">Your Name (optional – leave blank for "Anonymous")</label>
+                        <input type="text" name="contributor_name" class="form-input" placeholder="Your name">
+                        <p class="help-text">This helps others know who is praying with you.</p>
+                    </div>
+                    {% endif %}
+
+                    <div class="form-group">
+                        <label class="control-label">Your Response <span class="required">*</span></label>
+                        <textarea name="prayer" rows="6" class="form-input" required
+                                  placeholder="Write your prayer, encouragement, or scripture..."></textarea>
+                        <p class="help-text">All responses are reviewed for appropriateness before appearing.</p>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">Submit Response</button>
+                    </div>
+                </form>
+            </section>
+
+        </div>
+    </details>
+
+    <!-- Back to Prayers Dashboard -->
+    <div class="form-actions" style="margin-top:3rem;">
+        <a href="{{ url_for('prayers.prayers') }}" class="btn-secondary">← Back to Prayers</a>
+    </div>
+
+</section>
+
+{% endblock %}

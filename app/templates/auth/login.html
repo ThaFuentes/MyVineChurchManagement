@@ -1,0 +1,73 @@
+<!-- app/templates/auth/login.html -->
+<!-- Full path: myvinechurchonline/app/templates/auth/login.html -->
+<!-- File name: login.html -->
+<!-- Brief, detailed purpose: Dedicated member login page (route '/login').
+   FULL REBUILD – mirrors public listing pages (e.g., announcements.html) in structure/spacing.
+   Extends unified base_public.html – inherits full header, navigation, flash messages, footer, clock.
+   Hero intro section (big centered title + welcoming paragraph), then centered login form.
+   Manual HTML form (no WTForms) – clean, spacious glow-card with cyan accents.
+   Warm, senior-friendly layout with reduced gaps and large text/buttons.
+   FIXED: No 'form' variable used – removed any WTForms references (hidden_tag, etc.). -->
+
+{% extends "base_public.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 6rem 2rem 5rem;">
+  <h2 style="font-size: 3.5rem; color: var(--primary); margin-bottom: 2.5rem; text-shadow: 0 0 30px var(--primary);">
+    Welcome Back
+  </h2>
+
+  <p style="font-size: 1.8rem; max-width: 900px; margin: 0 auto 4rem; line-height: 1.8;">
+    Login to access your account, member directory, events, prayers, sermons, and more.<br>
+    We're glad you're part of our community.
+  </p>
+</div>
+
+<!-- Login form – centered card, mirrors public list containers -->
+<div style="padding: 0 2rem 8rem;">
+  <div style="max-width: 600px; margin: 0 auto;">
+    <div class="glow-card" style="padding: 3rem 2.5rem; border-radius: 16px; background: rgba(20,20,30,0.85); backdrop-filter: blur(12px); border: 1px solid rgba(0,255,255,0.3); box-shadow: 0 0 30px rgba(0,255,255,0.4);">
+
+      <form method="POST" action="{{ url_for('auth.login') }}">
+        <div style="margin-bottom: 1.8rem;">
+          <label for="username" style="display: block; margin-bottom: 0.6rem; font-weight: 600; font-size: 1.2rem;">Username</label>
+          <input type="text" name="username" id="username" required autofocus
+                 style="width: 100%; padding: 1rem; border-radius: 8px; border: 1px solid var(--primary); background: rgba(0,0,0,0.3); color: white; font-size: 1.1rem;"
+                 placeholder="Enter your username">
+        </div>
+
+        <div style="margin-bottom: 1.8rem;">
+          <label for="password" style="display: block; margin-bottom: 0.6rem; font-weight: 600; font-size: 1.2rem;">Password</label>
+          <input type="password" name="password" id="password" required
+                 style="width: 100%; padding: 1rem; border-radius: 8px; border: 1px solid var(--primary); background: rgba(0,0,0,0.3); color: white; font-size: 1.1rem;"
+                 placeholder="Enter your password">
+        </div>
+
+        <div style="margin-bottom: 2.5rem; display: flex; align-items: center; gap: 0.8rem;">
+          <input type="checkbox" name="remember_me" id="remember_me">
+          <label for="remember_me" style="font-size: 1.1rem;">Remember me</label>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 2rem;">
+          <button type="submit"
+                  style="width: 100%; padding: 1.3rem; font-size: 1.4rem; font-weight: 600; border-radius: 8px; background: var(--primary); color: #000; border: none; cursor: pointer; box-shadow: 0 0 25px rgba(0,255,255,0.6);">
+            Login
+          </button>
+        </div>
+
+        <div style="text-align: center; font-size: 1rem;">
+          <a href="{{ url_for('auth.request_reset_password') }}" style="color: var(--primary);">Can't remember password?</a><br>
+          <a href="{{ url_for('auth.forgot_username') }}" style="color: var(--primary);">Forgot Username?</a>
+        </div>
+      </form>
+
+      <p style="text-align: center; margin-top: 3rem; color: var(--text-muted); font-size: 1rem;">
+        New here? <a href="{{ url_for('auth.register') }}" style="color: var(--primary);">Create an account</a><br>
+        Or <a href="{{ url_for('public.public_dashboard') }}" style="color: var(--primary);">continue as guest</a> to explore
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

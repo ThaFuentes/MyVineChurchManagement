@@ -1,0 +1,248 @@
+<!-- WebChurchMan/app/templates/public/events/event_detail.html -->
+<!-- Full path: WebChurchMan/app/templates/public/events/event_detail.html -->
+<!-- File name: event_detail.html -->
+<!-- Brief, detailed purpose: Public single event detail page – clean, readable, no admin controls.
+   ALL inline styles removed → uses ONLY global CSS classes for consistency.
+   User-generated potluck fields are now censored on display via global Jinja |censor filter.
+   Client-side submission check retained for instant UX feedback (mirrors server-side logic).
+   Uses word-boundary regex in JS for accurate matching (prevents false positives like 'class' matching 'ass').
+   Safe fallback: if censored_words not provided → empty list → no client-side blocking.
+   Server-side blocking (via contains_censored_word() in route) remains primary security layer. -->
+
+{% extends "base_public.html" %}
+
+{% block title %}{{ event.event_name|title }}{% endblock %}
+
+{% block content %}
+
+<!-- Event Header -->
+<section class="content-section event-header">
+    <h1 class="page-title">{{ event.event_name|title }}</h1>
+    <div class="event-meta">
+        <p><strong>Date:</strong> {{ event.event_date }}</p>
+        {% if event.event_time %}
+            <p><strong>Time:</strong> {{ event.event_time }}</p>
+        {% endif %}
+        {% if event.location %}
+            <p><strong>Location:</strong> {{ event.location }}</p>
+        {% endif %}
+    </div>
+</section>
+
+<div class="content-wrapper">
+
+    <!-- Description -->
+    {% if event.description %}
+    <section class="content-section">
+        <h3 class="section-title">Description</h3>
+        <div class="card glass">
+            {{ event.description | safe }}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- People & Theme -->
+    {% set people_fields = [
+        ('Speaker/Host', event.speaker_host),
+        ('Special Guests', event.special_guests),
+        ('Theme', event.theme),
+        ('Event Sponsor', event.event_sponsor),
+        ('Event Coordinator', event.event_coordinator)
+    ] %}
+    {% set people_data = people_fields|selectattr(1)|list %}
+    {% if people_data %}
+    <section class="content-section">
+        <h3 class="section-title">People & Theme</h3>
+        <div class="card glass">
+            {% for label, value in people_data %}
+                <p><strong>{{ label }}:</strong> {{ value }}</p>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Logistics -->
+    {% set logistics_fields = [
+        ('Agenda', event.agenda),
+        ('Registration Info', event.registration_info),
+        ('Cost/Fees', event.cost_fees if event.cost_fees and event.cost_fees > 0 else None),
+        ('Parking Info', event.parking_info),
+        ('Dress Code', event.dress_code),
+        ('Food/Beverages', event.food_beverages),
+        ('Childcare Availability', event.childcare_availability),
+        ('Accessibility Info', event.accessibility)
+    ] %}
+    {% set logistics_data = logistics_fields|selectattr(1)|list %}
+    {% if logistics_data %}
+    <section class="content-section">
+        <h3 class="section-title">Logistics</h3>
+        <div class="card glass">
+            {% for label, value in logistics_data %}
+                <p><strong>{{ label }}:</strong>
+                    {% if label == 'Cost/Fees' %}
+                        ${{ "%.2f"|format(value) }}
+                    {% else %}
+                        {{ value|nl2br }}
+                    {% endif %}
+                </p>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Communication & Media -->
+    {% set comm_fields = [
+        ('Contact Info', event.contact_info),
+        ('Social Media Hashtag', event.social_media_hashtag),
+        ('Promotional Materials', event.promotional_materials),
+        ('Announcements/Reminders', event.announcements_reminders),
+        ('Live Streaming Details', event.live_streaming_details),
+        ('Feedback Form Link', event.feedback_form)
+    ] %}
+    {% set comm_data = comm_fields|selectattr(1)|list %}
+    {% if comm_data %}
+    <section class="content-section">
+        <h3 class="section-title">Communication & Media</h3>
+        <div class="card glass">
+            {% for label, value in comm_data %}
+                <p><strong>{{ label }}:</strong>
+                    {% if label == 'Feedback Form Link' %}
+                        <a href="{{ value }}" target="_blank" rel="noopener">{{ value }}</a>
+                    {% else %}
+                        {{ value|nl2br }}
+                    {% endif %}
+                </p>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Additional Details -->
+    {% set additional_fields = [
+        ('Volunteer Opportunities', event.volunteer_opportunities),
+        ('Donation Info', event.donation_info),
+        ('Safety Protocols', event.safety_protocols),
+        ('Follow Up', event.follow_up),
+        ('Event Objectives', event.event_objectives)
+    ] %}
+    {% set additional_data = additional_fields|selectattr(1)|list %}
+    {% if additional_data %}
+    <section class="content-section">
+        <h3 class="section-title">Additional Details</h3>
+        <div class="card glass">
+            {% for label, value in additional_data %}
+                <p><strong>{{ label }}:</strong><br>{{ value|nl2br }}</p>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Potluck – collapsed by default -->
+    {% if event.potluck_enabled %}
+    <section class="content-section">
+        <details class="collapsible glass">
+            <summary class="section-title potluck-summary">Potluck Contributions</summary>
+
+            <div class="potluck-content">
+
+                <!-- Contribution Form -->
+                <div class="card glass form-card">
+                    <h4 class="section-subtitle">Add Your Contribution</h4>
+
+                    <form id="potluck-form" method="POST" class="styled-form">
+                        <div class="form-group">
+                            <label class="control-label">Your Name <span class="required">*</span></label>
+                            <input type="text" name="name" class="form-input" required placeholder="Your name">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="control-label">What are you bringing? <span class="required">*</span></label>
+                            <input type="text" name="item" class="form-input" required placeholder="e.g., Potato salad">
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="control-label">Quantity (optional)</label>
+                                <input type="text" name="quantity" class="form-input" placeholder="e.g., Serves 10">
+                            </div>
+                            <div class="form-group">
+                                <label class="control-label">Note (optional)</label>
+                                <input type="text" name="note" class="form-input" placeholder="e.g., Gluten-free">
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Add Contribution</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Current Signups (censored on display) -->
+                <div class="table-wrapper glass">
+                    {% if signups %}
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Bringing</th>
+                                <th>Quantity</th>
+                                <th>Note</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in signups %}
+                            <tr>
+                                <td>{{ s.name | censor }}</td>
+                                <td>{{ s.item | censor }}</td>
+                                <td>{{ s.quantity | censor | default('') }}</td>
+                                <td>{{ s.note | censor | default('') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="no-data">No contributions yet.</p>
+                    {% endif %}
+                </div>
+
+            </div>
+        </details>
+    </section>
+    {% endif %}
+
+</div>
+
+<!-- Client-side censored words check (mirrors server-side word-boundary logic) -->
+<script>
+  // Safe default: empty list if not provided
+  const censoredWords = {{ censored_words|default([])|tojson }};
+
+  const form = document.getElementById('potluck-form');
+  if (form && censoredWords.length > 0) {
+    // Sort longer phrases first (same as Python helper)
+    const sortedWords = censoredWords
+      .map(w => w.toLowerCase().trim())
+      .filter(w => w)
+      .sort((a, b) => b.length - a.length);
+
+    form.addEventListener('submit', function(e) {
+      const fields = [
+        document.querySelector('input[name="name"]')?.value || '',
+        document.querySelector('input[name="item"]')?.value || '',
+        document.querySelector('input[name="note"]')?.value || ''
+      ];
+      const combined = fields.join(' ').toLowerCase();
+
+      for (let word of sortedWords) {
+        const regex = new RegExp('\\b' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
+        if (regex.test(combined)) {
+          alert('Your submission contains a prohibited word or phrase. Please revise and try again.');
+          e.preventDefault();
+          return false;
+        }
+      }
+    });
+  }
+</script>
+
+{% endblock %}

@@ -1,0 +1,156 @@
+{# app/templates/pastoral/sermons_list.html #}
+{# Full path: WebChurchMan/app/templates/pastoral/sermons_list.html #}
+{# File name: sermons_list.html #}
+{# Brief, detailed purpose:
+#   Sermon library browser for the Pastoral Sermon Builder.
+#   Displays all sermons visible to the current user (own + collaborators + pastoral_group).
+#   Responsive card grid with key details, visibility badges, and quick actions.
+#   Prominent "New Sermon" button, server-aware search/filter bar, and empty state handling.
+#   Delete uses POST form with JS confirmation.
+#   Fully rebuilt for consistency, smoothness, and correct endpoint usage. #}
+
+{% extends "pastoral/base_pastoral.html" %}
+
+{% block title %}Sermon Library{% endblock %}
+
+{% block pastoral_content %}
+<div class="container-fluid py-5">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-5">
+        <div>
+            <h1 class="text-cyan mb-1">Sermon Library</h1>
+            <p class="text-muted mb-0">{{ sermons|length }} sermon{{ 's' if sermons|length != 1 else '' }} visible to you</p>
+        </div>
+        <a href="{{ url_for('pastoral.sermons.new') }}" class="btn btn-success btn-lg shadow">
+            <i class="fas fa-plus me-2"></i>New Sermon
+        </a>
+    </div>
+
+    <!-- Search / Filter Bar -->
+    <div class="card glass-card mb-5 p-4">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label text-cyan">Search</label>
+                <input type="text" name="q" class="form-control form-control-dark"
+                       placeholder="Title, passage, tags, notes..."
+                       value="{{ request.args.get('q', '') }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-cyan">Visibility</label>
+                <select name="visibility" class="form-select form-control-dark">
+                    <option value="">All</option>
+                    <option value="private" {{ 'selected' if request.args.get('visibility') == 'private' }}>Private</option>
+                    <option value="collaborators" {{ 'selected' if request.args.get('visibility') == 'collaborators' }}>Collaborators</option>
+                    <option value="pastoral_group" {{ 'selected' if request.args.get('visibility') == 'pastoral_group' }}>Pastoral Group</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-grid gap-2 d-md-flex">
+                <button type="submit" class="btn btn-outline-cyan">Apply Filters</button>
+                {% if request.args %}
+                    <a href="{{ url_for('pastoral.sermons.list') }}" class="btn btn-outline-secondary">Clear</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- Sermon Grid -->
+    {% if sermons %}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
+            {% for sermon in sermons %}
+                <div class="col">
+                    <div class="card glass-card h-100 shadow hover-lift transition">
+                        <div class="card-body d-flex flex-column">
+                            <!-- Visibility Badge -->
+                            <div class="text-end mb-2">
+                                {% if sermon.visibility == 'private' %}
+                                    <span class="badge bg-secondary">Private</span>
+                                {% elif sermon.visibility == 'collaborators' %}
+                                    <span class="badge bg-info text-dark">Collaborators</span>
+                                {% elif sermon.visibility == 'pastoral_group' %}
+                                    <span class="badge bg-success">Shared</span>
+                                {% endif %}
+                            </div>
+
+                            <!-- Title -->
+                            <h5 class="card-title mb-3">
+                                <a href="{{ url_for('pastoral.sermons.edit', sermon_id=sermon.id) }}"
+                                   class="text-decoration-none text-white stretched-link">
+                                    {{ sermon.title or 'Untitled Sermon' }}
+                                </a>
+                            </h5>
+
+                            <!-- Details -->
+                            <div class="small text-muted mb-4 flex-grow-1">
+                                {% if sermon.primary_passage %}
+                                    <div><strong>Passage:</strong> {{ sermon.primary_passage }}</div>
+                                {% endif %}
+                                {% if sermon.service_date %}
+                                    <div><strong>Date:</strong> {{ sermon.service_date.strftime('%b %d, %Y') }}</div>
+                                {% endif %}
+                                <div><strong>Last edited:</strong> {{ sermon.updated_at|relative_time }}</div>
+                            </div>
+
+                            <!-- Tags -->
+                            {% if sermon.series_tags %}
+                                <div class="mb-3">
+                                    {% set tags = sermon.series_tags if sermon.series_tags is iterable and sermon.series_tags is not string else sermon.series_tags.split(',') %}
+                                    {% for tag in tags %}
+                                        <span class="badge bg-cyan text-dark me-1">{{ tag.strip() }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                            <!-- Action Buttons -->
+                            <div class="mt-auto d-grid gap-2 d-md-flex">
+                                <a href="{{ url_for('pastoral.sermons.edit', sermon_id=sermon.id) }}"
+                                   class="btn btn-sm btn-outline-cyan flex-fill">Edit</a>
+                                <a href="{{ url_for('pastoral.podium.view', sermon_id=sermon.id) }}"
+                                   class="btn btn-sm btn-outline-cyan flex-fill" target="_blank">Podium</a>
+                                <a href="{{ url_for('pastoral.sermons_export.single', sermon_id=sermon.id) }}"
+                                   class="btn btn-sm btn-outline-cyan flex-fill">Export DOCX</a>
+
+                                {% if sermon.created_by == session.user_id %}
+                                    <form method="POST" action="{{ url_for('pastoral.sermons.delete', sermon_id=sermon.id) }}"
+                                          class="d-inline"
+                                          onsubmit="return confirm('Permanently delete «{{ sermon.title }}»? This cannot be undone.');">
+                                        <button type="submit" class="btn btn-sm btn-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <!-- Empty State -->
+        <div class="text-center py-5">
+            <i class="fas fa-book-open fa-5x text-muted mb-4 opacity-50"></i>
+            <h3 class="text-muted">No Sermons Found</h3>
+            <p class="text-muted mb-4">Create your first sermon or adjust filters to see existing ones.</p>
+            <a href="{{ url_for('pastoral.sermons.new') }}" class="btn btn-success btn-lg">
+                <i class="fas fa-plus me-2"></i>Create Your First Sermon
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Client-side live search fallback (in case server-side filtering is not yet active)
+    const searchInput = document.querySelector('input[name="q"]');
+    if (searchInput) {
+        searchInput.addEventListener('input', function () {
+            const term = this.value.toLowerCase();
+            document.querySelectorAll('.sermon-card, .card.glass-card').forEach(card => {
+                const text = card.textContent.toLowerCase();
+                const col = card.closest('.col');
+                if (col) col.style.display = text.includes(term) ? '' : 'none';
+            });
+        });
+    }
+</script>
+{% endblock %}

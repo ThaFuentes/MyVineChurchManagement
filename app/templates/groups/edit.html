@@ -1,0 +1,176 @@
+<!-- myvinechurchonline/app/templates/groups/edit.html -->
+<!-- Full path: myvinechurchonline/app/templates/groups/edit.html -->
+<!-- File name: edit.html -->
+<!-- Brief, detailed purpose: Form for editing an existing permission group with granular permission checkboxes.
+   Permissions grouped into logical, collapsible sections (identical to create.html).
+   "Current Members" section shows assigned members with role update/remove.
+   "Add Member" now uses live search by name, username, or email with direct "Add as Member/Leader" buttons.
+   Fully uses GLOBAL CSS only – consistent with other admin forms. -->
+
+{% extends "base.html" %}
+
+{% block title %}Edit Permission Group{% endblock %}
+
+{% block content %}
+<div class="form-page-wrapper">
+    <div class="form-container">
+        <h1 class="page-title">Edit Permission Group</h1>
+
+        <p class="page-description">
+            Update the name, description, visibility, and permissions for the group "{{ group.name }}".<br>
+            Changes take effect immediately for all assigned members.
+        </p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Simple manual menu -->
+        <div class="menu">
+            <a href="{{ url_for('groups.list_groups') }}">Groups List</a>
+            <a class="active">Edit Group</a>
+        </div>
+
+        <section class="content-section">
+            <form method="POST" action="{{ url_for('groups.edit_group', group_id=group.id) }}" class="styled-form">
+                <!-- ... (existing name, description, visibility, and collapsible permissions sections unchanged – keep them exactly as in your current file) ... -->
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Save Changes</button>
+                    <a href="{{ url_for('groups.list_groups') }}" class="btn-secondary">Cancel</a>
+                </div>
+            </form>
+
+            <!-- Current Members Section -->
+            <section class="content-section" style="margin-top:3rem;">
+                <h2 class="section-title">Current Members ({{ group.member_count }})</h2>
+
+                {% if group.members %}
+                    <ul class="member-list">
+                        {% for member in group.members %}
+                            <li>
+                                <strong>{{ member.first_name }} {{ member.last_name }} (@{{ member.username }})</strong>
+                                – Role: {{ member.role_in_group|capitalize }}
+                                {% if group.can_manage %}
+                                    <div class="member-actions">
+                                        <form action="{{ url_for('groups.update_role', group_id=group.id, user_id=member.user_id) }}" method="POST" style="display:inline;">
+                                            <select name="role_in_group" class="form-input small">
+                                                <option value="member" {% if member.role_in_group == 'member' %}selected{% endif %}>Member</option>
+                                                <option value="leader" {% if member.role_in_group == 'leader' %}selected{% endif %}>Leader</option>
+                                            </select>
+                                            <button type="submit" class="btn-primary btn-small">Update Role</button>
+                                        </form>
+                                        <form action="{{ url_for('groups.remove_user', group_id=group.id, user_id=member.user_id) }}" method="POST" style="display:inline;">
+                                            <button type="submit" class="btn-danger btn-small"
+                                                    onclick="return confirm('Remove this user from the group?');">
+                                                Remove
+                                            </button>
+                                        </form>
+                                    </div>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>No users assigned yet.</p>
+                {% endif %}
+
+                <!-- New Live Search Add Member -->
+                {% if group.can_manage %}
+                    <h3 style="margin-top:2rem;">Add Member</h3>
+                    <div class="form-group search-group">
+                        <label for="user_search">Search by name, username, or email</label>
+                        <input type="text" id="user_search" class="form-input search-input" placeholder="Start typing..." autocomplete="off">
+                        <p class="help-text">Live search – click an Add button to assign the user.</p>
+                    </div>
+
+                    <div id="search_results" class="table-wrapper glass" style="max-height:320px; overflow-y:auto; display:none; margin-top:1rem;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th class="actions">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results_body">
+                                <!-- Filled by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+            </section>
+        </section>
+    </div>
+</div>
+
+{% if group.can_manage %}
+<script>
+  const searchInput = document.getElementById('user_search');
+  const resultsDiv = document.getElementById('search_results');
+  const resultsBody = document.getElementById('results_body');
+  let timer;
+
+  searchInput.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = searchInput.value.trim();
+
+    if (q.length < 2) {
+      resultsDiv.style.display = 'none';
+      return;
+    }
+
+    timer = setTimeout(() => {
+      fetch(`/groups/search_users?q=${encodeURIComponent(q)}`)
+        .then(response => response.json())
+        .then(users => {
+          resultsBody.innerHTML = '';
+          if (users.length === 0) {
+            resultsBody.innerHTML = '<tr><td colspan="2" class="no-data">No users found</td></tr>';
+          } else {
+            users.forEach(user => {
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td>
+                  <strong>${user.full_name}</strong> (@${user.username})<br>
+                  <small>${user.email}</small>
+                </td>
+                <td class="actions">
+                  <form action="{{ url_for('groups.assign_user', group_id=group.id) }}" method="POST" style="display:inline;">
+                    <input type="hidden" name="user_id" value="${user.id}">
+                    <input type="hidden" name="role_in_group" value="member">
+                    <button type="submit" class="btn-primary btn-small">Add as Member</button>
+                  </form>
+                  <form action="{{ url_for('groups.assign_user', group_id=group.id) }}" method="POST" style="display:inline;">
+                    <input type="hidden" name="user_id" value="${user.id}">
+                    <input type="hidden" name="role_in_group" value="leader">
+                    <button type="submit" class="btn-primary btn-small">Add as Leader</button>
+                  </form>
+                </td>
+              `;
+              resultsBody.appendChild(tr);
+            });
+          }
+          resultsDiv.style.display = 'block';
+        })
+        .catch(() => {
+          resultsBody.innerHTML = '<tr><td colspan="2" class="no-data">Search error</td></tr>';
+          resultsDiv.style.display = 'block';
+        });
+    }, 300);
+  });
+
+  // Hide results when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!searchInput.contains(e.target) && !resultsDiv.contains(e.target)) {
+      resultsDiv.style.display = 'none';
+    }
+  });
+</script>
+{% endif %}
+{% endblock %}

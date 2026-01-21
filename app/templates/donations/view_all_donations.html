@@ -1,0 +1,136 @@
+<!-- app/templates/donations/view_all_donations.html -->
+<!-- Full path: WebChurchMan/app/templates/donations/view_all_donations.html -->
+<!-- File name: view_all_donations.html -->
+<!-- Brief, detailed purpose: View All Donations page – extends base_donations.html for full consistency.
+   Searchable/filterable list grouped by donor, with expandable detail rows showing individual donations.
+   Delete option (permission-gated) in details. Uses ONLY global classes – glass table, etc.
+   Search/filter always visible (no collapsible) per user preference.
+   Search/filter reloads page via GET params (preserved functionality). -->
+
+{% extends "donations/base_donations.html" %}
+
+{% block page_title %}View All Donations{% endblock %}
+
+{% block page_description %}
+Complete list of all recorded donations, grouped by donor.<br>
+Search by name and filter by year below.
+{% endblock %}
+
+{% block donations_content %}
+
+{% if user_has_permission('view_donations') or user_has_permission('manage_donations') %}
+<!-- Search & Filters – always visible -->
+<section class="content-section">
+    <h2 class="section-title">Search and Filter Donations</h2>
+
+    <div class="search-controls styled-form inline-form">
+        <div class="form-group search-group">
+            <label for="search-term" class="control-label">Search by Name</label>
+            <input type="text" id="search-term" class="search-input"
+                   placeholder="Partial donor name..." value="{{ search_term|default('') }}" autocomplete="off">
+            <p class="help-text">Page reloads on apply.</p>
+        </div>
+
+        <div class="form-group filter-group">
+            <label for="year-select" class="control-label">Year</label>
+            <select id="year-select" class="form-input">
+                <option value="">All Years</option>
+                {% for year in years %}
+                    <option value="{{ year }}" {% if selected_year == year|string %}selected{% endif %}>{{ year }}</option>
+                {% endfor %}
+            </select>
+            <p class="help-text">Filter to a specific year.</p>
+        </div>
+
+        <div class="form-actions">
+            <button type="button" onclick="refreshDonations()" class="btn-primary">Apply Filters</button>
+        </div>
+    </div>
+</section>
+
+<!-- Donations Table -->
+<section class="content-section">
+    <h2 class="section-title">Donations by Donor</h2>
+
+    <div class="table-wrapper glass">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Donor Name</th>
+                    <th>Total Amount</th>
+                    <th>Number of Donations</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="donationsBody">
+                {% if donations %}
+                    {% for donation in donations %}
+                        <tr class="data-row"
+                            onclick="toggleDetails('details-{{ loop.index }}')"
+                            style="cursor: pointer;">
+                            <td><strong>{{ donation.name }}</strong></td>
+                            <td>${{ "%.2f"|format(donation.total_donations) }}</td>
+                            <td>{{ donation.number_of_donations }}</td>
+                            <td class="actions-cell"><!-- expand indicator --></td>
+                        </tr>
+                        <tr class="details-row" id="details-{{ loop.index }}" style="display:none;">
+                            <td colspan="4" class="details-content">
+                                <div class="potluck-content">
+                                    <ul class="donation-details-list">
+                                        {% for detail in detailed_donations[donation.name] %}
+                                            <li>
+                                                <strong>{{ detail.date[:10] if detail.date else '' }}</strong> —
+                                                ${{ "%.2f"|format(detail.amount) }}
+                                                ({{ detail.method }})
+                                                {% if detail.notes %}
+                                                    <br><em>{{ detail.notes|nl2br }}</em>
+                                                {% endif %}
+                                                {% if user_has_permission('manage_donations') %}
+                                                    <form method="POST" action="{{ url_for('donations.delete_donation_route', donation_id=detail.id) }}"
+                                                          class="inline-form" style="margin-top:0.5rem;"
+                                                          onsubmit="return confirm('Permanently delete this donation record?');">
+                                                        <button type="submit" class="btn-danger btn-small">Delete</button>
+                                                    </form>
+                                                {% endif %}
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="4" class="no-data">No donations found matching your criteria.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% else %}
+<div class="flash info">
+    You do not have permission to view donation records.
+</div>
+{% endif %}
+
+<script>
+  function toggleDetails(id) {
+    const row = document.getElementById(id);
+    if (!row) return;
+    const isShown = row.style.display === 'table-row';
+    row.style.display = isShown ? 'none' : 'table-row';
+  }
+
+  function refreshDonations() {
+    const search = encodeURIComponent(document.getElementById('search-term').value.trim());
+    const year = document.getElementById('year-select').value;
+    let url = '{{ url_for('donations.view_all_donations') }}';
+    const params = [];
+    if (search) params.push(`search=${search}`);
+    if (year) params.push(`year=${year}`);
+    if (params.length) url += '?' + params.join('&');
+    window.location.href = url;
+  }
+</script>
+{% endblock %}

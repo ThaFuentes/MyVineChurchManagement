@@ -1,0 +1,105 @@
+{# app/templates/pastoral/care/care_new.html #}
+{# Full path: WebChurchMan/app/templates/pastoral/care/care_new.html #}
+{# File name: care_new.html #}
+{# Brief, detailed purpose: Form to create a new pastoral care request. #}
+{#   • Select member receiving care (dropdown of active users) #}
+{#   • Choose request type (e.g., hospital visit, counseling, prayer need) #}
+{#   • Set urgency level #}
+{#   • Optional title + required description #}
+{#   • Inherits base_pastoral.html with dark theme, cyan accents #}
+{#   • Simple, clean layout – no bloat #}
+
+{% extends "pastoral/base_pastoral.html" %}
+
+{% block pastoral_content %}
+<div class="container mt-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8 col-xl-7">
+      <!-- Header -->
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-cyan mb-0">New Pastoral Care Request</h2>
+        <a href="{{ url_for('pastoral.care.care_dashboard') }}" class="btn btn-outline-secondary">
+          <i class="fas fa-arrow-left me-2"></i> Back to Dashboard
+        </a>
+      </div>
+
+      <!-- Form Card -->
+      <div class="card bg-dark border-cyan shadow">
+        <div class="card-body p-4">
+          <form method="POST" action="{{ url_for('pastoral.care.care_new') }}">
+            <!-- Member Selection -->
+            <div class="mb-4">
+              <label for="member_id" class="form-label text-cyan fw-bold">Member Receiving Care</label>
+              <select name="member_id" id="member_id" class="form-select" required>
+                <option value="">-- Select Member --</option>
+                {% for member in members %}
+                  <option value="{{ member.id }}">
+                    {{ member.first_name }} {{ member.last_name }}
+                    {% if member.email %} ({{ member.email }}){% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+              <small class="text-muted">Searchable dropdown – start typing name.</small>
+            </div>
+
+            <!-- Request Type -->
+            <div class="mb-4">
+              <label for="request_type" class="form-label text-cyan fw-bold">Type of Care Needed</label>
+              <select name="request_type" id="request_type" class="form-select" required>
+                <option value="">-- Select Type --</option>
+                <option value="hospital_visit">Hospital Visit / Illness</option>
+                <option value="counseling">Counseling / Pastoral Support</option>
+                <option value="prayer_need">Prayer Request</option>
+                <option value="bereavement">Bereavement / Loss</option>
+                <option value="meal_train">Meal Train / Practical Help</option>
+                <option value="other">Other (describe below)</option>
+              </select>
+            </div>
+
+            <!-- Urgency -->
+            <div class="mb-4">
+              <label for="urgency" class="form-label text-cyan fw-bold">Urgency Level</label>
+              <select name="urgency" id="urgency" class="form-select">
+                <option value="normal" selected>Normal</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent (ASAP)</option>
+                <option value="low">Low / Ongoing</option>
+              </select>
+            </div>
+
+            <!-- Title (optional) -->
+            <div class="mb-4">
+              <label for="title" class="form-label text-cyan fw-bold">Title / Summary (optional)</label>
+              <input type="text" name="title" id="title" class="form-control" placeholder="e.g., Hospital visit for surgery">
+            </div>
+
+            <!-- Description -->
+            <div class="mb-4">
+              <label for="description" class="form-label text-cyan fw-bold">Description / Details *</label>
+              <textarea name="description" id="description" class="form-control" rows="6" required placeholder="Include relevant details: hospital name/room, prayer points, family situation, etc."></textarea>
+              <small class="text-muted">All content is confidential to the pastoral team.</small>
+            </div>
+
+            <!-- Submit -->
+            <div class="text-end">
+              <button type="submit" class="btn btn-cyan btn-lg px-5">
+                <i class="fas fa-save me-2"></i> Create Request
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Optional: Make member dropdown searchable with Select2 or native browser search -->
+<script>
+  // If you later add Select2 from CDN:
+  // document.addEventListener('DOMContentLoaded', () => {
+  //   $('#member_id').select2({ placeholder: 'Search member name...', allowClear: true });
+  // });
+</script>
+{% endblock %}

@@ -1,0 +1,45 @@
+<!-- app/templates/events/base_events.html -->
+<!-- Full path: WebChurchMan/app/templates/events/base_events.html -->
+<!-- File name: base_events.html -->
+<!-- Brief, detailed purpose: Common base template for ALL Events module pages (dashboard, add, edit, view).
+   Exact mirror of base_donations.html / base_announcements.html / base_dreams.html → identical glassmorphism wrapper, menu, flash handling.
+   NO module-specific CSS – uses only global classes.
+   Menu: Events Dashboard (always) + Add Event (only with manage_events permission). -->
+
+{% extends "base.html" %}
+
+{% block extra_css %}
+{# Global CSS only – no events-specific files #}
+{% block events_page_css %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="form-page-wrapper">
+    <div class="form-container">
+        <h1 class="page-title">{% block page_title %}Events{% endblock %}</h1>
+        <p class="page-description">{% block page_description %}{% endblock %}</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="menu">
+            <a {% if request.endpoint == 'events.events' %}class="active"{% endif %}
+               href="{{ url_for('events.events') }}">Events Dashboard</a>
+
+            {% if user_has_permission('manage_events') %}
+                <a {% if request.endpoint in ['events.add_event', 'events.edit_event'] %}class="active"{% endif %}
+                   href="{{ url_for('events.add_event') }}">Add Event</a>
+            {% endif %}
+        </div>
+
+        {% block events_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+<!-- myvinechurchonline/app/templates/groups/base_groups.html -->
+<!-- Full path: myvinechurchonline/app/templates/groups/base_groups.html -->
+<!-- File name: base_groups.html -->
+<!-- Brief, detailed purpose: Common base template for ALL Groups module pages (list_groups, create_group, edit_group if added later).
+   100% structural mirror of events/base_events.html and the assumed donations/base_donations.html pattern:
+     - Identical glassmorphism wrapper (.form-page-wrapper > .form-container)
+     - Identical page-title / page-description / flash handling
+     - Identical menu with active highlighting
+     - Permission-protected "Create Group" link
+     - Loads groups_common.css first (for wrapper/shared styles), then page-specific block
+   This guarantees pixel-perfect visual consistency with Events and Donations admin/form pages without directly depending on their files. -->
+
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/groups/groups_common.css') }}?v=20260108">
+{% block groups_page_css %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="form-page-wrapper">
+    <div class="form-container">
+        <h1 class="page-title">{% block page_title %}Permission Groups{% endblock %}</h1>
+        <p class="page-description">{% block page_description %}{% endblock %}</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="menu">
+            <a {% if request.endpoint == 'groups.list_groups' %}class="active"{% endif %}
+               href="{{ url_for('groups.list_groups') }}">Groups List</a>
+
+            {% if user_has_permission('manage_groups') or current_user.role in ['Owner', 'Admin'] %}
+                <a {% if request.endpoint == 'groups.create_group' %}class="active"{% endif %}
+                   href="{{ url_for('groups.create_group') }}">Create Group</a>
+            {% endif %}
+        </div>
+
+        {% block groups_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}

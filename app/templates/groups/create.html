@@ -1,0 +1,167 @@
+<!-- myvinechurchonline/app/templates/groups/create.html -->
+<!-- Full path: myvinechurchonline/app/templates/groups/create.html -->
+<!-- File name: create.html -->
+<!-- Brief, detailed purpose: Form for creating a new permission group with granular permission checkboxes.
+   Accessible to Owner/Admin/Staff only.
+   Permissions now grouped into logical, collapsible sections for better readability and usability.
+   Each section uses <details> (collapsible) with a glass summary card.
+   Checkboxes remain in responsive .summary-cards grid inside each section.
+   First section (Core Content) open by default; others closed for faster initial load.
+   Fully uses GLOBAL CSS only – identical wrapper/menu/layout to Events/Donations add/edit forms.
+   Manual simple menu preserved for consistency with current pattern.
+   Visibility field unchanged. -->
+
+{% extends "base.html" %}
+
+{% block title %}Create Permission Group{% endblock %}
+
+{% block content %}
+<div class="form-page-wrapper">
+    <div class="form-container">
+        <h1 class="page-title">Create Permission Group</h1>
+
+        <p class="page-description">
+            Permission groups grant specific abilities to members without full admin access.<br>
+            Select exactly which features/actions this group should allow.
+        </p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Simple manual menu – matches Events/Donations pattern -->
+        <div class="menu">
+            <a href="{{ url_for('groups.list_groups') }}">Groups List</a>
+            <a class="active">Create Group</a>
+        </div>
+
+        <section class="content-section">
+            <form method="POST" class="styled-form">
+                <div class="form-group">
+                    <label for="name">Group Name <span class="required">*</span></label>
+                    <input type="text" id="name" name="name" required placeholder="e.g., Announcement Team, Moderators, Pastors" autofocus>
+                    <p class="help-text">Unique name — used to identify the group in code and UI.</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description (recommended)</label>
+                    <textarea id="description" name="description" rows="6" placeholder="Explain what membership in this group allows (e.g., 'Members can create and edit announcements')."></textarea>
+                    <p class="help-text">This appears in the group list for clarity.</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="visibility">Visibility</label>
+                    <select id="visibility" name="visibility">
+                        <option value="private" selected>Private – visible only to logged-in members</option>
+                        <option value="public">Public – visible to all visitors</option>
+                    </select>
+                    <p class="help-text">Public groups appear on the public dashboard (rare for permission groups).</p>
+                </div>
+
+                <!-- Collapsible Permission Sections -->
+                <div class="form-group permissions-group">
+                    <label class="section-label">Permissions Granted by Membership <span class="required">(select all that apply)</span></label>
+                    <p class="help-text" style="margin-bottom:1.5rem;">
+                        These are grouped for easier navigation. Expand each section to select permissions.
+                    </p>
+
+                    <!-- Core Content Creation & Moderation (open by default) -->
+                    <details open class="collapsible-section glass">
+                        <summary class="collapsible-summary section-subtitle">Core Content Creation & Moderation</summary>
+                        <div class="collapsible-content">
+                            <div class="summary-cards permissions-grid">
+                                {% for key in ['create_announcements', 'moderate_announcements', 'create_events', 'moderate_events', 'manage_event_registration', 'upload_sermons', 'moderate_sermons', 'moderate_prayers', 'moderate_dreams', 'moderate_prophecies'] %}
+                                    {% if key in known_permissions %}
+                                    <div class="card glass">
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" name="permissions" value="{{ key }}">
+                                            <span class="checkbox-custom"></span>
+                                            {{ known_permissions[key] }}
+                                        </label>
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- Financial & Operational -->
+                    <details class="collapsible-section glass">
+                        <summary class="collapsible-summary section-subtitle">Financial & Operational</summary>
+                        <div class="collapsible-content">
+                            <div class="summary-cards permissions-grid">
+                                {% for key in ['view_donations', 'manage_donations', 'manage_bills', 'manage_tickets', 'submit_tickets', 'send_emails'] %}
+                                    {% if key in known_permissions %}
+                                    <div class="card glass">
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" name="permissions" value="{{ key }}">
+                                            <span class="checkbox-custom"></span>
+                                            {{ known_permissions[key] }}
+                                        </label>
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- Member & Attendance Management -->
+                    <details class="collapsible-section glass">
+                        <summary class="collapsible-summary section-subtitle">Member & Attendance Management</summary>
+                        <div class="collapsible-content">
+                            <div class="summary-cards permissions-grid">
+                                {% for key in ['view_members', 'manage_members', 'manage_family_links', 'manage_attendance'] %}
+                                    {% if key in known_permissions %}
+                                    <div class="card glass">
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" name="permissions" value="{{ key }}">
+                                            <span class="checkbox-custom"></span>
+                                            {{ known_permissions[key] }}
+                                        </label>
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- Administration & Settings -->
+                    <details class="collapsible-section glass">
+                        <summary class="collapsible-summary section-subtitle">Administration & Settings</summary>
+                        <div class="collapsible-content">
+                            <div class="summary-cards permissions-grid">
+                                {% for key in ['manage_users', 'manage_groups', 'manage_settings', 'view_audit_logs', 'access_pastoral'] %}
+                                    {% if key in known_permissions %}
+                                    <div class="card glass">
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" name="permissions" value="{{ key }}">
+                                            <span class="checkbox-custom"></span>
+                                            {{ known_permissions[key] }}
+                                        </label>
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </details>
+
+                    <p class="help-text" style="margin-top:1rem;">
+                        To add more permissions, update KNOWN_PERMISSIONS in routes/groups.py.
+                    </p>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Create Group</button>
+                    <a href="{{ url_for('groups.list_groups') }}" class="btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </section>
+    </div>
+</div>
+{% endblock %}

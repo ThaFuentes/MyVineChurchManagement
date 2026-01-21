@@ -1,0 +1,57 @@
+<!-- app/templates/attendance/attendance_dashboard.html -->
+<!-- Full path: myvinechurchonline/app/templates/attendance/attendance_dashboard.html -->
+<!-- File name: attendance_dashboard.html -->
+<!-- Brief, detailed purpose: Attendance Dashboard / Overview page.
+   Extends base_attendance.html for full consistency.
+   Shows today's check-in count prominently.
+   Recent days table with clickable dates → future detailed view.
+   Clean glass cards/table layout using ONLY global classes.
+   Placeholder for future expansion (member history search, etc.). -->
+
+{% extends "attendance/base_attendance.html" %}
+
+{% block attendance_content %}
+
+<section class="content-section">
+    <h2 class="section-title">Attendance Overview</h2>
+
+    <!-- Today's Summary Card -->
+    <div class="summary-cards" style="margin-bottom: 3rem;">
+        <div class="card glass">
+            <h3>Today ({{ today_date }})</h3>
+            <p class="large-amount">{{ today_count }}</p>
+            <p>members checked in</p>
+        </div>
+    </div>
+
+    <!-- Recent Days Table -->
+    <h3 class="section-subtitle">Recent Attendance</h3>
+    {% if recent_days %}
+    <div class="table-wrapper glass">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Check-Ins</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for day in recent_days %}
+                <tr>
+                    <td>{{ day.date }}</td>
+                    <td>{{ day.count }}</td>
+                    <td>
+                        <a href="{{ url_for('attendance.day_detail', date=day.date) }}" class="btn-small btn-primary-small">View Details</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="no-data">No attendance records yet.</p>
+    {% endif %}
+</section>
+
+{% endblock %}

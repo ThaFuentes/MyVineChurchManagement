@@ -1,0 +1,57 @@
+<!-- app/templates/public/announcements/announcements.html -->
+<!-- Full path: WebChurchMan/app/templates/public/announcements/announcements.html -->
+<!-- File name: announcements.html -->
+<!-- Brief, detailed purpose: Public-facing Announcements page.
+   FULL REBUILD – now mirrors public/events/events.html exactly in structure, spacing, and styling.
+   Extends base_public.html – inherits single top-level nav + header.
+   Clean, spacious, centered text on dark background.
+   Simple readable list with subtle cyan accents and borders.
+   NO extra CSS – all styling global/minimal inline (identical to public events).
+   Displays ONLY public + active announcements.
+   Full content shown (safe HTML via |safe).
+   Titles highlighted in cyan with glow (matching event titles).
+   Structured posted date/by line (mirroring event date/time/location line).
+   If no announcements, only intro remains (clean open feel). -->
+
+{% extends "base_public.html" %}
+
+{% block title %}Announcements{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 6rem 2rem 5rem;">
+  <h2 style="font-size: 3.5rem; color: var(--primary); margin-bottom: 2.5rem; text-shadow: 0 0 30px var(--primary);">
+    Church Announcements
+  </h2>
+
+  <p style="font-size: 1.8rem; max-width: 900px; margin: 0 auto 4rem; line-height: 1.8;">
+    Stay connected with what's happening in our community.<br>
+    Important updates, reminders, and celebrations – all in one place.
+  </p>
+</div>
+
+<!-- Announcements list – only appears if announcements exist -->
+{% if announcements %}
+<div style="padding: 0 2rem 8rem;">
+  <div style="max-width: 1000px; margin: 0 auto;">
+    <ul style="list-style: none; padding: 0;">
+      {% for a in announcements %}
+      <li style="margin-bottom: 3rem; padding-bottom: 2.5rem; border-bottom: 1px solid rgba(0, 255, 255, 0.2);">
+        <h3 style="font-size: 2.2rem; margin: 0 0 1.2rem; color: var(--primary); text-shadow: 0 0 20px var(--primary);">
+          {{ a.title | title }}
+        </h3>
+        <small style="color: var(--text-muted); font-size: 1.3rem; display: block; margin-bottom: 1.5rem;">
+          <strong>Posted on:</strong> {{ a.datetime }}
+          {% if a.posted_by %} • <strong>By:</strong> {{ a.posted_by }}{% endif %}
+        </small>
+        {% if a.content %}
+        <div style="font-size: 1.3rem; line-height: 1.8; opacity: 0.95;">
+          {{ a.content | safe }}
+        </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

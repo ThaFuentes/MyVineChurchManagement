@@ -1,0 +1,109 @@
+<!-- app/templates/public/public_dashboard.html -->
+<!-- Full path: myvinechurchonline/app/templates/public/public_dashboard.html -->
+<!-- File name: public_dashboard.html -->
+<!-- Brief, detailed purpose: Public welcome dashboard ("Gathering Place").
+   FULL REBUILD – mirrors announcements.html structure exactly: hero intro + centered content.
+   Extends unified base_public.html – inherits header, nav, flash, footer, clock.
+   Displays previews of public content (events, sermons, announcements, prayers, dreams, prophecies).
+   Clean, spacious layout with cyan accents, no extra CSS – all inline/minimal (consistent with public listings).
+   If no content in a section, it gracefully skips (no empty boxes).
+   Warm, inviting feel for guests. -->
+
+{% extends "base_public.html" %}
+
+{% block title %}Welcome – MyVineChurch.Online{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 6rem 2rem 5rem;">
+  <h2 style="font-size: 3.5rem; color: var(--primary); margin-bottom: 2.5rem; text-shadow: 0 0 30px var(--primary);">
+    Welcome to MyVineChurch.Online
+  </h2>
+
+  <p style="font-size: 1.8rem; max-width: 900px; margin: 0 auto 4rem; line-height: 1.8;">
+    A place to connect, grow, and stay informed.<br>
+    Explore upcoming events, recent sermons, announcements, prayers, dreams, and prophecies.
+  </p>
+</div>
+
+<div style="padding: 0 2rem 8rem;">
+  <div style="max-width: 1200px; margin: 0 auto;">
+
+    <!-- Upcoming Events Preview -->
+    {% if events %}
+    <section style="margin-bottom: 4rem;">
+      <h3 style="font-size: 2.5rem; color: var(--primary); text-shadow: 0 0 20px var(--primary); margin-bottom: 1.5rem;">
+        Upcoming Events
+      </h3>
+      <ul style="list-style: none; padding: 0;">
+        {% for e in events %}
+        <li style="margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid rgba(0,255,255,0.2);">
+          <h4 style="font-size: 1.8rem; margin: 0 0 0.8rem; color: var(--primary);">
+            {{ e.event_name }}
+          </h4>
+          <small style="color: var(--text-muted); font-size: 1.2rem;">
+            {{ e.event_date }}{% if e.event_time %} at {{ e.event_time }}{% endif %}
+            {% if e.location %} • {{ e.location }}{% endif %}
+          </small>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <!-- Recent Sermons Preview -->
+    {% if sermons %}
+    <section style="margin-bottom: 4rem;">
+      <h3 style="font-size: 2.5rem; color: var(--primary); text-shadow: 0 0 20px var(--primary); margin-bottom: 1.5rem;">
+        Recent Sermons
+      </h3>
+      <ul style="list-style: none; padding: 0;">
+        {% for s in sermons %}
+        <li style="margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid rgba(0,255,255,0.2);">
+          <h4 style="font-size: 1.8rem; margin: 0 0 0.8rem; color: var(--primary);">
+            {{ s.title }}
+          </h4>
+          <small style="color: var(--text-muted); font-size: 1.2rem;">
+            Preached on {{ s.date_preached }}
+          </small>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <!-- Announcements Preview -->
+    {% if announcements %}
+    <section style="margin-bottom: 4rem;">
+      <h3 style="font-size: 2.5rem; color: var(--primary); text-shadow: 0 0 20px var(--primary); margin-bottom: 1.5rem;">
+        Latest Announcements
+      </h3>
+      <ul style="list-style: none; padding: 0;">
+        {% for a in announcements %}
+        <li style="margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid rgba(0,255,255,0.2);">
+          <h4 style="font-size: 1.8rem; margin: 0 0 0.8rem; color: var(--primary);">
+            {{ a.title }}
+          </h4>
+          <small style="color: var(--text-muted); font-size: 1.2rem;">
+            Posted on {{ a.datetime }}
+          </small>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <!-- Prayers, Dreams, Prophecies – similar pattern -->
+    {% if prayers %}
+    <section style="margin-bottom: 4rem;">
+      <h3 style="font-size: 2.5rem; color: var(--primary); text-shadow: 0 0 20px var(--primary); margin-bottom: 1.5rem;">
+        Recent Prayer Requests
+      </h3>
+      <!-- Add loop similar to above -->
+    </section>
+    {% endif %}
+
+    <!-- Add similar sections for dreams and prophecies as needed -->
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,67 @@
+<!-- app/templates/settings/ai.html -->
+<!-- Full path: WebChurchMan/app/templates/settings/ai.html -->
+<!-- File name: ai.html -->
+<!-- Brief, detailed purpose: Dedicated Settings page for AI Insights Configuration.
+   Extends base_settings.html → inherits glass wrapper, internal .menu navigation, flash messages.
+   All fields, help text, defaults, and toggle logic preserved 100%.
+   Uses only global CSS classes. -->
+
+{% extends "settings/base_settings.html" %}
+
+{% block settings_content %}
+
+<section class="content-section">
+    <h2 class="section-title">AI Insights Configuration</h2>
+    <p class="help-text">
+        Configure AI-generated summaries for donations, events, and future modules.<br>
+        Supports multiple providers (xAI Grok recommended).
+    </p>
+
+    <form method="POST" class="styled-form">
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="ai_provider">AI Provider</label>
+                <select name="ai_provider" id="ai_provider">
+                    <option value="grok" {% if settings.ai_provider == 'grok' or not settings.ai_provider %}selected{% endif %}>xAI Grok (recommended)</option>
+                    <option value="openai" {% if settings.ai_provider == 'openai' %}selected{% endif %}>OpenAI</option>
+                    <option value="gemini" {% if settings.ai_provider == 'gemini' %}selected{% endif %}>Google Gemini</option>
+                    <option value="ollama" {% if settings.ai_provider == 'ollama' %}selected{% endif %}>Ollama (local)</option>
+                </select>
+            </div>
+
+            <div class="form-group full-width" id="api_key_group">
+                <label for="ai_api_key">API Key</label>
+                <input type="password" name="ai_api_key" id="ai_api_key" placeholder="Enter new key (leave blank to keep current)" autocomplete="new-password">
+                <p class="help-text">
+                    Required for Grok, OpenAI, Gemini. Stored encrypted.<br>
+                    Grok: xai-..., OpenAI: sk-..., Gemini: AIza...
+                </p>
+            </div>
+
+            <div class="form-group full-width" id="ollama_url_group">
+                <label for="ai_base_url">Ollama Base URL</label>
+                <input type="text" name="ai_base_url" id="ai_base_url" value="{{ settings.ai_base_url or 'http://localhost:11434' }}" placeholder="http://localhost:11434">
+                <p class="help-text">Local Ollama server URL (no API key needed).</p>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" name="action" value="update_ai" class="btn-primary">Save AI Settings</button>
+            <a href="{{ url_for('settings.general') }}" class="btn-secondary">Back to Settings</a>
+        </div>
+    </form>
+</section>
+
+<script>
+  // Toggle Ollama-specific field visibility
+  document.getElementById('ai_provider').addEventListener('change', function() {
+    const isOllama = this.value === 'ollama';
+    document.getElementById('api_key_group').style.display = isOllama ? 'none' : 'block';
+    document.getElementById('ollama_url_group').style.display = isOllama ? 'block' : 'none';
+  });
+
+  // Run on page load to set correct initial state
+  document.getElementById('ai_provider').dispatchEvent(new Event('change'));
+</script>
+
+{% endblock %}

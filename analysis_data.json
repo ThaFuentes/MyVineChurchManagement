@@ -1,0 +1,3341 @@
+{
+  "python": [
+    {
+      "rel_path": "main.py",
+      "stem": "main",
+      "import_refs": [
+        "app",
+        "create_app"
+      ],
+      "is_entry": true,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 9,
+      "status": [
+        "entry point"
+      ]
+    },
+    {
+      "rel_path": "app/config.py",
+      "stem": "config",
+      "import_refs": [
+        "os"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 35,
+      "status": [
+        "possibly unused"
+      ]
+    },
+    {
+      "rel_path": "app/__init__.py",
+      "stem": "__init__",
+      "import_refs": [
+        "Flask",
+        "Markup",
+        "build_all",
+        "builddb",
+        "censor_text",
+        "close_db",
+        "datetime",
+        "db",
+        "decorators",
+        "dotenv",
+        "flash",
+        "flask",
+        "g",
+        "get_settings",
+        "helpers",
+        "importlib",
+        "is_in_pastoral_group",
+        "load_dotenv",
+        "markupsafe",
+        "os",
+        "owner",
+        "owner_exists",
+        "pastoral",
+        "pastoral_bp",
+        "redirect",
+        "render_template",
+        "request",
+        "session",
+        "settings",
+        "shared",
+        "url_for",
+        "user_has_permission"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": true,
+      "defines_bp": false,
+      "loc": 122,
+      "status": [
+        "defines routes",
+        "creates Flask app"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/announcements.py",
+      "stem": "announcements",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 79,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/api_keys.py",
+      "stem": "api_keys",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 20,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/attendance.py",
+      "stem": "attendance",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 42,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/banned_ips.py",
+      "stem": "banned_ips",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 27,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/builddb.py",
+      "stem": "builddb",
+      "import_refs": [
+        "OperationalError",
+        "Path",
+        "err",
+        "importlib",
+        "os",
+        "pathlib",
+        "pkgutil",
+        "pymysql",
+        "time"
+      ],
+      "is_entry": true,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 85,
+      "status": [
+        "imported 1 time",
+        "entry point"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/change_records.py",
+      "stem": "change_records",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 33,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/donations.py",
+      "stem": "donations",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 25,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/dreams.py",
+      "stem": "dreams",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 45,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/email_settings.py",
+      "stem": "email_settings",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 55,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/events.py",
+      "stem": "events",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 123,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/family_relations.py",
+      "stem": "family_relations",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 51,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/groups.py",
+      "stem": "groups",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 62,
+      "status": [
+        "imported 1 time"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/inventory.py",
+      "stem": "inventory",
+      "import_refs": [
+        "textwrap"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 51,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/kiosk_sessions.py",
+      "stem": "kiosk_sessions",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 33,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/member_roles.py",
+      "stem": "member_roles",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 26,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/online_donation_options.py",
+      "stem": "online_donation_options",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 15,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/pastoral.py",
+      "stem": "pastoral",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 88,
+      "status": [
+        "imported 7 times"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/prayers.py",
+      "stem": "prayers",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 62,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/prophecies.py",
+      "stem": "prophecies",
+      "import_refs": [
+        "textwrap"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 36,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/recurring_bills.py",
+      "stem": "recurring_bills",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 59,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/sermons.py",
+      "stem": "sermons",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 36,
+      "status": [
+        "imported 1 time"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/settings.py",
+      "stem": "settings",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 94,
+      "status": [
+        "imported 4 times"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/tickets.py",
+      "stem": "tickets",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 50,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/timezone_settings.py",
+      "stem": "timezone_settings",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 13,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/users.py",
+      "stem": "users",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 101,
+      "status": [
+        "imported 1 time"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/user_groups.py",
+      "stem": "user_groups",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 38,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/builddb/user_widgets.py",
+      "stem": "user_widgets",
+      "import_refs": [],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 28,
+      "status": [
+        "dynamically loaded by builddb.py"
+      ]
+    },
+    {
+      "rel_path": "app/models/db.py",
+      "stem": "db",
+      "import_refs": [
+        "current_app",
+        "flask",
+        "g",
+        "pymysql"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 23,
+      "status": [
+        "imported 48 times"
+      ]
+    },
+    {
+      "rel_path": "app/models/donation.py",
+      "stem": "donation",
+      "import_refs": [
+        "datetime",
+        "db",
+        "get_db",
+        "now_church",
+        "pymysql",
+        "time_utils",
+        "traceback"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 139,
+      "status": [
+        "imported 1 time"
+      ]
+    },
+    {
+      "rel_path": "app/models/groups.py",
+      "stem": "groups",
+      "import_refs": [
+        "Any",
+        "Dict",
+        "IntegrityError",
+        "List",
+        "Optional",
+        "db",
+        "err",
+        "get_db",
+        "json",
+        "log",
+        "log_change",
+        "typing"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 56,
+      "status": [
+        "imported 1 time"
+      ]
+    },
+    {
+      "rel_path": "app/models/log.py",
+      "stem": "log",
+      "import_refs": [
+        "db",
+        "get_db"
+      ],
+      "is_entry": true,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 12,
+      "status": [
+        "imported 38 times",
+        "entry point"
+      ]
+    },
+    {
+      "rel_path": "app/models/owner.py",
+      "stem": "owner",
+      "import_refs": [
+        "db",
+        "get_db"
+      ],
+      "is_entry": true,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 14,
+      "status": [
+        "imported 1 time",
+        "entry point"
+      ]
+    },
+    {
+      "rel_path": "app/models/settings.py",
+      "stem": "settings",
+      "import_refs": [
+        "db",
+        "get_db",
+        "pymysql"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 29,
+      "status": [
+        "imported 4 times"
+      ]
+    },
+    {
+      "rel_path": "app/models/users.py",
+      "stem": "users",
+      "import_refs": [
+        "Dict",
+        "List",
+        "Optional",
+        "db",
+        "generate_password_hash",
+        "get_db",
+        "log",
+        "log_change",
+        "security",
+        "sqlite3",
+        "typing"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 205,
+      "status": [
+        "imported 1 time"
+      ]
+    },
+    {
+      "rel_path": "app/models/pastoral/bible.py",
+      "stem": "bible",
+      "import_refs": [
+        "db",
+        "get_db",
+        "pymysql"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 42,
+      "status": [
+        "imported 3 times"
+      ]
+    },
+    {
+      "rel_path": "app/models/pastoral/care.py",
+      "stem": "care",
+      "import_refs": [
+        "db",
+        "get_db",
+        "pymysql"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 64,
+      "status": [
+        "imported 2 times"
+      ]
+    },
+    {
+      "rel_path": "app/models/pastoral/illustrations.py",
+      "stem": "illustrations",
+      "import_refs": [
+        "db",
+        "get_db",
+        "json",
+        "pymysql"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 31,
+      "status": [
+        "imported 3 times"
+      ]
+    },
+    {
+      "rel_path": "app/models/pastoral/sermons.py",
+      "stem": "sermons",
+      "import_refs": [
+        "db",
+        "get_db",
+        "pymysql"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 73,
+      "status": [
+        "imported 1 time"
+      ]
+    },
+    {
+      "rel_path": "app/models/pastoral/service_plans.py",
+      "stem": "service_plans",
+      "import_refs": [
+        "db",
+        "get_db",
+        "pymysql"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 64,
+      "status": [
+        "imported 1 time"
+      ]
+    },
+    {
+      "rel_path": "app/models/pastoral/shared.py",
+      "stem": "shared",
+      "import_refs": [
+        "db",
+        "get_db",
+        "pymysql"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 14,
+      "status": [
+        "imported 5 times"
+      ]
+    },
+    {
+      "rel_path": "app/models/pastoral/vault.py",
+      "stem": "vault",
+      "import_refs": [
+        "db",
+        "get_db",
+        "json",
+        "pymysql"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 67,
+      "status": [
+        "imported 2 times"
+      ]
+    },
+    {
+      "rel_path": "app/models/pastoral/__init__.py",
+      "stem": "__init__",
+      "import_refs": [
+        "add_care_assignment",
+        "add_care_note",
+        "add_collaborator",
+        "add_vault_item",
+        "bible",
+        "bible_get_chapter",
+        "bible_search",
+        "care",
+        "create_care_request",
+        "create_illustration",
+        "create_or_update_service_plan",
+        "create_sermon",
+        "delete_bible_translation",
+        "delete_care_request",
+        "delete_illustration",
+        "delete_sermon",
+        "delete_vault_item",
+        "get_all_service_plans",
+        "get_bible_translations",
+        "get_care_assignments",
+        "get_care_notes",
+        "get_care_request_by_id",
+        "get_care_requests",
+        "get_collaborators",
+        "get_illustration_by_id",
+        "get_my_vault",
+        "get_sermon_by_id",
+        "get_sermon_sections",
+        "get_service_plan_assignments",
+        "get_service_plan_by_date",
+        "get_shared_vault",
+        "get_visible_illustrations",
+        "get_visible_sermons",
+        "illustrations",
+        "is_in_pastoral_group",
+        "remove_care_assignment",
+        "remove_collaborator",
+        "save_sermon_sections",
+        "save_service_plan_assignments",
+        "search_vault_and_sermons",
+        "sermons",
+        "service_plans",
+        "set_bible_default",
+        "shared",
+        "update_care_request",
+        "update_illustration",
+        "update_sermon",
+        "update_vault_item",
+        "vault"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 54,
+      "status": [
+        "possibly unused"
+      ]
+    },
+    {
+      "rel_path": "app/routes/announcements.py",
+      "stem": "announcements",
+      "import_refs": [
+        "Blueprint",
+        "contains_censored_word",
+        "db",
+        "decorators",
+        "emailer",
+        "flash",
+        "flask",
+        "get_db",
+        "helpers",
+        "log",
+        "log_change",
+        "login_required",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "role_required",
+        "send_email",
+        "session",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 128,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/attendance.py",
+      "stem": "attendance",
+      "import_refs": [
+        "Blueprint",
+        "check_password_hash",
+        "date",
+        "datetime",
+        "db",
+        "decorators",
+        "flash",
+        "flask",
+        "format_church",
+        "get_db",
+        "jsonify",
+        "log",
+        "log_change",
+        "login_required",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "role_required",
+        "secrets",
+        "security",
+        "session",
+        "time_utils",
+        "timedelta",
+        "to_utc",
+        "url_for",
+        "utc_now"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 144,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/auth.py",
+      "stem": "auth",
+      "import_refs": [
+        "Blueprint",
+        "check_password_hash",
+        "contains_censored_word",
+        "db",
+        "emailer",
+        "flash",
+        "flask",
+        "generate_password_hash",
+        "get_db",
+        "helpers",
+        "log",
+        "log_change",
+        "pymysql",
+        "random",
+        "redirect",
+        "render_template",
+        "request",
+        "security",
+        "send_email",
+        "session",
+        "string",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 95,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/bills.py",
+      "stem": "bills",
+      "import_refs": [
+        "Blueprint",
+        "Fernet",
+        "InvalidToken",
+        "contains_censored_word",
+        "current_app",
+        "datetime",
+        "db",
+        "decorators",
+        "emailer",
+        "fernet",
+        "flash",
+        "flask",
+        "format_church",
+        "format_church_full",
+        "get_db",
+        "helpers",
+        "itertools",
+        "json",
+        "log",
+        "log_change",
+        "login_required",
+        "redirect",
+        "render_template",
+        "request",
+        "role_required",
+        "send_email",
+        "session",
+        "sqlite3",
+        "time_utils",
+        "url_for",
+        "utc_now",
+        "zip_longest"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 241,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/dashboard.py",
+      "stem": "dashboard",
+      "import_refs": [
+        "Blueprint",
+        "censor_text",
+        "datetime",
+        "db",
+        "flash",
+        "flask",
+        "format_church",
+        "get_db",
+        "helpers",
+        "now_church",
+        "pymysql",
+        "render_template",
+        "session",
+        "time_utils"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 118,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/donations.py",
+      "stem": "donations",
+      "import_refs": [
+        "Blueprint",
+        "Document",
+        "add_donation",
+        "contains_censored_word",
+        "current_app",
+        "db",
+        "decorators",
+        "delete_donation",
+        "docx",
+        "donation",
+        "flash",
+        "flask",
+        "get_dashboard_data",
+        "get_db",
+        "get_donation_by_id",
+        "get_donations_for_export",
+        "get_export_years",
+        "get_member_for_export",
+        "get_members_for_selector",
+        "get_members_with_donations",
+        "get_reports_data",
+        "get_unique_donor_names",
+        "get_view_all_data",
+        "helpers",
+        "jsonify",
+        "log",
+        "log_change",
+        "login_required",
+        "now_church",
+        "os",
+        "redirect",
+        "render_template",
+        "request",
+        "role_required",
+        "session",
+        "time_utils",
+        "update_donation",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 38,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/dreams.py",
+      "stem": "dreams",
+      "import_refs": [
+        "Blueprint",
+        "censor_text",
+        "contains_censored_word",
+        "db",
+        "decorators",
+        "flash",
+        "flask",
+        "get_db",
+        "helpers",
+        "log",
+        "log_change",
+        "login_required",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "session",
+        "traceback",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 149,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/emailer.py",
+      "stem": "emailer",
+      "import_refs": [
+        "Blueprint",
+        "contains_censored_word",
+        "decorators",
+        "emailer",
+        "flash",
+        "flask",
+        "helpers",
+        "log",
+        "log_change",
+        "login_required",
+        "redirect",
+        "render_template",
+        "request",
+        "role_required",
+        "send_email",
+        "session",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 41,
+      "status": [
+        "imported 7 times",
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/events.py",
+      "stem": "events",
+      "import_refs": [
+        "Blueprint",
+        "contains_censored_word",
+        "date",
+        "datetime",
+        "db",
+        "decorators",
+        "emailer",
+        "flash",
+        "flask",
+        "format_church",
+        "get_db",
+        "helpers",
+        "log",
+        "log_change",
+        "login_required",
+        "now_church",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "role_required",
+        "send_email",
+        "session",
+        "time_utils",
+        "traceback",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 147,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/groups.py",
+      "stem": "groups",
+      "import_refs": [
+        "Blueprint",
+        "DictCursor",
+        "IntegrityError",
+        "contains_censored_word",
+        "cursors",
+        "db",
+        "decorators",
+        "flash",
+        "flask",
+        "get_db",
+        "helpers",
+        "json",
+        "jsonify",
+        "log",
+        "log_change",
+        "login_required",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "role_required",
+        "session",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 190,
+      "status": [
+        "imported 1 time",
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/inventory.py",
+      "stem": "inventory",
+      "import_refs": [
+        "Blueprint",
+        "datetime",
+        "db",
+        "decorators",
+        "flash",
+        "flask",
+        "format_church",
+        "get_db",
+        "jsonify",
+        "log",
+        "log_change",
+        "login_required",
+        "redirect",
+        "render_template",
+        "request",
+        "requests",
+        "role_required",
+        "session",
+        "sqlite3",
+        "time_utils",
+        "timedelta",
+        "url_for",
+        "utc_now"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 183,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/log.py",
+      "stem": "log",
+      "import_refs": [
+        "Blueprint",
+        "db",
+        "decorators",
+        "flash",
+        "flask",
+        "get_db",
+        "login_required",
+        "pymysql",
+        "render_template",
+        "request",
+        "session"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 44,
+      "status": [
+        "imported 38 times",
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/members.py",
+      "stem": "members",
+      "import_refs": [
+        "Blueprint",
+        "Document",
+        "contains_censored_word",
+        "db",
+        "decorators",
+        "docx",
+        "emailer",
+        "flash",
+        "flask",
+        "generate_password_hash",
+        "get_db",
+        "helpers",
+        "json",
+        "log",
+        "log_change",
+        "login_required",
+        "os",
+        "pymysql",
+        "random",
+        "redirect",
+        "render_template",
+        "request",
+        "role_required",
+        "security",
+        "send_email",
+        "send_file",
+        "session",
+        "string",
+        "traceback",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 211,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/prayers.py",
+      "stem": "prayers",
+      "import_refs": [
+        "Blueprint",
+        "censor_text",
+        "contains_censored_word",
+        "db",
+        "decorators",
+        "flash",
+        "flask",
+        "get_db",
+        "helpers",
+        "log",
+        "log_change",
+        "login_required",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "role_required",
+        "session",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 114,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/profile.py",
+      "stem": "profile",
+      "import_refs": [
+        "Blueprint",
+        "check_password_hash",
+        "contains_censored_word",
+        "db",
+        "decorators",
+        "flash",
+        "flask",
+        "generate_password_hash",
+        "get_db",
+        "helpers",
+        "log",
+        "log_change",
+        "login_required",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "security",
+        "session",
+        "traceback",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 115,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/prophecies.py",
+      "stem": "prophecies",
+      "import_refs": [
+        "Blueprint",
+        "censor_text",
+        "collections",
+        "contains_censored_word",
+        "datetime",
+        "db",
+        "decorators",
+        "defaultdict",
+        "flash",
+        "flask",
+        "get_db",
+        "helpers",
+        "log",
+        "log_change",
+        "login_required",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "role_required",
+        "session",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 99,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/public.py",
+      "stem": "public",
+      "import_refs": [
+        "Blueprint",
+        "abort",
+        "censor_text",
+        "contains_censored_word",
+        "db",
+        "flash",
+        "flask",
+        "get_db",
+        "helpers",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 116,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/public_dashboard.py",
+      "stem": "public_dashboard",
+      "import_refs": [
+        "Blueprint",
+        "censor_text",
+        "db",
+        "flask",
+        "format_church",
+        "get_db",
+        "helpers",
+        "now_church",
+        "pymysql",
+        "render_template",
+        "time_utils"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 81,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/sermons.py",
+      "stem": "sermons",
+      "import_refs": [
+        "Blueprint",
+        "Document",
+        "PyPDF2",
+        "censor_text",
+        "contains_censored_word",
+        "db",
+        "decorators",
+        "docx",
+        "flash",
+        "flask",
+        "get_db",
+        "helpers",
+        "log",
+        "log_change",
+        "login_required",
+        "os",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "role_required",
+        "secure_filename",
+        "send_from_directory",
+        "session",
+        "time",
+        "traceback",
+        "url_for",
+        "utils"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 261,
+      "status": [
+        "imported 1 time",
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/tickets.py",
+      "stem": "tickets",
+      "import_refs": [
+        "Blueprint",
+        "contains_censored_word",
+        "datetime",
+        "db",
+        "decorators",
+        "emailer",
+        "flash",
+        "flask",
+        "format_church",
+        "get_db",
+        "helpers",
+        "json",
+        "log",
+        "log_change",
+        "login_required",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "role_required",
+        "send_email",
+        "session",
+        "time_utils",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 114,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/pastoral/ai_assistant.py",
+      "stem": "ai_assistant",
+      "import_refs": [
+        "contains_censored_word",
+        "db",
+        "decrypt",
+        "flask",
+        "get_db",
+        "helpers",
+        "json",
+        "jsonify",
+        "log",
+        "log_change",
+        "pastoral_bp",
+        "pastoral_required",
+        "pymysql",
+        "request",
+        "requests",
+        "session",
+        "settings"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 122,
+      "status": [
+        "imported 1 time",
+        "defines routes"
+      ]
+    },
+    {
+      "rel_path": "app/routes/pastoral/bible.py",
+      "stem": "bible",
+      "import_refs": [
+        "Blueprint",
+        "abort",
+        "bible",
+        "bible_get_chapter",
+        "bible_search",
+        "db",
+        "decorators",
+        "flash",
+        "flask",
+        "get_db",
+        "json",
+        "jsonify",
+        "log",
+        "log_change",
+        "os",
+        "pastoral_bp",
+        "pastoral_required",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "role_required",
+        "secure_filename",
+        "session",
+        "tempfile",
+        "url_for",
+        "utils"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 74,
+      "status": [
+        "imported 3 times",
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/pastoral/care.py",
+      "stem": "care",
+      "import_refs": [
+        "Blueprint",
+        "abort",
+        "add_care_assignment",
+        "add_care_note",
+        "contains_censored_word",
+        "create_care_request",
+        "delete_care_request",
+        "flash",
+        "flask",
+        "get_care_assignments",
+        "get_care_notes",
+        "get_care_request_by_id",
+        "get_care_requests",
+        "helpers",
+        "jsonify",
+        "log",
+        "log_change",
+        "pastoral",
+        "pastoral_required",
+        "redirect",
+        "remove_care_assignment",
+        "render_template",
+        "request",
+        "session",
+        "update_care_request",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 127,
+      "status": [
+        "imported 2 times",
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/pastoral/illustrations.py",
+      "stem": "illustrations",
+      "import_refs": [
+        "Blueprint",
+        "contains_censored_word",
+        "create_illustration",
+        "delete_illustration",
+        "flash",
+        "flask",
+        "get_illustration_by_id",
+        "get_visible_illustrations",
+        "helpers",
+        "illustrations",
+        "json",
+        "jsonify",
+        "log",
+        "log_change",
+        "pastoral_required",
+        "redirect",
+        "render_template",
+        "request",
+        "session",
+        "update_illustration",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 84,
+      "status": [
+        "imported 3 times",
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/pastoral/planning.py",
+      "stem": "planning",
+      "import_refs": [
+        "contains_censored_word",
+        "datetime",
+        "db",
+        "flash",
+        "flask",
+        "format_church",
+        "get_db",
+        "helpers",
+        "log",
+        "log_change",
+        "now_church",
+        "pastoral_bp",
+        "pastoral_required",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "session",
+        "time_utils",
+        "timedelta",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 88,
+      "status": [
+        "imported 1 time",
+        "defines routes"
+      ]
+    },
+    {
+      "rel_path": "app/routes/pastoral/podium.py",
+      "stem": "podium",
+      "import_refs": [
+        "abort",
+        "flask",
+        "get_sermon_by_id",
+        "get_sermon_sections",
+        "log",
+        "log_change",
+        "pastoral",
+        "pastoral_bp",
+        "pastoral_required",
+        "render_template",
+        "request",
+        "session"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 31,
+      "status": [
+        "imported 1 time",
+        "defines routes"
+      ]
+    },
+    {
+      "rel_path": "app/routes/pastoral/sermons_core.py",
+      "stem": "sermons_core",
+      "import_refs": [
+        "add_collaborator",
+        "contains_censored_word",
+        "create_sermon",
+        "datetime",
+        "db",
+        "delete_sermon",
+        "flash",
+        "flask",
+        "get_collaborators",
+        "get_db",
+        "get_sermon_by_id",
+        "get_sermon_sections",
+        "get_visible_sermons",
+        "helpers",
+        "json",
+        "jsonify",
+        "log",
+        "log_change",
+        "pastoral",
+        "pastoral_bp",
+        "pastoral_required",
+        "redirect",
+        "remove_collaborator",
+        "render_template",
+        "request",
+        "save_sermon_sections",
+        "session",
+        "update_sermon",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 20,
+      "status": [
+        "imported 1 time",
+        "defines routes"
+      ]
+    },
+    {
+      "rel_path": "app/routes/pastoral/sermons_export.py",
+      "stem": "sermons_export",
+      "import_refs": [
+        "BytesIO",
+        "Document",
+        "Pt",
+        "RGBColor",
+        "WD_ALIGN_PARAGRAPH",
+        "abort",
+        "datetime",
+        "docx",
+        "flash",
+        "flask",
+        "get_sermon_by_id",
+        "get_sermon_sections",
+        "get_visible_sermons",
+        "io",
+        "log",
+        "log_change",
+        "pastoral",
+        "pastoral_bp",
+        "pastoral_required",
+        "render_template",
+        "request",
+        "send_file",
+        "session",
+        "shared",
+        "text",
+        "url_for",
+        "zipfile"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 109,
+      "status": [
+        "imported 1 time",
+        "defines routes"
+      ]
+    },
+    {
+      "rel_path": "app/routes/pastoral/sermons_exports.py",
+      "stem": "sermons_exports",
+      "import_refs": [
+        "BytesIO",
+        "Document",
+        "Pt",
+        "RGBColor",
+        "WD_ALIGN_PARAGRAPH",
+        "abort",
+        "datetime",
+        "docx",
+        "flash",
+        "flask",
+        "get_sermon_by_id",
+        "get_sermon_sections",
+        "get_visible_sermons",
+        "io",
+        "log",
+        "log_change",
+        "pastoral",
+        "pastoral_bp",
+        "pastoral_required",
+        "render_template",
+        "request",
+        "send_file",
+        "session",
+        "shared",
+        "text",
+        "url_for",
+        "zipfile"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 109,
+      "status": [
+        "defines routes"
+      ]
+    },
+    {
+      "rel_path": "app/routes/pastoral/vault.py",
+      "stem": "vault",
+      "import_refs": [
+        "Blueprint",
+        "add_vault_item",
+        "contains_censored_word",
+        "delete_vault_item",
+        "flash",
+        "flask",
+        "get_my_vault",
+        "get_shared_vault",
+        "helpers",
+        "jsonify",
+        "log",
+        "log_change",
+        "pastoral",
+        "pastoral_required",
+        "redirect",
+        "render_template",
+        "request",
+        "search_vault_and_sermons",
+        "session",
+        "update_vault_item",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 87,
+      "status": [
+        "imported 2 times",
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/pastoral/__init__.py",
+      "stem": "__init__",
+      "import_refs": [
+        "Blueprint",
+        "Callable",
+        "Optional",
+        "ai_assistant",
+        "ai_bp",
+        "bible",
+        "bible_bp",
+        "care",
+        "care_bp",
+        "decorators",
+        "export_bp",
+        "flash",
+        "flask",
+        "illustrations",
+        "illustrations_bp",
+        "is_in_pastoral_group",
+        "login_required",
+        "planning",
+        "planning_bp",
+        "podium",
+        "podium_bp",
+        "redirect",
+        "render_template",
+        "sermons_bp",
+        "sermons_core",
+        "sermons_export",
+        "session",
+        "shared",
+        "typing",
+        "url_for",
+        "vault",
+        "vault_bp"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 84,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/settings/ai.py",
+      "stem": "ai",
+      "import_refs": [
+        "db",
+        "encrypt",
+        "flash",
+        "flask",
+        "get_db",
+        "has_section_permission",
+        "load_settings",
+        "log",
+        "log_change",
+        "redirect",
+        "render_template",
+        "request",
+        "session",
+        "settings_bp",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 28,
+      "status": [
+        "imported 1 time",
+        "defines routes"
+      ]
+    },
+    {
+      "rel_path": "app/routes/settings/censored_words.py",
+      "stem": "censored_words",
+      "import_refs": [
+        "db",
+        "flash",
+        "flask",
+        "get_db",
+        "has_section_permission",
+        "log",
+        "log_change",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "session",
+        "settings_bp",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 43,
+      "status": [
+        "imported 1 time",
+        "defines routes"
+      ]
+    },
+    {
+      "rel_path": "app/routes/settings/email.py",
+      "stem": "email",
+      "import_refs": [
+        "DONATIONS_FOLDER",
+        "MIMEMultipart",
+        "MIMEText",
+        "db",
+        "decrypt",
+        "encrypt",
+        "flash",
+        "flask",
+        "get_db",
+        "get_settings",
+        "has_section_permission",
+        "load_email_accounts",
+        "load_settings",
+        "log",
+        "log_change",
+        "multipart",
+        "os",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "session",
+        "settings",
+        "settings_bp",
+        "smtplib",
+        "text",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 104,
+      "status": [
+        "imported 1 time",
+        "defines routes"
+      ]
+    },
+    {
+      "rel_path": "app/routes/settings/general.py",
+      "stem": "general",
+      "import_refs": [
+        "contains_censored_word",
+        "db",
+        "flash",
+        "flask",
+        "get_db",
+        "has_section_permission",
+        "helpers",
+        "load_settings",
+        "log",
+        "log_change",
+        "redirect",
+        "render_template",
+        "request",
+        "session",
+        "settings_bp",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 42,
+      "status": [
+        "imported 1 time",
+        "defines routes"
+      ]
+    },
+    {
+      "rel_path": "app/routes/settings/online_giving.py",
+      "stem": "online_giving",
+      "import_refs": [
+        "DONATIONS_FOLDER",
+        "allowed_file",
+        "contains_censored_word",
+        "db",
+        "flash",
+        "flask",
+        "get_db",
+        "has_section_permission",
+        "helpers",
+        "load_online_options",
+        "load_settings",
+        "log",
+        "log_change",
+        "os",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "secure_filename",
+        "session",
+        "settings_bp",
+        "url_for",
+        "utils"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 112,
+      "status": [
+        "imported 1 time",
+        "defines routes"
+      ]
+    },
+    {
+      "rel_path": "app/routes/settings/ticket_managers.py",
+      "stem": "ticket_managers",
+      "import_refs": [
+        "db",
+        "decorators",
+        "flash",
+        "flask",
+        "get_db",
+        "log",
+        "log_change",
+        "login_required",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "role_required",
+        "session",
+        "settings_bp",
+        "url_for"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 38,
+      "status": [
+        "imported 1 time",
+        "defines routes"
+      ]
+    },
+    {
+      "rel_path": "app/routes/settings/timezone.py",
+      "stem": "timezone",
+      "import_refs": [
+        "ZoneInfo",
+        "ZoneInfoNotFoundError",
+        "datetime",
+        "db",
+        "flash",
+        "flask",
+        "get_db",
+        "has_section_permission",
+        "load_settings",
+        "log",
+        "log_change",
+        "now_church",
+        "pymysql",
+        "redirect",
+        "render_template",
+        "request",
+        "session",
+        "settings_bp",
+        "time_utils",
+        "url_for",
+        "zoneinfo"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 66,
+      "status": [
+        "imported 2 times",
+        "defines routes"
+      ]
+    },
+    {
+      "rel_path": "app/routes/settings/__init__.py",
+      "stem": "__init__",
+      "import_refs": [
+        "Blueprint",
+        "Fernet",
+        "ai",
+        "censored_words",
+        "contains_censored_word",
+        "current_app",
+        "db",
+        "decorators",
+        "email",
+        "fernet",
+        "flash",
+        "flask",
+        "general",
+        "get_db",
+        "helpers",
+        "json",
+        "log",
+        "log_change",
+        "login_required",
+        "online_giving",
+        "os",
+        "pymysql",
+        "redirect",
+        "secure_filename",
+        "session",
+        "ticket_managers",
+        "timezone",
+        "url_for",
+        "utils"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 97,
+      "status": [
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/utils/decorators.py",
+      "stem": "decorators",
+      "import_refs": [
+        "abort",
+        "check_user_in_group",
+        "flash",
+        "flask",
+        "functools",
+        "get_user_by_id",
+        "groups",
+        "log",
+        "log_change",
+        "redirect",
+        "request",
+        "session",
+        "url_for",
+        "users",
+        "wraps"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 73,
+      "status": [
+        "imported 21 times"
+      ]
+    },
+    {
+      "rel_path": "app/utils/emailer.py",
+      "stem": "emailer",
+      "import_refs": [
+        "Fernet",
+        "MIMEMultipart",
+        "MIMEText",
+        "db",
+        "fernet",
+        "get_db_connection",
+        "log",
+        "log_change",
+        "multipart",
+        "os",
+        "smtplib",
+        "text"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 66,
+      "status": [
+        "imported 7 times"
+      ]
+    },
+    {
+      "rel_path": "app/utils/helpers.py",
+      "stem": "helpers",
+      "import_refs": [
+        "List",
+        "Optional",
+        "date",
+        "datetime",
+        "db",
+        "flash",
+        "flask",
+        "get_db",
+        "pymysql",
+        "re",
+        "typing"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 75,
+      "status": [
+        "imported 27 times"
+      ]
+    },
+    {
+      "rel_path": "app/utils/permissions.py",
+      "stem": "permissions",
+      "import_refs": [
+        "db",
+        "flask",
+        "get_db",
+        "json",
+        "pymysql",
+        "session"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 18,
+      "status": [
+        "possibly unused"
+      ]
+    },
+    {
+      "rel_path": "app/utils/time_utils.py",
+      "stem": "time_utils",
+      "import_refs": [
+        "ZoneInfo",
+        "current_app",
+        "datetime",
+        "flask",
+        "get_settings",
+        "settings",
+        "timedelta",
+        "timezone",
+        "zoneinfo"
+      ],
+      "is_entry": false,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 35,
+      "status": [
+        "imported 11 times"
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "rel_path": "base.html",
+      "used": true
+    },
+    {
+      "rel_path": "base_public.html",
+      "used": true
+    },
+    {
+      "rel_path": "announcements/announcements_dashboard.html",
+      "used": true
+    },
+    {
+      "rel_path": "announcements/base_announcements.html",
+      "used": true
+    },
+    {
+      "rel_path": "announcements/create_announcement.html",
+      "used": true
+    },
+    {
+      "rel_path": "announcements/edit_annoucement.html",
+      "used": false
+    },
+    {
+      "rel_path": "announcements/view_annoucements.html",
+      "used": false
+    },
+    {
+      "rel_path": "attendance/attendance_dashboard.html",
+      "used": true
+    },
+    {
+      "rel_path": "attendance/base_attendance.html",
+      "used": true
+    },
+    {
+      "rel_path": "attendance/day_detail.html",
+      "used": true
+    },
+    {
+      "rel_path": "attendance/kiosk.html",
+      "used": true
+    },
+    {
+      "rel_path": "attendance/kiosk_closed.html",
+      "used": true
+    },
+    {
+      "rel_path": "attendance/open_kiosk.html",
+      "used": true
+    },
+    {
+      "rel_path": "attendance/user_signin.html",
+      "used": true
+    },
+    {
+      "rel_path": "auth/base_auth.html",
+      "used": false
+    },
+    {
+      "rel_path": "auth/forgot_username.html",
+      "used": true
+    },
+    {
+      "rel_path": "auth/index.html",
+      "used": false
+    },
+    {
+      "rel_path": "auth/login.html",
+      "used": true
+    },
+    {
+      "rel_path": "auth/login_forms.html",
+      "used": false
+    },
+    {
+      "rel_path": "auth/register.html",
+      "used": true
+    },
+    {
+      "rel_path": "auth/request_reset_password.html",
+      "used": true
+    },
+    {
+      "rel_path": "bills/assign_bill.html",
+      "used": true
+    },
+    {
+      "rel_path": "bills/base_bills.html",
+      "used": true
+    },
+    {
+      "rel_path": "bills/bills_dashboard.html",
+      "used": true
+    },
+    {
+      "rel_path": "bills/edit_bill.html",
+      "used": true
+    },
+    {
+      "rel_path": "bills/view_bill.html",
+      "used": true
+    },
+    {
+      "rel_path": "dashboard/dashboard.html",
+      "used": false
+    },
+    {
+      "rel_path": "donations/add_donation.html",
+      "used": true
+    },
+    {
+      "rel_path": "donations/base_donations.html",
+      "used": true
+    },
+    {
+      "rel_path": "donations/donations_dashboard.html",
+      "used": true
+    },
+    {
+      "rel_path": "donations/export_donations.html",
+      "used": true
+    },
+    {
+      "rel_path": "donations/reports.html",
+      "used": true
+    },
+    {
+      "rel_path": "donations/view_all_donations.html",
+      "used": true
+    },
+    {
+      "rel_path": "dreams/add_comment.html",
+      "used": false
+    },
+    {
+      "rel_path": "dreams/add_dream.html",
+      "used": true
+    },
+    {
+      "rel_path": "dreams/base_dreams.html",
+      "used": true
+    },
+    {
+      "rel_path": "dreams/dreams.html",
+      "used": false
+    },
+    {
+      "rel_path": "dreams/edit_dream.html",
+      "used": true
+    },
+    {
+      "rel_path": "dreams/view_dream.html",
+      "used": true
+    },
+    {
+      "rel_path": "email/send_email.html",
+      "used": true
+    },
+    {
+      "rel_path": "errors/404.html",
+      "used": true
+    },
+    {
+      "rel_path": "errors/500.html",
+      "used": true
+    },
+    {
+      "rel_path": "events/add_event.html",
+      "used": true
+    },
+    {
+      "rel_path": "events/base_events.html",
+      "used": true
+    },
+    {
+      "rel_path": "events/edit_event.html",
+      "used": true
+    },
+    {
+      "rel_path": "events/events.html",
+      "used": false
+    },
+    {
+      "rel_path": "events/events_dashboard.html",
+      "used": false
+    },
+    {
+      "rel_path": "events/view_event.html",
+      "used": false
+    },
+    {
+      "rel_path": "groups/base_groups.html",
+      "used": false
+    },
+    {
+      "rel_path": "groups/create.html",
+      "used": true
+    },
+    {
+      "rel_path": "groups/edit.html",
+      "used": true
+    },
+    {
+      "rel_path": "groups/list.html",
+      "used": true
+    },
+    {
+      "rel_path": "groups/manage.html",
+      "used": false
+    },
+    {
+      "rel_path": "inventory/add_cat_location.html",
+      "used": true
+    },
+    {
+      "rel_path": "inventory/audit_report.html",
+      "used": false
+    },
+    {
+      "rel_path": "inventory/base_inventory.html",
+      "used": true
+    },
+    {
+      "rel_path": "inventory/dashboard.html",
+      "used": true
+    },
+    {
+      "rel_path": "inventory/items_list.html",
+      "used": true
+    },
+    {
+      "rel_path": "inventory/item_form.html",
+      "used": true
+    },
+    {
+      "rel_path": "inventory/receive_form.html",
+      "used": true
+    },
+    {
+      "rel_path": "inventory/scan.html",
+      "used": false
+    },
+    {
+      "rel_path": "log/base_log.html",
+      "used": true
+    },
+    {
+      "rel_path": "log/change_records.html",
+      "used": true
+    },
+    {
+      "rel_path": "log/delete_all_records.html",
+      "used": false
+    },
+    {
+      "rel_path": "log/delete_record.html",
+      "used": false
+    },
+    {
+      "rel_path": "members/base_members.html",
+      "used": true
+    },
+    {
+      "rel_path": "members/email_roster.html",
+      "used": true
+    },
+    {
+      "rel_path": "members/members_dashboard.html",
+      "used": false
+    },
+    {
+      "rel_path": "members/members_directory.html",
+      "used": true
+    },
+    {
+      "rel_path": "members/member_form.html",
+      "used": true
+    },
+    {
+      "rel_path": "pastoral/base_pastoral.html",
+      "used": true
+    },
+    {
+      "rel_path": "pastoral/bible_upload.html",
+      "used": true
+    },
+    {
+      "rel_path": "pastoral/dashboard_pastoral.html",
+      "used": true
+    },
+    {
+      "rel_path": "pastoral/illustrations_library.html",
+      "used": true
+    },
+    {
+      "rel_path": "pastoral/planning_edit.html",
+      "used": true
+    },
+    {
+      "rel_path": "pastoral/planning_list.html",
+      "used": true
+    },
+    {
+      "rel_path": "pastoral/podium_view.html",
+      "used": true
+    },
+    {
+      "rel_path": "pastoral/sermons_export.html",
+      "used": true
+    },
+    {
+      "rel_path": "pastoral/sermons_list.html",
+      "used": true
+    },
+    {
+      "rel_path": "pastoral/sermon_editor.html",
+      "used": true
+    },
+    {
+      "rel_path": "prayers/add_prayer.html",
+      "used": false
+    },
+    {
+      "rel_path": "prayers/base_prayers.html",
+      "used": true
+    },
+    {
+      "rel_path": "prayers/prayers.html",
+      "used": false
+    },
+    {
+      "rel_path": "prayers/prayers_dashboard.html",
+      "used": false
+    },
+    {
+      "rel_path": "profile/profile.html",
+      "used": true
+    },
+    {
+      "rel_path": "prophecies/add_prophecy.html",
+      "used": true
+    },
+    {
+      "rel_path": "prophecies/base_prophecies.html",
+      "used": true
+    },
+    {
+      "rel_path": "prophecies/prophecies.html",
+      "used": true
+    },
+    {
+      "rel_path": "public/public_dashboard.html",
+      "used": true
+    },
+    {
+      "rel_path": "sermons/add_sermon.html",
+      "used": true
+    },
+    {
+      "rel_path": "sermons/base_sermons.html",
+      "used": true
+    },
+    {
+      "rel_path": "sermons/sermons.html",
+      "used": false
+    },
+    {
+      "rel_path": "settings/ai.html",
+      "used": true
+    },
+    {
+      "rel_path": "settings/base_settings.html",
+      "used": true
+    },
+    {
+      "rel_path": "settings/censored_words.html",
+      "used": true
+    },
+    {
+      "rel_path": "settings/email.html",
+      "used": true
+    },
+    {
+      "rel_path": "settings/general.html",
+      "used": true
+    },
+    {
+      "rel_path": "settings/online_giving.html",
+      "used": true
+    },
+    {
+      "rel_path": "settings/timezone.html",
+      "used": true
+    },
+    {
+      "rel_path": "tickets/base_tickets.html",
+      "used": true
+    },
+    {
+      "rel_path": "tickets/submit_ticket.html",
+      "used": true
+    },
+    {
+      "rel_path": "tickets/tickets_dashboard.html",
+      "used": true
+    },
+    {
+      "rel_path": "tickets/ticket_manager.html",
+      "used": true
+    },
+    {
+      "rel_path": "tickets/view_ticket.html",
+      "used": true
+    },
+    {
+      "rel_path": "public/announcements/announcements.html",
+      "used": true
+    },
+    {
+      "rel_path": "public/dreams/dreams.html",
+      "used": true
+    },
+    {
+      "rel_path": "public/events/events.html",
+      "used": true
+    },
+    {
+      "rel_path": "public/events/event_detail.html",
+      "used": true
+    },
+    {
+      "rel_path": "public/prayers/prayers.html",
+      "used": true
+    },
+    {
+      "rel_path": "public/prayers/view_prayer.html",
+      "used": true
+    },
+    {
+      "rel_path": "public/prophecies/prophecies.html",
+      "used": true
+    },
+    {
+      "rel_path": "public/sermons/sermons.html",
+      "used": true
+    },
+    {
+      "rel_path": "pastoral/care/care_dashboard.html",
+      "used": true
+    },
+    {
+      "rel_path": "pastoral/care/care_new.html",
+      "used": true
+    },
+    {
+      "rel_path": "pastoral/care/care_request_detail.html",
+      "used": true
+    }
+  ],
+  "static": [
+    {
+      "rel_path": "images/announcements.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/change.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/change1.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/change2.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/dashboard_bg.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/dashboard_bg1.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/dashboard_bg2.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/donations.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/donations1.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/donations3.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/dreams.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/event.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/event1.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/event2.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/img.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/img_1.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/Login.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/Login2.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/members_directory.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/members_directory1.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/members_directory2.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/members_directory3.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/prayer.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/profile_background.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/prophecies.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/sermons.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/settings_background.png",
+      "used": false
+    },
+    {
+      "rel_path": "images/setup.png",
+      "used": false
+    },
+    {
+      "rel_path": "js/global/pastoral/bible.js",
+      "used": false
+    },
+    {
+      "rel_path": "js/global/pastoral/illustrations.js",
+      "used": false
+    },
+    {
+      "rel_path": "js/global/pastoral/planning.js",
+      "used": false
+    },
+    {
+      "rel_path": "js/global/pastoral/podium.js",
+      "used": false
+    },
+    {
+      "rel_path": "js/global/pastoral/sermon_editor.js",
+      "used": false
+    },
+    {
+      "rel_path": "js/global/pastoral/shortcuts.js",
+      "used": false
+    },
+    {
+      "rel_path": "css/global/base.css",
+      "used": true
+    },
+    {
+      "rel_path": "css/global/components-header.css",
+      "used": true
+    },
+    {
+      "rel_path": "css/global/components-main.css",
+      "used": true
+    },
+    {
+      "rel_path": "css/global/components-navigation.css",
+      "used": true
+    },
+    {
+      "rel_path": "css/global/components.css",
+      "used": false
+    },
+    {
+      "rel_path": "css/global/forms.css",
+      "used": true
+    },
+    {
+      "rel_path": "css/global/layout.css",
+      "used": true
+    },
+    {
+      "rel_path": "css/global/theme.css",
+      "used": true
+    },
+    {
+      "rel_path": "css/old/events/events_common.css",
+      "used": false
+    },
+    {
+      "rel_path": "css/old/events/events_dashboard.css",
+      "used": false
+    },
+    {
+      "rel_path": "css/old/events/events_forms.css",
+      "used": false
+    },
+    {
+      "rel_path": "css/old/events/events_pages.css",
+      "used": false
+    },
+    {
+      "rel_path": "css/old/events/event_view.css",
+      "used": false
+    },
+    {
+      "rel_path": "css/old/settings/general.css",
+      "used": false
+    },
+    {
+      "rel_path": "css/global/pastoral/editor.css",
+      "used": true
+    },
+    {
+      "rel_path": "css/global/pastoral/pastoral.css",
+      "used": true
+    },
+    {
+      "rel_path": "css/global/pastoral/planning.css",
+      "used": true
+    },
+    {
+      "rel_path": "css/global/pastoral/podium.css",
+      "used": false
+    },
+    {
+      "rel_path": "css/global/public/base_public.css",
+      "used": true
+    },
+    {
+      "rel_path": "css/global/public/public_announcements.css",
+      "used": true
+    },
+    {
+      "rel_path": "css/global/public/public_dashboard.css",
+      "used": true
+    },
+    {
+      "rel_path": "css/global/public/public_dreams.css",
+      "used": true
+    },
+    {
+      "rel_path": "css/global/public/public_prophecies.css",
+      "used": true
+    }
+  ],
+  "references": {
+    "py_imports": {
+      "pastoral": 7,
+      "helpers": 27,
+      "shared": 5,
+      "decorators": 21,
+      "settings": 4,
+      "db": 48,
+      "builddb": 1,
+      "owner": 1,
+      "time_utils": 11,
+      "log": 38,
+      "illustrations": 3,
+      "vault": 2,
+      "service_plans": 1,
+      "sermons": 1,
+      "bible": 3,
+      "care": 2,
+      "emailer": 7,
+      "donation": 1,
+      "sermons_export": 1,
+      "ai_assistant": 1,
+      "podium": 1,
+      "sermons_core": 1,
+      "planning": 1,
+      "censored_words": 1,
+      "ai": 1,
+      "general": 1,
+      "online_giving": 1,
+      "timezone": 2,
+      "ticket_managers": 1,
+      "email": 1,
+      "groups": 1,
+      "users": 1,
+      "main": 0,
+      "config": 0,
+      "__init__": 0,
+      "announcements": 0,
+      "api_keys": 0,
+      "attendance": 0,
+      "banned_ips": 0,
+      "change_records": 0,
+      "donations": 0,
+      "dreams": 0,
+      "email_settings": 0,
+      "events": 0,
+      "family_relations": 0,
+      "inventory": 0,
+      "kiosk_sessions": 0,
+      "member_roles": 0,
+      "online_donation_options": 0,
+      "prayers": 0,
+      "prophecies": 0,
+      "recurring_bills": 0,
+      "tickets": 0,
+      "timezone_settings": 0,
+      "user_groups": 0,
+      "user_widgets": 0,
+      "auth": 0,
+      "bills": 0,
+      "dashboard": 0,
+      "members": 0,
+      "profile": 0,
+      "public": 0,
+      "public_dashboard": 0,
+      "sermons_exports": 0,
+      "permissions": 0
+    },
+    "templates": [
+      "announcements/announcements_dashboard.html",
+      "announcements/base_announcements.html",
+      "announcements/create_announcement.html",
+      "announcements/edit_announcement.html",
+      "attendance/attendance_dashboard.html",
+      "attendance/base_attendance.html",
+      "attendance/day_detail.html",
+      "attendance/kiosk.html",
+      "attendance/kiosk_closed.html",
+      "attendance/open_kiosk.html",
+      "attendance/user_signin.html",
+      "auth/forgot_username.html",
+      "auth/login.html",
+      "auth/register.html",
+      "auth/request_reset_password.html",
+      "base.html",
+      "base_public.html",
+      "bills/assign_bill.html",
+      "bills/base_bills.html",
+      "bills/bills_dashboard.html",
+      "bills/edit_bill.html",
+      "bills/view_bill.html",
+      "donations/add_donation.html",
+      "donations/base_donations.html",
+      "donations/donations_dashboard.html",
+      "donations/edit_donation.html",
+      "donations/export_donations.html",
+      "donations/reports.html",
+      "donations/view_all_donations.html",
+      "dreams/add_dream.html",
+      "dreams/base_dreams.html",
+      "dreams/edit_dream.html",
+      "dreams/view_dream.html",
+      "email/send_email.html",
+      "errors/404.html",
+      "errors/500.html",
+      "events/add_event.html",
+      "events/base_events.html",
+      "events/edit_event.html",
+      "groups/create.html",
+      "groups/edit.html",
+      "groups/list.html",
+      "inventory/add_cat_location.html",
+      "inventory/base_inventory.html",
+      "inventory/dashboard.html",
+      "inventory/item_form.html",
+      "inventory/items_list.html",
+      "inventory/receive_form.html",
+      "log/base_log.html",
+      "log/change_records.html",
+      "members/base_members.html",
+      "members/email_roster.html",
+      "members/member_form.html",
+      "members/members_directory.html",
+      "pastoral/base_pastoral.html",
+      "pastoral/bible_upload.html",
+      "pastoral/care/care_dashboard.html",
+      "pastoral/care/care_new.html",
+      "pastoral/care/care_request_detail.html",
+      "pastoral/dashboard_pastoral.html",
+      "pastoral/illustrations_edit.html",
+      "pastoral/illustrations_library.html",
+      "pastoral/planning_edit.html",
+      "pastoral/planning_list.html",
+      "pastoral/podium_view.html",
+      "pastoral/sermon_editor.html",
+      "pastoral/sermons_export.html",
+      "pastoral/sermons_list.html",
+      "pastoral/vault_my.html",
+      "pastoral/vault_search.html",
+      "pastoral/vault_shared.html",
+      "prayers/base_prayers.html",
+      "prayers/edit_prayer.html",
+      "profile/profile.html",
+      "prophecies/add_prophecy.html",
+      "prophecies/base_prophecies.html",
+      "prophecies/edit_prophecy.html",
+      "prophecies/prophecies.html",
+      "public/announcements/announcements.html",
+      "public/donate.html",
+      "public/dreams/dreams.html",
+      "public/events/event_detail.html",
+      "public/events/events.html",
+      "public/prayers/add_prayer.html",
+      "public/prayers/prayers.html",
+      "public/prayers/view_prayer.html",
+      "public/prophecies/prophecies.html",
+      "public/public_dashboard.html",
+      "public/sermons/sermons.html",
+      "sermons/add_sermon.html",
+      "sermons/base_sermons.html",
+      "sermons/edit_sermon.html",
+      "settings/ai.html",
+      "settings/base_settings.html",
+      "settings/censored_words.html",
+      "settings/email.html",
+      "settings/general.html",
+      "settings/online_giving.html",
+      "settings/ticket_managers.html",
+      "settings/timezone.html",
+      "tickets/base_tickets.html",
+      "tickets/submit_ticket.html",
+      "tickets/ticket_manager.html",
+      "tickets/ticket_managers.html",
+      "tickets/tickets_dashboard.html",
+      "tickets/view_ticket.html"
+    ],
+    "static": [
+      "css/events_common.css",
+      "css/events_forms.css",
+      "css/global/base.css",
+      "css/global/components-header.css",
+      "css/global/components-main.css",
+      "css/global/components-navigation.css",
+      "css/global/forms.css",
+      "css/global/layout.css",
+      "css/global/pastoral/editor.css",
+      "css/global/pastoral/pastoral.css",
+      "css/global/pastoral/planning.css",
+      "css/global/public/base_public.css",
+      "css/global/public/public_announcements.css",
+      "css/global/public/public_dashboard.css",
+      "css/global/public/public_dreams.css",
+      "css/global/public/public_prophecies.css",
+      "css/global/theme.css",
+      "css/groups/groups_common.css",
+      "css/mobile/public_mobile.css",
+      "js/pastoral/bible.js",
+      "js/pastoral/illustrations.js",
+      "js/pastoral/sermon_editor.js",
+      "js/pastoral/shortcuts.js"
+    ]
+  },
+  "entry_points": [
+    "main.py",
+    "app/builddb/builddb.py",
+    "app/models/log.py",
+    "app/models/owner.py"
+  ],
+  "comments": [
+    "===========================================================\nFile: main.py\nPath: myvinechurchonline/main.py\nPurpose: Application entry point. Creates the Flask app using the factory pattern from app/__init__.py and runs the development server when executed directly. Database table creation is handled inside create_app() (idempotent with IF NOT EXISTS). Owner registration enforcement is handled via @app.before_request in __init__.py. No top-level database calls are needed here \u2013 everything requiring app context is already wrapped inside the factory or route handlers for smoothness and to avoid context errors.\n",
+    "===========================================================\nFile: app/config.py\nPath: myvinechurchonline/app/config.py\nPurpose: Configuration classes for the Flask application in MariaDB environment. Defines base Config and environment-specific subclasses (DevelopmentConfig, ProductionConfig, TestingConfig). All database settings use MYSQL_* environment variables (standard for Docker/MariaDB). Sensitive values (SECRET_KEY, MYSQL_PASSWORD) must come from environment in production. Upload/export paths remain relative to project root for consistency. Email settings are placeholders \u2014 actual encrypted credentials stored in settings table.\n",
+    "===========================================================\nFile: app/__init__.py\nPath: myvinechurchonline/app/__init__.py\nPurpose: Flask application factory \u2013 rebuilt for reliability, modularity, and production safety. Core responsibilities: - Loads .env and configures MariaDB connection - Initializes DB schema silently on first request - Registers all core + known blueprints (required fail loud, optional silent) - Injects global settings into g - Adds custom Jinja filters: nl2br, censor, relative_time - Injects permission helpers into template context - Enforces initial Owner registration (skips public/auth/static routes) - Smart root redirect: logged-in \u2192 dashboard, else \u2192 public - Basic 404/500 error handlers All pastoral features are explicitly registered and always available.\n",
+    "===========================================================\nFile: app/builddb/announcements.py\nPath: myvinechurchonline/app/builddb/announcements.py\nPurpose: Creates the announcements and announcement_comments tables for MariaDB. Supports public/private visibility, guest contributions (contributor_name/ip_address for tracking and potential banning), full audit fields (created_by/updated_by + timestamps), effective/expiration dates, and comment enabling. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS without data loss. Isolated module \u2013 called from builddb.py during DB initialization. All user-related FKs use signed INT to match users.id type and fix errno 150 FK mismatch.\n",
+    "===========================================================\nFile: app/builddb/api_keys.py\nPath: myvinechurchonline/app/builddb/api_keys.py\nPurpose: Creates the api_keys table for MariaDB. Stores AI service API keys (service unique, api_key encrypted in app before storage, enabled flag). Owner/Admin management via future settings page. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module \u2013 called from builddb.py during DB initialization. Safe to run repeatedly.\n",
+    "===========================================================\nFile: app/builddb/attendance.py\nPath: myvinechurchonline/app/builddb/attendance.py\nPurpose: Creates the attendance table for MariaDB. Tracks individual member check-ins for church services/events. Core fields: user_id, service_date (DATE for weekly services), check_in/check_out timestamps. Optional group_id for group check-ins (e.g., youth group attendance). notes TEXT for manual comments. checked_in_by for staff manual check-in. UNIQUE constraint prevents duplicate check-in for same user on same date. Searchable via members directory (per member history) and groups (group attendance reports). Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module \u2013 called from builddb.py during DB initialization. All user/group FKs use UNSIGNED INT to match users.id/groups.id and fix errno 150. FULL REBUILD: Removed unnecessary import (check_password_hash belongs in routes, not migration). No Werkzeug imports \u2013 pure schema creation.\n",
+    "===========================================================\nFile: app/builddb/banned_ips.py\nPath: myvinechurchonline/app/builddb/banned_ips.py\nPurpose: Creates the banned_ips table for MariaDB. Tracks abusive IP addresses for blocking in guest submission routes. Primary key on ip_address (VARCHAR(45) to support IPv4/IPv6 and fix MariaDB TEXT PK limitation). Audit fields for who banned and reason. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module \u2013 called from builddb.py during DB initialization. Fixes errno 150 by matching banned_by type (INT UNSIGNED) to users.id.\n",
+    "===========================================================\nFile: app/builddb/builddb.py\nPath: myvinechurchonline/app/builddb/builddb.py\nPurpose: Main database initialization script for MariaDB. Automatically discovers all Python modules in the builddb folder (excluding __init__.py and itself), imports them dynamically, and executes their create_tables(cursor) functions in SAFE ORDER. SAFE EXPLICIT ORDER to avoid FK constraint errors (errno 150): 1. users.py (base for all user FKs) 2. groups.py (required for user_groups and attendance group_id) 3. user_groups.py 4. attendance.py (references users and groups) 5. family_relations.py 6. member_roles.py 7. user_widgets.py 8. timezone_setting.py (runs last \u2013 ALTER on settings table, safe anytime after settings exists) 9. Any remaining modules alphabetically Added robust retry logic with exponential backoff for connection/initialization issues. Verbose mode (default True when run directly) for debugging; quiet success message otherwise. FULL REBUILD: Added timezone_setting to explicit order (safe position at end).\n",
+    "===========================================================\nFile: app/builddb/change_records.py\nPath: myvinechurchonline/app/builddb/change_records.py\nPurpose: Creates the change_records table for MariaDB audit logging. Logs all significant actions (create/update/delete/view/email etc.) with user accountability. Fields: user_id (FK to users), action, optional target_id/username, details, timestamp. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module \u2013 called from builddb.py during DB initialization. Updated user_id to INT UNSIGNED to match users.id and fix MariaDB Errno 150.\n",
+    "===========================================================\nFile: app/builddb/donations.py\nPath: myvinechurchonline/app/builddb/donations.py\nPurpose: Creates the donations table for MariaDB. Tracks donation records (name, amount, date, method, notes) with additional columns for receipt compliance: confirmation_number (TEXT) and goods_services_provided (INTEGER flag). No user_id foreign key in this table (donations may be recorded anonymously or linked separately). Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module \u2013 called from builddb.py during DB initialization.\n",
+    "===========================================================\nFile: app/builddb/dreams.py\nPath: myvinechurchonline/app/builddb/dreams.py\nPurpose: Creates/updates the dreams and dream_comments tables for MariaDB. Now supports three visibility levels via the visibility column: - 'public'   : visible to everyone (including guests) - 'private'  : visible to all logged-in members - 'personal' : visible ONLY to the submitter/uploader Default visibility = 'private' for member review (backward compatible). Removed separate is_personal flag \u2013 now fully handled by visibility column for consistency with sermons module. Safe schema evolution: drops old CHECK constraint if present, updates visibility to include 'personal'. Isolated module \u2013 called from builddb.py during DB initialization.\n",
+    "===========================================================\nFile: app/builddb/email_settings.py\nPath: myvinechurchonline/app/builddb/email_settings.py\nPurpose: Creates the app_email_settings and church_email_settings tables for MariaDB. Stores encrypted SMTP/email configuration (server, port, credentials, mode) separately for app-wide and church-specific settings. No foreign keys; independent tables. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module \u2013 called from builddb.py during DB initialization.\n",
+    "===========================================================\nFile: app/builddb/events.py\nPath: myvinechurchonline/app/builddb/events.py\nPurpose: Creates/updates the events and potluck_signups tables. Supports public/private visibility, potluck flag, optional event_time, full audit trail (created_by/updated_by + timestamps), and ALL extensive optional fields for rich event details (as listed in project spec). Guest potluck signups: potluck_signups table (name, item, quantity, note, ip \u2013 no user_id required). All truly optional fields allow NULL; required fields remain NOT NULL. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS (MariaDB-safe). Isolated module \u2013 called from builddb.py during DB initialization. FULL REBUILD: Includes every field from your provided code + guest potluck_signups table.\n",
+    "===========================================================\nFile: app/builddb/family_relations.py\nPath: myvinechurchonline/app/builddb/family_relations.py\nPurpose: Creates and safely migrates the family_relations table. Manages bidirectional family relationships between users with: - relation_type (spouse, parent, child, sibling, etc.) - status (pending \u2192 approved/rejected) - timestamps for request and response - optional admin override field (approved_by) Enforces uniqueness per user pair (prevents duplicate requests in either direction). Uses INT UNSIGNED for all FKs to match users.id and prevent errno 150 issues. Safe schema evolution: checks existing columns via INFORMATION_SCHEMA and adds missing ones. Idempotent indexes and CHECK constraints. Isolated module \u2013 called from builddb.py or scripts/init_db.py during DB initialization. Fully compatible with models/user.py family functions.\n",
+    "===========================================================\nFile: app/builddb/groups.py\nPath: myvinechurchonline/app/builddb/groups.py\nPurpose: Creates/updates the groups table and seeds essential system groups for MariaDB. Supports group name (unique), description, visibility (public/private), permissions (JSON stored as TEXT), full audit trail (created_by/updated_by + timestamps). Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module \u2013 called from builddb.py during DB initialization. FULL REBUILD: Added seeding for Ticket Managers, Pastoral Group, and Worship Team Group (idempotent with INSERT IGNORE).\n",
+    "===========================================================\nFile: app/builddb/inventory.py\nPath: myvinechurchonline/app/builddb/inventory.py\nPurpose: Creates/updates all inventory-related tables for MariaDB. Supports categories (hierarchical), vendors, storage locations, master items catalog, batch/lot tracking (with expiration), full transaction audit trail, and optional barcode scan logging. Standardized timestamps: created_at/updated_at where appropriate. Safe schema evolution \u2013 adds missing columns/constraints/indexes without data loss. Isolated module \u2013 called from builddb.py during DB initialization. Multi-line CREATE TABLE strings dedented to prevent MariaDB syntax errors from Python indentation.\n",
+    "===========================================================\nFile: app/builddb/kiosk_sessions.py\nPath: myvinechurchonline/app/builddb/kiosk_sessions.py\nPurpose: Creates the kiosk_sessions table for MariaDB. Tracks active attendance kiosk sessions (token-based, secure, expirable). Core fields: token (UNIQUE), created_by, created_at, expires_at, active. Used for public kiosk access \u2013 token required, no login. Tokens auto-expire or manual close. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module \u2013 called from builddb.py during DB initialization. FK to users.id for creator.\n",
+    "===========================================================\nFile: app/builddb/member_roles.py\nPath: myvinechurchonline/app/builddb/member_roles.py\nPurpose: Creates the member_roles table for MariaDB. Enables many-to-many assignment of roles to users (multiple roles per user). Supports future flexible permission systems beyond the single 'role' column in users table. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module \u2013 called from builddb.py during DB initialization. Fixes MariaDB Errno 150 by using UNSIGNED INT and VARCHAR for indexing.\n",
+    "===========================================================\nFile: app/builddb/online_donation_options.py\nPath: myvinechurchonline/app/builddb/online_donation_options.py\nPurpose: Creates the online_donation_options table. Stores multiple configurable giving methods (Stripe link, PayPal embed, Venmo, QR code, etc.). Each row is one public giving option (repeater in Settings UI). Safe schema evolution: creates table if missing, adds columns safely. Isolated module \u2013 called from builddb.py during DB initialization (after old_settings.py). FIXED FOR MARIADB: Uses MySQL/MariaDB-compatible AUTO_INCREMENT syntax (no SQLite \"INTEGER PRIMARY KEY AUTOINCREMENT\").\n",
+    "===========================================================\nFile: app/builddb/pastoral.py\nPath: myvinechurchonline/app/builddb/pastoral.py\nPurpose: Creates and safely migrates ALL database tables for the Pastoral Area module (full comprehensive rebuild). Includes every table and column that has ever been part of the Pastoral Area design: - offline Bible storage - sermon builder (sermons + structured sections + collaborators + edit history) - service planning + role assignments - illustration library (personal + group-shared via NULL user_id) - sermon templates - dedicated pastoral group membership table (kept for completeness/legacy/future use) - new Pastoral Vault (personal + shared favorites) Nothing is removed \u2013 this is the longest, most complete version that preserves every historical and planned field. Matches exact style of existing builddb modules: explicit CREATE TABLE IF NOT EXISTS, safe column additions for migrations, idempotent constraints/indexes via safe_exec. ALL IDs/FKs use INT UNSIGNED to match users.id and avoid errno 150. Safe for repeated execution on fresh or existing databases. FIXED: Reordered table creation so referenced tables exist before referencing ones (fixes errno 150 on sermon_sections FKs).\n",
+    "===========================================================\nFile: app/builddb/prayers.py\nPath: myvinechurchonline/app/builddb/prayers.py\nPurpose: Creates the prayers and prayers_added tables for MariaDB. Supports public/private visibility (defaults to 'public' per project guidelines), guest submissions (contributor_name/ip_address), and prayer responses (\"added prayers\") with similar guest tracking. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module \u2013 called from builddb.py during DB initialization. All ID/FK columns use UNSIGNED INT to match users.id type and fix errno 150.\n",
+    "===========================================================\nFile: app/builddb/prophecies.py\nPath: myvinechurchonline/app/builddb/prophecies.py\nPurpose: Creates/updates the prophecies and prophecy_comments tables for MariaDB. Standardized timestamps: created_at (DEFAULT CURRENT_TIMESTAMP), updated_at (ON UPDATE CURRENT_TIMESTAMP). Visibility levels: public / private / personal (CHECK constraint). Guest contributions supported (contributor_name, ip_address). Safe schema evolution \u2013 adds missing columns/constraints without data loss. Isolated module \u2013 called from builddb.py during DB initialization. FIXED: Multi-line CREATE TABLE strings reformatted with no leading whitespace on continued lines to prevent MariaDB syntax errors from Python indentation preservation.\n",
+    "===========================================================\nFile: app/builddb/recurring_bills.py\nPath: myvinechurchonline/app/builddb/recurring_bills.py\nPurpose: Creates/updates the recurring_bills, recurring_bill_assignments, and bill_payment_history tables for MariaDB.\n",
+    "===========================================================\nFile: app/builddb/sermons.py\nPath: myvinechurchonline/app/builddb/sermons.py\nPurpose: Creates/updates the sermons and sermon_comments tables for MariaDB. Now supports three visibility levels: - 'public'   : visible to everyone (including guests) - 'private'  : visible to all logged-in members - 'personal' : visible ONLY to the uploader (new option) Default remains 'private' for backward compatibility. Safe schema evolution: modifies existing CHECK constraint to include 'personal'. Isolated module \u2013 called from builddb.py during DB initialization.\n",
+    "===========================================================\nFile: app/builddb/settings.py\nPath: myvinechurchonline/app/builddb/settings.py\nPurpose: Creates/updates the global settings table AND the new email_accounts table. \u2022 settings table remains single-row (id=1) for church-wide globals (paths, church info, censored_words, etc.). \u2022 NEW email_accounts table supports MULTIPLE email configurations (outgoing + optional incoming). - Allows professional addresses like groups@myvinechurch.online, events@, pastors@, etc. - Each account has a name, full SMTP/IMAP details, and is_default flag (only one default recommended). - Passwords stored encrypted in routes (Fernet) \u2013 schema stores as TEXT. - Safe migration: adds table/columns if missing, migrates legacy single email from settings to new table as \"Main Account\". \u2022 Isolated module \u2013 called from builddb.py during DB initialization.\n",
+    "===========================================================\nFile: app/builddb/tickets.py\nPath: myvinechurchonline/app/builddb/tickets.py\nPurpose: Creates/updates the ticket_categories, ticket_managers, tickets, and ticket_comments tables for MariaDB. Supports guest submissions (contact_name, contact_email, ip_address) in allowed categories. Dedicated ticket_managers junction table for explicit management permission (no role auto-access). Priority and status tracking. Safe schema evolution using INFORMATION_SCHEMA.COLUMNS. Isolated module \u2013 called from builddb.py during DB initialization. All ID/FK columns use UNSIGNED INT. FULL REBUILD: Added missing ticket_managers table, consistent %s placeholders for MariaDB/PyMySQL, improved migration safety, default categories with realistic church use cases.\n",
+    "===========================================================\nFile: app/builddb/timezone_settings.py\nPath: myvinechurchonline/app/builddb/timezone_settings.py\nPurpose: Adds/updates the timezone column in the settings table. Stores the church's preferred IANA timezone name (e.g., 'America/Chicago'). All timestamps are stored in UTC; this value is used for display/input conversion. Safe migration: checks for column existence via INFORMATION_SCHEMA before ALTER. Default: 'America/Chicago' (Central Time \u2013 matches church location in Odessa, TX). Isolated module \u2013 called from builddb.py during DB initialization. Uses MariaDB/MySQL compatible syntax and patterns consistent with attendance.py, etc. FULL REBUILD: Function renamed to create_tables(cursor) to match builddb.py discovery pattern. All original logic preserved exactly \u2013 no functionality lost.\n",
+    "===========================================================\nFile: app/builddb/users.py\nPath: myvinechurchonline/app/builddb/users.py\nPurpose: Creates and synchronizes the users table for MariaDB. Definitive schema including new privacy preference columns and secure check-in PIN: \u2022 allow_proxy_checkin TINYINT(1) DEFAULT 1 \u2013 allow others to check in for attendance. \u2022 allow_group_add TINYINT(1) DEFAULT 1 \u2013 allow staff to add to groups. \u2022 allow_family_search TINYINT(1) DEFAULT 1 \u2013 allow appearing in family searches. \u2022 checkin_pin TEXT \u2013 hashed PIN for kiosk self check-in (hashed with Werkzeug, not plain). All original fields preserved + safe migration pattern. MariaDB-compatible syntax (INT UNSIGNED, ENGINE=InnoDB, proper AUTO_INCREMENT).\n",
+    "===========================================================\nFile: app/builddb/user_groups.py\nPath: myvinechurchonline/app/builddb/user_groups.py\nPurpose: Creates the user_groups junction table for MariaDB. Many-to-many assignment of users to groups with role_in_group (extensible, e.g., 'leader', 'member'), joined_at timestamp for membership duration, assigned_by for audit trail. Enforces uniqueness to prevent duplicates; cascades deletions safely. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module \u2013 called from builddb.py during DB initialization. All ID/FK columns use UNSIGNED INT to match parent tables and fix errno 150.\n",
+    "===========================================================\nFile: app/builddb/user_widgets.py\nPath: myvinechurchonline/app/builddb/user_widgets.py\nPurpose: Creates the user_widgets table for MariaDB. Enables per-user dashboard widget customization (enable/disable specific widgets). Unique constraint prevents duplicate widget entries per user. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module \u2013 called from builddb.py during DB initialization. All user-related FKs use UNSIGNED INT to match users.id type and fix errno 150 FK mismatch.\n",
+    "===========================================================\nFile: app/models/db.py\nPath: myvinechurchonline/app/models/db.py\nPurpose: MariaDB connection handler using PyMySQL. Provides a per-request connection with DictCursor (returns dict-like rows, matching previous sqlite3.Row behavior). Configuration is read from app.config keys: MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE MYSQL_PORT (optional, defaults to 3306) Designed to be a near-drop-in replacement for the previous SQLite version while fully supporting MariaDB in Docker.\n",
+    "===========================================================\nFile: app/models/donation.py\nPath: myvinechurchonline/app/models/donation.py\nPurpose: Centralized, reusable database helpers for all donation operations in MariaDB. Handles member selector data, dashboard summaries, full CRUD, view-all with search/year filtering, detailed reports, and all export-related queries. All direct SQL lives here \u2013 routes only handle flow, permissions, logging, flashing, and rendering. Consistent use of pymysql.cursors.DictCursor \u2192 dict-like rows (row['column'] safe everywhere). Date field is TEXT ('YYYY-MM-DD'); STR_TO_DATE(date, '%%Y-%%m-%%d') for reliable parsing (%% escapes % for Python formatting). COALESCE on aggregates to guarantee values even with no rows. db.commit() added on all write operations for persistence. FULL REBUILD: Integrated timezone-aware current year calculation using now_church(). All existing functionality preserved exactly \u2013 only current_year source updated for consistency.\n",
+    "===========================================================\nFile: app/models/groups.py\nPath: myvinechurchonline/app/models/groups.py\nPurpose: Provides centralized query and manipulation functions for groups and user-group assignments in MariaDB. Includes creation, retrieval, updating, soft-deletion of groups; user assignment/removal; membership checks. Integrates with audit logging via log_change for all mutations. Handles errors gracefully. Permissions stored/parsing as JSON in TEXT column. Supports role_in_group and joined_at tracking. Used across routes for group management without duplicating SQL. Layered additively on core auth.\n",
+    "===========================================================\nFile: app/models/log.py\nPath: myvinechurchonline/app/models/log.py\nPurpose: Centralizes audit logging for the entire application in MariaDB. Provides a single, reusable log_change function that records all significant user actions (create, update, delete, view, email, etc.) into the change_records table. Used by every route/model to ensure complete audit trail without code duplication. Never fails the app \u2014 errors are printed but swallowed.\n",
+    "===========================================================\nFile: app/models/owner.py\nPath: myvinechurchonline/app/models/owner.py\nPurpose: Provides a simple utility to check whether an Owner account exists. Aligned for MariaDB: Uses 'total' alias to handle DictCursor results and %s placeholders.\n",
+    "===========================================================\nFile: app/models/settings.py\nPath: myvinechurchonline/app/models/settings.py\nPurpose: Loads church-wide settings from the single-row 'settings' table. Returns a dict with safe defaults if no row exists or query fails. Used globally via before_request to populate g.settings. Now includes online giving page controls added in recent migration.\n",
+    "===========================================================\nFile: app/models/users.py\nPath: myvinechurchonline/app/models/users.py\nPurpose: Centralized user model and queries for the entire application. Handles user lookups, profile updates, role management (approve/ban), and complete family relationship lifecycle: - Sending requests (spouse/parent/child/sibling) - Pending incoming/outgoing lists - Approval/rejection (mutual consent or admin override) - Removal (by member or admin) - Display logic with inverse relations for profile & directory views All functions return dicts for template compatibility. All write operations commit changes and log via log_change(). Includes owner_exists() for initial setup enforcement in app/__init__.py. FIXED: All queries now use %s placeholders for MariaDB/PyMySQL compatibility.\n",
+    "===========================================================\nFile: app/models/pastoral/bible.py\nPath: myvinechurchonline/app/models/pastoral/bible.py\nPurpose: All database operations related to offline Bible translations and verse lookup. Handles: - Listing available translations with code, name, default status - Setting/unsetting default translation (single default enforced) - Deleting a translation (cascades to all verses) - Full-text verse search (partial match, optional translation filter) - Fetching complete chapters (with fallback to default translation) No visibility enforcement needed \u2014 scripture content is neutral/public. All queries use parameterized %s placeholders for MariaDB/PyMySQL safety. Returns dict-like rows via DictCursor for consistent template access.\n",
+    "===========================================================\nFile: app/models/pastoral/care.py\nPath: myvinechurchonline/app/models/pastoral/care.py\nPurpose: All database operations related to the Pastoral Care module. Handles confidential care requests for members (hospital visits, counseling, prayer needs, bereavement, etc.), including: - Requests CRUD (create, read, update, delete) - Pastor/staff assignments (add/remove) - Chronological private notes (team-only visibility) All data is confidential \u2014 visibility enforced by pastoral_required decorator in routes. Routes handle audit logging (log_change) and censorship checks separately. Uses DictCursor for consistent dict results with human-readable names. Parameterized queries for MariaDB / PyMySQL safety.\n",
+    "===========================================================\nFile: app/models/pastoral/illustrations.py\nPath: myvinechurchonline/app/models/pastoral/illustrations.py\nPurpose: Pure database layer for the Illustration Library. Handles fetching, CRUD, search, and tag parsing. Visibility: 'private' (user_id = owner), 'pastoral_group' (user_id IS NULL). NO Flask imports \u2014 models must remain independent of routes.\n",
+    "===========================================================\nFile: app/models/pastoral/sermons.py\nPath: myvinechurchonline/app/models/pastoral/sermons.py\nPurpose: All database operations related to the Sermon Builder module. Handles: - Fetching visible sermons (personal, collaborators, pastoral group) - Sermon CRUD (create, read, update, delete) with visibility enforcement - Sermon section management (structured, ordered content blocks) - Collaborator management (add/remove users who can edit) Visibility is strictly enforced at query level. Routes handle audit logging (log_change) and censorship checks separately. Uses DictCursor for consistent dict results. Parameterized queries for MariaDB / PyMySQL safety.\n",
+    "===========================================================\nFile: app/models/pastoral/service_plans.py\nPath: myvinechurchonline/app/models/pastoral/service_plans.py\nPurpose: All database operations related to Service Planning module. Handles: - Listing all service plans with creator and linked sermon info - Fetching a single plan by exact date - Creating or updating a plan (upsert behavior keyed on service_date) - Managing role assignments for a plan (full replace pattern: delete then insert) No visibility enforcement needed (pastoral group only via routes/decorator). Routes handle audit logging (log_change) and input validation/censorship separately. Uses DictCursor for consistent dict results. Parameterized queries for MariaDB / PyMySQL safety.\n",
+    "===========================================================\nFile: app/models/pastoral/shared.py\nPath: myvinechurchonline/app/models/pastoral/shared.py\nPurpose: Shared / cross-cutting helper functions used across multiple Pastoral Area sub-modules. Currently contains only the core permission check: is_in_pastoral_group(). More shared utilities can be added here later (e.g. common visibility helpers, date formatting for pastoral views, team member counts, permission checks, etc.). Uses DictCursor for consistency where needed. Parameterized queries for MariaDB / PyMySQL safety.\n",
+    "===========================================================\nFile: app/models/pastoral/vault.py\nPath: myvinechurchonline/app/models/pastoral/vault.py\nPurpose: All database operations related to the Pastoral Vault module. Handles: - Personal vault items (private to user) - Shared vault items (pastoral_group visibility) - CRUD operations with ownership enforcement - Unified search across vault + visible sermons Visibility: 'private' (user_id = owner) or 'pastoral_group' (shared) Routes handle audit logging (log_change) and censorship checks separately. Tags stored as JSON string; parsed to list on fetch. Uses DictCursor for consistent dict results. Parameterized queries for MariaDB / PyMySQL safety.\n",
+    "===========================================================\nFile: app/models/pastoral/__init__.py\nPath: myvinechurchonline/app/models/pastoral/__init__.py\nPurpose: Sub-package initializer and public facade for all Pastoral Area model functions. Re-exports EVERY function from the modular sub-files so existing code can continue importing like this (during transition): from app.models.pastoral import get_visible_sermons, is_in_pastoral_group, ...  Once all routes are updated to import directly from sub-modules (recommended long-term), this file can be simplified or removed. Shared / cross-cutting helpers\n",
+    "===========================================================\nFile: app/routes/announcements.py\nPath: myvinechurchonline/app/routes/announcements.py\nPurpose: Fully rebuilt Announcements blueprint \u2013 100% MariaDB-compatible (pymysql). \u2022 Single route /announcements \u2192 different template based on login status: - Guests (not logged in): public/announcements/announcements.html (simple public list, only public + active). - Logged-in: announcements/announcements_dashboard.html (full private dashboard with comments, management, etc.). \u2022 Guests see ONLY public + active announcements, full content, no comments/management. \u2022 Logged-in members: all announcements + comment ability (if enabled). \u2022 Create/edit/delete/email: Staff/Admin/Owner only. \u2022 All actions audit-logged + censored word checks. \u2022 Uses pymysql %s placeholders + DictCursor for dict-like rows. \u2022 Permissions: can_manage / is_logged_in passed to templates. \u2022 INSERTs explicitly list columns to match schema (ignores optional/extra columns safely). \u2022 All log_change calls provide 5 arguments consistently (user_id, action, item_id, item_title, details).\n",
+    "===========================================================\nFile: app/routes/attendance.py\nPath: myvinechurchonline/app/routes/attendance.py\nPurpose: Attendance module blueprint \u2013 complete, MySQL/pymysql-compatible version. Features: \u2022 Staff/Admin/Owner dashboard: today's count + recent days list + clickable day details \u2022 Staff+ secure token-based kiosk open/close (8-hour expiry) \u2022 Public token-protected kiosk: live AJAX search (name + username), PIN/proxy support \u2022 Private self-check-in (/self_checkin): mobile-friendly, logged-in members only \u2022 Timestamps stored in UTC in DB (using time_utils.utc_now() or to_utc()) \u2022 Displayed times converted to church local time via time_utils.format_church() \u2022 Client local time captured when possible (self_checkin) \u2192 converted to UTC on save \u2022 Robust ISO parsing with fallback to server UTC now \u2022 All significant actions audit-logged \u2022 Uses base_attendance.html for admin views \u2022 FULL REBUILD: Integrated timezone-aware UTC storage + church local display All existing functionality preserved exactly \u2013 only time handling updated.\n",
+    "===========================================================\nFile: app/routes/auth.py\nPath: myvinechurchonline/app/routes/auth.py\nPurpose: Blueprint for authentication routes (login, logout, register, password/username recovery). Updated for consistency: uses DictCursor everywhere. Register collects all form fields (phone, address, birthday, show_birthday, accepts_emails). First user = Owner; subsequent = pending. Root '/' now redirects: logged-in users \u2192 private dashboard, guests \u2192 public dashboard (the live \"Gathering Place\"). This eliminates competing home pages and gives guests immediate access to church content (sermons, events, announcements). After successful login \u2192 private dashboard. Logout \u2192 public dashboard (welcoming public view). All routes present \u2013 fixes BuildError for request_reset_password and forgot_username. FULL REBUILD: Added server-side censored word check on registration for visible fields (first_name, last_name, username). - If censored word detected, flash error and repopulate form (no save). - Password not checked (as per requirement). - Combined check on name + username for thoroughness. - Form repopulation on error using request.form context.\n",
+    "===========================================================\nFile: app/routes/bills.py\nPath: myvinechurchonline/app/routes/bills.py\nPurpose: Blueprint for recurring bills management (internal administrative tool). /bills \u2192 dashboard listing: managers see all bills, assigned members see only theirs. Full CRUD for Staff/Admin/Owner. Assigned users (or managers) can view details (including decrypted credentials), record payments. Managers can assign users, update reminder preferences, send manual reminders. All editable text fields + link labels checked for censored words on create/edit. Encrypted username/password decrypted only on view/edit form (FERNET_KEY from config). Additional links stored as JSON in DB but user enters via repeatable normal inputs (label + URL). All significant actions audit-logged. Strictly private \u2013 login_required on all routes. FULL REBUILD: Integrated timezone-aware UTC storage for timestamps (last_reminder_sent, updated_at). Displayed timestamps formatted in church local time via time_utils. All existing functionality preserved exactly \u2013 only time handling updated for consistency.\n",
+    "===========================================================\nFile: app/routes/dashboard.py\nPath: myvinechurchonline/app/routes/dashboard.py\nPurpose: Handles the dashboard route (single URL /dashboard). \u2022 Guests (not logged in): Shows public-only content \u2192 renders templates/public/public_dashboard.html (public view). \u2022 Logged-in: Shows all content (public + private) \u2192 renders dashboard/dashboard.html (private view with full data). No @login_required on viewing \u2013 guests see public version, logged-in see private version on SAME URL. Visibility enforced at query level \u2013 public content in both, private only for logged-in. FULL REBUILD: Integrated timezone-aware handling. - \"Today\" calculations use church local time (now_church()). - All datetime fields from DB (assumed UTC) formatted with format_church() for display. - Added 'formatted_date' and 'formatted_time' to each item for template use. - Events: separate event_date/event_time handling with church local formatting. - All existing functionality preserved exactly \u2013 only time handling updated for consistency.\n",
+    "===========================================================\nFile: app/routes/donations.py\nPath: myvinechurchonline/app/routes/donations.py\nPurpose: Blueprint for all donation-related routes. Handles request flow, permission checks, audit logging, flashing, redirects, and DOCX export generation. All database operations are delegated to app/models/donation.py for clean separation and maintainability. FULL REBUILD: Preserved every existing feature/logic exactly. Added server-side censored word check on add/edit donation for visible text fields (name + notes). - If prohibited word/phrase detected, flash error and repopulate form (no save). - Uses contains_censored_word() from helpers (fresh DB query \u2013 reflects current settings). - Company EIN append to notes preserved. - Namespace aliases for db_add_donation / db_delete_donation preserved. - All other routes unchanged. TIMEZONE INTEGRATION: Uses church local time for \"today\" defaults and current_year display. No timestamp storage changes here (delegated to models) \u2013 display formatting left to templates/models.\n",
+    "===========================================================\nFile: app/routes/dreams.py\nPath: myvinechurchonline/app/routes/dreams.py\nPurpose: Blueprint for dreams & visions module \u2013 FULL REBUILD. Visibility levels: - 'public'   : visible to everyone (including guests) - 'private'  : visible to all logged-in members - 'personal' : visible ONLY to the submitter \u2022 /dreams \u2192 listing: - Guests: only public dreams - Logged-in: public + private + own personal dreams \u2022 /dreams/<int:dream_id> \u2192 single dream detail view (visibility enforced) \u2022 /dreams/submit \u2192 submit new dream (logged-in only) \u2022 /dreams/edit/<int:dream_id> \u2192 edit dream (owner or Admin/Owner) \u2022 /dreams/delete/<int:dream_id> \u2192 delete dream (owner or Admin/Owner) \u2022 Comments: logged-in only, with censorship All text censored server-side on display and checked before save. All significant actions audit-logged. Single template for detail view (visibility enforced in route).\n",
+    "===========================================================\nFile: app/routes/emailer.py\nPath: myvinechurchonline/app/routes/emailer.py\nPurpose: Blueprint for manual email sending functionality. Provides a web form for authorized users (Staff/Admin/Owner) to send individual emails. Restricted access, uses centralized send_email utility from utils.emailer. Audit logs successful sends for accountability. FULL REBUILD: Added server-side censored word check on subject + body before sending. If prohibited word/phrase detected, flash error and repopulate form (no send). Uses contains_censored_word() from helpers (fresh DB query). Clears form on success. Preserved all original logic exactly.\n",
+    "===========================================================\nFile: app/routes/events.py\nPath: myvinechurchonline/app/routes/events.py\nPurpose: Blueprint for all event-related routes (private/internal + public handling). \u2022 /events \u2192 listing: internal dashboard for logged-in, public list for guests. \u2022 /events/<event_id> \u2192 GET: single event detail (internal template for logged-in, public template for guests). \u2022 /events/<event_id> \u2192 POST: potluck contribution submission (endpoint 'events.add_potluck_contribution'). - Guests: require name, capture IP, check banned IPs + censored words. - Logged-in members: auto-use full name, no IP. - Server-side censored words check using contains_censored_word() on name/item/quantity/note. \u2022 /events/<event_id>/delete_contribution/<signup_id> \u2192 POST: delete potluck contribution (Admin/Owner only). \u2022 Visibility strictly enforced (private events hidden from guests). \u2022 Potluck signups fetched robustly (try/except to avoid crashes on old DB/missing table). \u2022 Add/edit/delete events restricted to Staff/Admin/Owner. \u2022 Email invitations route. \u2022 All significant actions audit-logged. \u2022 Consistent DictCursor usage for safety. \u2022 FULL REBUILD: Added server-side censored word check on event creation and edit (all text fields). - If censored word found, flash error and repopulate form (no save). - Uses contains_censored_word() on concatenated text fields. - Preserved every existing feature/logic exactly. TIMEZONE INTEGRATION: Uses church local time for \"today\" calculations and display formatting. - event_date formatted as local calendar date. - event_time displayed as local time string. - potluck_signups.created_at (UTC in DB) formatted in church local time.\n",
+    "===========================================================\nFile: app/routes/groups.py\nPath: myvinechurchonline/app/routes/groups.py\nPurpose: Blueprint for group management with dynamic, granular permissions. Groups grant specific abilities via a JSON permissions array (e.g., [\"access_pastoral\", \"create_announcements\"]). Membership in a group grants exactly the selected permissions \u2013 no more, no less. Management (edit group, assign/remove users, change roles) allowed for global Staff/Admin/Owner OR group leaders (role_in_group = 'leader'). Creator is automatically added as leader. Fully fluid: any group name/combination works. Enforces visibility at query level, audit-logs all changes, pre-loads member counts/details/permissions. FULL REBUILD: Converted to PyMySQL/MariaDB compatibility (%s placeholders, DictCursor). Expanded KNOWN_PERMISSIONS to cover ALL major features (bills, tickets, attendance, members, change records, etc.). Added server-side censored word check on group create/edit for visible fields (name + description). Preserved every existing feature/logic exactly (permissions, leader checks, visibility, logging, etc.).\n",
+    "===========================================================\nFile: app/routes/inventory.py\nPath: myvinechurchonline/app/routes/inventory.py\nPurpose: Clean, fully rebuilt blueprint for inventory management. Restricted to Staff/Admin/Owner. Features (preserved + enhanced): \u2022 Dashboard: low-stock alerts, expiring items, recent transactions \u2022 Items catalog with search by name, barcode, OR category name \u2022 Add/Edit items with category/vendor dropdowns \u2022 Receive stock batches \u2022 Barcode lookup (local \u2192 external fallback) \u2022 NEW: Dedicated page to add Categories & Locations (Kitchen, Sanctuary, etc.) \u2022 All queries use ? placeholders (SQLite compatibility) \u2022 Consistent use of sqlite3.Row for dict-like access \u2022 Full audit logging and flash feedback \u2022 Timezone-aware UTC storage with local church time display\n",
+    "===========================================================\nFile: app/routes/log.py\nPath: myvinechurchonline/app/routes/log.py\nPurpose: Blueprint for viewing change audit records. Route /log/change_records \u2013 TEMPORARILY open to any logged-in user (for debugging). Displays all audit entries from the change_records table (table name aligned exactly with your builddb). Searchable by username/action/details. Simple pagination. Template: log/change_records.html (consistent with folder structure).\n",
+    "===========================================================\nFile: app/routes/members.py\nPath: myvinechurchonline/app/routes/members.py\nPurpose: Blueprint for member directory and management. - Directory: searchable, summary cards, expandable approved family rows (Staff+ access). - Add/Edit Member: combined route named 'add_member' (original name preserved), Staff+ access with role/group restrictions. - Delete Member: Admin/Owner only (Owner required for Admin/Owner deletion). - Export to DOCX: Admin/Owner only. - Email Roster: Admin/Owner only. - All actions audit-logged, uses per-request get_db(), DictCursor. - Group assignment with permission-based filtering (permissions JSON in groups table). - Family relations displayed in directory (approved only, expandable). FULL REBUILD: Added server-side censored word check on add/edit member for all visible fields (first_name, last_name, username, email, phone, address). - If prohibited word/phrase detected, flash error and repopulate form (no save). - Uses contains_censored_word() from helpers. - Preserved every existing feature/logic exactly.\n",
+    "===========================================================\nFile: app/routes/prayers.py\nPath: myvinechurchonline/app/routes/prayers.py\nPurpose: Blueprint for prayer requests and responses \u2013 PUBLIC FOCUS. \u2022 /prayers \u2192 listing: - Guests: ONLY public prayers \u2192 renders public/prayers/prayers.html (simple grid, read-only). - Logged-in: ALL visible prayers (public + private + own personal) \u2192 renders prayers/prayers_dashboard.html (richer private view with management). \u2022 /prayers/add \u2192 add new prayer request (guests submit public only, logged-in can choose visibility) \u2022 /prayers/<int:prayer_id> \u2192 GET: view detail + responses (public prayers only for detail view); POST: add response (guests allowed on public prayers) \u2022 /prayers/<int:prayer_id>/edit \u2192 edit (creator or Staff+) \u2022 /prayers/<int:prayer_id>/delete \u2192 delete (Admin/Owner only) Visibility strictly enforced in queries. All text censored server-side on display and before save. All significant actions audit-logged. FULL REBUILD: Separate listing templates \u2013 public grid for guests, full dashboard for logged-in. Standardized to pymysql/DictCursor (MariaDB compatible).\n",
+    "===========================================================\nFile: app/routes/profile.py\nPath: myvinechurchonline/app/routes/profile.py\nPurpose: Handles user profile viewing/editing (personal info, password, birthday visibility, new privacy preferences, check-in PIN) and full family relationship management: - View approved family and pending incoming requests - Search/send family link requests (with relation type) \u2013 respects allow_family_search = 1 - Approve/reject incoming requests - Remove approved relationships - Suggest potential family (same last name, no existing relation, respects allow_family_search = 1) Enforces authentication, prevents self-linking/duplicates, cleans rejected requests on resend, and logs all relationship actions for audit. FULL REBUILD: Added form fields and update logic for new privacy preferences: - allow_proxy_checkin (checkbox, default 1) - allow_group_add (checkbox, default 1) - allow_family_search (checkbox, default 1) - checkin_pin (optional 4-6 digit PIN, hashed with Werkzeug for kiosk self check-in) Censored word check on visible text fields (first_name, last_name, email, phone, address) and relation_type. Family search and suggested users now respect allow_family_search = 1 (opt-out users hidden). PIN validated (4-6 digits or empty, stored hashed). Preserved every existing feature/logic exactly. MariaDB/pymysql compatible: DictCursor, %s placeholders.\n",
+    "===========================================================\nFile: app/routes/prophecies.py\nPath: myvinechurchonline/app/routes/prophecies.py\nPurpose: Blueprint for all prophecy-related functionality (MariaDB/pymysql compatible). Single URL /prophecies \u2013 different template and data based on login status: \u2022 Guests: ONLY public prophecies (read-only public view). \u2022 Logged-in: ALL prophecies (public + private + personal own). Submit/edit/delete prophecy: logged-in + owner or Admin/Owner. Commenting/edit/delete comment: logged-in + owner or Admin/Owner. Visibility flag (default 'private') with full public/private/personal support. Server-side censored word check on create/edit/comment. Server-side display censorship on all user-generated text. All significant actions audit-logged. Visibility enforced at query level. FULL REBUILD: MariaDB/pymysql compatible (%s placeholders, DictCursor, ON DUPLICATE KEY UPDATE where needed). Uses created_at for sorting (matches DB schema). updated_at preserved in DB but not used in queries (available for future edits).\n",
+    "===========================================================\nFile: app/routes/public.py\nPath: myvinechurchonline/app/routes/public.py\nPurpose: Blueprint for ALL public-facing pages. Handles public dashboard (welcome + conditional previews), full listings (/events, /sermons, etc.), donate page, and single public event detail with potluck signup. Visibility strictly 'public' \u2013 no login required. FULL REBUILD: Clean structure, reusable helpers for listings/previews. Added server-side censored word check on public potluck signup (name + item + quantity + note). - If prohibited word/phrase detected, flash error and don't save. - Uses contains_censored_word() from helpers. Server-side display censorship: applies censor_text() to all user-generated text in previews/listings (titles, descriptions, names, items, notes). Ensures no obscene content displayed publicly, even from old entries. Preserved every existing feature/logic exactly. MariaDB/PyMySQL compatible: %s placeholders, CONCAT, CURDATE(), DictCursor.\n",
+    "===========================================================\nFile: app/routes/public_dashboard.py\nPath: myvinechurchonline/app/routes/public_dashboard.py\nPurpose: Blueprint for the PUBLIC dashboard (welcome page for guests). Route '/' \u2013 shown at root URL to all visitors (logged-in or not). Displays ONLY public-visibility content (prayers, dreams, prophecies, sermons, announcements, upcoming events). No @login_required \u2013 fully accessible to guests. Completely separate from private dashboard (dashboard.py at '/dashboard'). Logged-in users can still visit '/' if they want the public view. FULL REBUILD: Integrated timezone-aware handling. - \"Today\" for upcoming events uses church local time (now_church()). - All datetime fields from DB (assumed UTC) formatted with format_church() for church local display. - Added 'formatted_date' and 'formatted_time' to each item for template use. - Events: separate event_date/event_time handling with church local formatting. - All existing functionality (public visibility, censorship, robust error handling) preserved exactly.\n",
+    "===========================================================\nFile: app/routes/sermons.py\nPath: myvinechurchonline/app/routes/sermons.py\nPurpose: Blueprint for all sermon-related functionality \u2013 FULL REBUILD. Visibility levels: - 'public'   : visible to everyone (including guests) - 'private'  : visible to all logged-in members - 'personal' : visible ONLY to the uploader \u2022 /sermons \u2192 dashboard listing: - Guests: only public sermons - Logged-in: public + private + their own personal sermons \u2022 /sermons/upload \u2192 upload new sermon (Staff/Admin/Owner only) \u2022 /sermons/edit/<id> \u2192 edit sermon (uploader or Staff/Admin/Owner) \u2022 /sermons/delete/<id> \u2192 delete sermon (Staff/Admin/Owner only) \u2022 File serving secure and logged-in only \u2022 Comments: logged-in only, with censorship All text censored server-side on display and checked before save. All significant actions audit-logged. Templates: private view uses sermons/ folder, public view uses public/sermons/ folder.\n",
+    "===========================================================\nFile: app/routes/tickets.py\nPath: myvinechurchonline/app/routes/tickets.py\nPurpose: Blueprint for church support ticket / helpdesk system \u2013 FULL REBUILD FOR MARIADB. - Permission: Owners/Admins have full access. Additional access via general groups system: any group with \"manage_tickets\" in permissions JSON grants full management. - /tickets/ (function named tickets \u2192 endpoint 'tickets.tickets') \u2192 ALL logged-in users see ONLY their own tickets (tickets_dashboard.html). - /tickets/manage (endpoint 'manager_dashboard') \u2192 Owners/Admins OR users in a group with \"manage_tickets\" permission see ALL tickets (ticket_manager.html). - /tickets/manage-group (endpoint 'manage_group') \u2192 Admin/Owner only: manage membership in Ticket Managers group (ticket_managers.html). - /tickets/submit \u2192 Public guest submission (allowed categories) + private member submission. - /tickets/<id> (endpoint 'view_ticket') \u2192 Detail view (members see own for read/comment; group sees any for full management). - Emails: new \u2192 staff group; member comment \u2192 staff; manager comment \u2192 creator (if checked); manager updates \u2192 creator; close \u2192 creator special. - Censored word check on title/description/comments - All significant actions audit-logged - FULL REBUILD: Group management moved to Tickets module (correct base template). Permission uses general groups system + Owner/Admin override. Template names match actual files. MariaDB/PyMySQL ready (%s placeholders). TIMEZONE INTEGRATION: Timestamps (created_at, updated_at, date_added) formatted in church local time via format_church(). All existing functionality preserved exactly \u2013 only display formatting updated.\n",
+    "===========================================================\nFile: app/routes/pastoral/ai_assistant.py\nPath: myvinechurchonline/app/routes/pastoral/ai_assistant.py\nPurpose: AI-powered sermon assistance endpoints for the Pastoral Sermon Builder. \u2022 Generate outline from title/primary passage \u2022 Suggest discussion/application questions \u2022 Expand a selected point/section \u2022 Uses the globally configured AI provider from settings table (grok, openai, gemini, ollama) \u2022 API key loaded and decrypted on each call (from settings.ai_api_key) \u2022 Falls back to disabled if no valid config \u2022 Site-wide censored word check on user prompt text \u2022 Generated output checked and redacted if contains censored words (rare but safe) \u2022 Audit-logged AI usage \u2022 Returns JSON for editor JS integration\n",
+    "===========================================================\nFile: app/routes/pastoral/bible.py\nPath: myvinechurchonline/app/routes/pastoral/bible.py\nPurpose: Blueprint for offline Bible tools within the Pastoral Area. Provides: - Upload/replace Bible translation (JSON format, Admin/Owner only) - AJAX verse search endpoint for sermon editor integration - JSON chapter fetch for reader/editor views All routes require @pastoral_required() Upload restricted to Admin/Owner via @role_required Audit-logged uploads/deletes\n",
+    "===========================================================\nFile: app/routes/pastoral/care.py\nPath: myvinechurchonline/app/routes/pastoral/care.py\nPurpose: Blueprint and routes for the Pastoral Care module. Handles confidential care requests (hospital visits, counseling, prayer needs, bereavement, etc.), assignment to pastors/staff, and private chronological notes. All routes require pastoral_required() decorator \u2192 only Pastoral Group members can access. Enforces confidentiality: notes are private by default, only visible to pastoral team. Audit-logged actions (create/update/assign/note). Uses centralized models.pastoral functions for DB access. FIXED: Removed circular import (from .. import pastoral_bp) \u2192 uses relative import from .\n",
+    "===========================================================\nFile: app/routes/pastoral/illustrations.py\nPath: myvinechurchonline/app/routes/pastoral/illustrations.py\nPurpose: Routes and Blueprint for the Illustration Library (pastoral area only). All routes protected by @pastoral_required. Delegates all DB work to app/models/pastoral/illustrations.py.\n",
+    "===========================================================\nFile: app/routes/pastoral/planning.py\nPath: myvinechurchonline/app/routes/pastoral/planning.py\nPurpose: Service Planning module routes (fully timezone-aware using time_utils). \u2022 List all service plans (visible to pastoral group members) \u2022 Create/edit a plan for a specific date (title, notes, linked sermon, role assignments) \u2022 All text submissions (title, notes) checked against global censored words list \u2022 All actions audit-logged \u2022 Uses DictCursor for safe dict rows \u2022 Form data fully repopulated on validation/error \u2022 All dates displayed/calculated in church local timezone (Central Time default) \u2022 MariaDB-compatible ORDER BY (NULL dates last)\n",
+    "===========================================================\nFile: app/routes/pastoral/podium.py\nPath: myvinechurchonline/app/routes/pastoral/podium.py\nPurpose: Podium / Teleprompter mode for live preaching. \u2022 Loads a full sermon (title, sections, scripture, notes) in a clean, large-text view \u2022 Optimized for projector, tablet, or laptop at the pulpit \u2022 Features: auto-scroll toggle, manual next/prev, elapsed timer, full-screen mode, hide/show preacher notes, scripture highlight, dark theme with high contrast \u2022 All data fetched securely with existing visibility enforcement \u2022 Designed to feel like a dedicated preaching tool (no navigation clutter)\n",
+    "===========================================================\nFile: app/routes/pastoral/sermons_core.py\nPath: myvinechurchonline/app/routes/pastoral/sermons_core.py\nPurpose: Core sermon management routes for the Pastoral Sermon Builder. \u2022 List visible sermons (own + shared via visibility/collaborators) \u2022 Create new sermon \u2022 Full edit view (title, metadata, visibility, collaborators) \u2022 Main save + autosave endpoint \u2022 Site-wide censored word enforcement on ALL text fields and section content \u2022 Audit-logged create/update/delete + silent autosave logging \u2022 Uses centralized models.pastoral functions \u2022 Full data reload after any successful save/action for fresh state\n",
+    "===========================================================\nFile: app/routes/pastoral/sermons_export.py\nPath: myvinechurchonline/app/routes/pastoral/sermons_export.py\nPurpose: Sermon export routes (DOCX generation for individual or bulk sermons). \u2022 List visible sermons with one-click DOCX export buttons \u2022 Single sermon export endpoint (generates formatted DOCX download) \u2022 Bulk export endpoint (POST with selected sermon IDs \u2192 zipped DOCX bundle) \u2022 Uses python-docx for clean, formatted output (title, passage, sections, notes) \u2022 Audit-logged exports (single and bulk) \u2022 Secure: respects existing sermon visibility enforcement\n",
+    "===========================================================\nFile: app/routes/pastoral/sermons_exports.py\nPath: myvinechurchonline/app/routes/pastoral/sermons_exports.py\nPurpose: Sermon export routes (DOCX generation for individual or bulk sermons). \u2022 List visible sermons with one-click DOCX export buttons \u2022 Single sermon export endpoint (generates formatted DOCX download) \u2022 Bulk export endpoint (POST with selected sermon IDs \u2192 zipped DOCX bundle) \u2022 Uses python-docx for clean, formatted output (title, passage, sections, notes) \u2022 Audit-logged exports (single and bulk) \u2022 Secure: respects existing sermon visibility enforcement\n",
+    "===========================================================\nFile: app/routes/pastoral/vault.py\nPath: myvinechurchonline/app/routes/pastoral/vault.py\nPurpose: Pastoral Vault management blueprint. \u2022 My Vault (personal favorites: verses, quotes, phrases) \u2022 Shared Vault (pastoral_group visible items) \u2022 Unified search across visible vault items + visible sermons \u2022 Add/edit/delete with ownership + group visibility enforcement \u2022 One-click copy + insert-into-editor JSON endpoints for sermon editor JS \u2022 All actions audit-logged \u2022 Censorship checks on content/reference/notes\n",
+    "===========================================================\nFile: app/routes/pastoral/__init__.py\nPath: myvinechurchonline/app/routes/pastoral/__init__.py\nPurpose: Central factory for the Pastoral Area blueprint (/pastoral prefix). - Defines pastoral_required decorator (login + Pastoral Group membership) - Registers root dashboard route (/pastoral/) - Explicitly imports and registers all sub-module blueprints - Uses explicit imports \u2192 fully compatible with Python 3.14+ - Core sub-modules fail loud if missing; optional ones fail silently - All pastoral routes protected by @pastoral_required\n",
+    "===========================================================\nFile: app/routes/settings/ai.py\nPath: myvinechurchonline/app/routes/settings/ai.py\nPurpose: AI provider/key/base URL configuration. CONFIRMED CORRECT: Package-relative imports \u2013 loads shared items from settings/__init__.py. Optimized DB access: single load_settings() call, reload after save for fresh data. Standardized 5-argument log_change.\n",
+    "===========================================================\nFile: app/routes/settings/censored_words.py\nPath: myvinechurchonline/app/routes/settings/censored_words.py\nPurpose: Censored words list management (quick single-add + bulk editor). No censorship check on this section (admins must be able to add any word). Case-insensitive duplicate prevention on single add. All actions audit-logged with full 5-argument log_change. Uses DictCursor for safe row access. CONFIRMED CORRECT: Package-relative imports + pymysql.\n",
+    "===========================================================\nFile: app/routes/settings/email.py\nPath: myvinechurchonline/app/routes/settings/email.py\nPurpose: Multi-account email configuration + test send. FIXED: Imports changed to package-relative (from .) \u2013 loads shared items from settings/__init__.py. Added missing pymysql import for DictCursor.\n",
+    "===========================================================\nFile: app/routes/settings/general.py\nPath: myvinechurchonline/app/routes/settings/general.py\nPurpose: General church info settings (name, address, contact, paths). CONFIRMED CORRECT: Package-relative imports \u2013 loads shared items from settings/__init__.py. Uses centralized load_settings() from package __init__.py. Standardized 5-argument log_change.\n",
+    "===========================================================\nFile: app/routes/settings/online_giving.py\nPath: myvinechurchonline/app/routes/settings/online_giving.py\nPurpose: Online giving page config + option management. Handles global settings toggle/text and full CRUD/reordering for donation options (with image upload/removal). Censored word checks on option names. All actions audit-logged with full 5-argument log_change. Uses DictCursor consistently for safe row access. CONFIRMED CORRECT: Package-relative imports + pymysql.\n",
+    "===========================================================\nFile: app/routes/settings/ticket_managers.py\nPath: myvinechurchonline/app/routes/settings/ticket_managers.py\nPurpose: Manage dedicated ticket_managers group (Admin/Owner only). Add/remove users from the group. All actions audit-logged with full 5-argument log_change. Uses DictCursor for safe row access.\n",
+    "===========================================================\nFile: app/routes/settings/timezone.py\nPath: myvinechurchonline/app/routes/settings/timezone.py\nPurpose: Dedicated route for configuring the church's timezone. Displays current timezone, allows selection from common IANA zones or free-text entry, shows real-time server vs church time preview for debugging offsets. Validation: tries ZoneInfo directly (graceful error if invalid or tzdata missing). Saves to settings.timezone column (TEXT). Protected by admin/owner + granular permission check. All changes audit-logged. Default: 'America/Chicago' (Central Time \u2013 matches church location in Odessa, TX).\n",
+    "===========================================================\nFile: app/routes/settings/__init__.py\nPath: myvinechurchonline/app/routes/settings/__init__.py\nPurpose: Settings blueprint factory + shared utilities. Registers sub-module routes. Contains all shared constants, encryption, permission system, and loaders. No direct routes here except root redirect. FULL REBUILD: Added timezone sub-module import and permission entry. All existing functionality preserved exactly.\n",
+    "===========================================================\nFile: app/utils/decorators.py\nPath: myvinechurchonline/app/utils/decorators.py\nPurpose: Custom Flask route decorators for authentication, role-based access control (RBAC), and group membership validation. All decorators are lightweight, auditable, and integrate with existing models (users, groups, log). Features: - login_required: Redirects to login if not authenticated. - role_required: Flexible \u2013 accepts *roles or list, Owner bypasses all role checks. - group_required: Requires membership in ALL specified groups (single or list). - user_has_permission: Template-safe permission check (role-based for now). - Unauthorized attempts logged via log_change() for audit trail. - No bloat \u2013 focused, reusable, consistent with project standards.\n",
+    "===========================================================\nFile: app/utils/emailer.py\nPath: myvinechurchonline/app/utils/emailer.py\nPurpose: Centralized email sending utility for MyVineChurch.Online. Loads encrypted SMTP credentials from the settings table using the same Fernet key as old_settings.py. Safe decryption (handles None/empty/invalid tokens gracefully). Supports SSL (implicit, port 465) and TLS (STARTTLS, port 587). Clear, user-friendly error messages for common issues (no password set, auth failure, connection issues). Used by settings test email, event invites, donation reminders, etc. Audit logs successful sends via log_change (optional caller provides user_id).\n",
+    "===========================================================\nFile: app/utils/helpers.py\nPath: myvinechurchonline/app/utils/helpers.py\nPurpose: Centralized utility functions used throughout the application. \u2022 Consistent date parsing, formatting, validation, and today's date string. \u2022 Global censored words system: fetch EXCLUSIVELY from settings table (TEXT column, \\n-separated). \u2022 Censor check and replacement functions (for submission blocking + Jinja display filter). \u2022 Flash message helper for uniform user feedback. \u2022 All functions are lightweight, safe (handle None/invalid input gracefully), and avoid circular imports. FULL REBUILD: Preserved all original date helpers exactly. Censored words are now 100% DB-driven (no defaults, no JSON \u2013 plain \\n-separated TEXT). contains_censored_word() for server-side validation (fresh DB query each call). censor_text() for display \u2013 fresh DB query each call (reflects changes immediately, no restart needed). Completely silent on all DB errors (no console spam) \u2013 returns [] if anything wrong (column missing, no row, connection issue). Uses DictCursor + safe .get() for maximum robustness.\n",
+    "===========================================================\nFile: app/utils/permissions.py\nPath: myvinechurchonline/app/utils/permissions.py\nPurpose: Central helper to check if current user has a specific permission. Checks global high roles first (Staff/Admin/Owner always have all permissions), then user's groups. Fully compatible with current MariaDB/pymysql setup (%s placeholders, DictCursor via get_db). Used both in routes (guards) and templates (via context processor inject_permissions in __init__.py).\n",
+    "===========================================================\nFile: app/utils/time_utils.py\nPath: myvinechurchonline/app/utils/time_utils.py\nPurpose: Timezone-aware datetime helpers. Uses your existing get_settings() loader. All DB timestamps should be stored in UTC. SAFE FALLBACK: If zoneinfo/tzdata is missing (common on Windows), falls back to fixed Central Time (UTC-6, no DST). Default church timezone is now hard-coded to Central Time to get the app running immediately.\n"
+  ]
+}

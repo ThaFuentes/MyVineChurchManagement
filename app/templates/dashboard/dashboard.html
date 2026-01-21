@@ -1,0 +1,139 @@
+<!-- app/templates/dashboard/dashboard.html -->
+<!-- Full path: myvinechurchonline/app/templates/dashboard/dashboard.html -->
+<!-- File name: dashboard.html -->
+<!-- Brief, detailed purpose: Renders the private dashboard for authenticated users.
+   Displays uniform glassmorphism cards for today's birthdays, recent prayers, dreams & visions,
+   prophecies, sermons, announcements, and upcoming events.
+   All inline styles removed – fully uses global glass card classes (.summary-cards + .card.glass).
+   Optional fields (poster_username, visibility) handled safely.
+   "No data" messages preserved. Responsive grid adapts to screen size.
+   Clean, premium look matching the rebuilt site-wide glassmorphism theme. -->
+
+{% extends "base.html" %}
+
+{% block title %}Private Dashboard{% endblock %}
+
+{% block content %}
+<div class="summary-cards">
+    <!-- Today's Birthdays -->
+    <div class="card glass">
+        <h3>Today's Birthdays</h3>
+        {% if birthdays %}
+            <ul>
+                {% for bd in birthdays %}
+                    <li>{{ bd.first_name }} {{ bd.last_name }}</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No birthdays today.</p>
+        {% endif %}
+    </div>
+
+    <!-- Recent Prayers -->
+    <div class="card glass">
+        <h3>Recent Prayers</h3>
+        {% if prayers %}
+            <ul>
+                {% for prayer in prayers %}
+                    <li>
+                        {{ prayer.title }}
+                        {% if prayer.poster_username %} (by {{ prayer.poster_username }}) {% endif %}
+                        <br><small>{{ prayer.datetime }}{% if prayer.visibility %} – {{ prayer.visibility }}{% endif %}</small>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No recent prayers.</p>
+        {% endif %}
+    </div>
+
+    <!-- Recent Dreams & Visions -->
+    <div class="card glass">
+        <h3>Recent Dreams & Visions</h3>
+        {% if dreams %}
+            <ul>
+                {% for dream in dreams %}
+                    <li>
+                        {{ dream.title }}
+                        {% if dream.poster_username %} (by {{ dream.poster_username }}) {% endif %}
+                        <br><small>{{ dream.datetime }}{% if dream.visibility %} – {{ dream.visibility }}{% endif %}</small>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No recent dreams & visions.</p>
+        {% endif %}
+    </div>
+
+    <!-- Recent Prophecies -->
+    <div class="card glass">
+        <h3>Recent Prophecies</h3>
+        {% if prophecies %}
+            <ul>
+                {% for prophecy in prophecies %}
+                    <li>
+                        {{ prophecy.title }}
+                        {% if prophecy.poster_username %} (by {{ prophecy.poster_username }}) {% endif %}
+                        <br><small>{{ prophecy.datetime }}{% if prophecy.visibility %} – {{ prophecy.visibility }}{% endif %}</small>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No recent prophecies.</p>
+        {% endif %}
+    </div>
+
+    <!-- Recent Sermons -->
+    <div class="card glass">
+        <h3>Recent Sermons</h3>
+        {% if sermons %}
+            <ul>
+                {% for sermon in sermons %}
+                    <li>
+                        {{ sermon.title }}
+                        {% if sermon.poster_username %} (by {{ sermon.poster_username }}) {% endif %}
+                        <br><small>{{ sermon.datetime }}{% if sermon.visibility %} – {{ sermon.visibility }}{% endif %}</small>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No recent sermons.</p>
+        {% endif %}
+    </div>
+
+    <!-- Recent Announcements -->
+    <div class="card glass">
+        <h3>Recent Announcements</h3>
+        {% if announcements %}
+            <ul>
+                {% for ann in announcements %}
+                    <li>
+                        {{ ann.title }}
+                        {% if ann.poster_username %} (by {{ ann.poster_username }}) {% endif %}
+                        <br><small>{{ ann.datetime }}{% if ann.visibility %} – {{ ann.visibility }}{% endif %}</small>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No recent announcements.</p>
+        {% endif %}
+    </div>
+
+    <!-- Upcoming Events -->
+    <div class="card glass">
+        <h3>Upcoming Events</h3>
+        {% if events %}
+            <ul>
+                {% for event in events %}
+                    <li>
+                        {{ event.title }}
+                        <br><small>{{ event.datetime }}{% if event.visibility %} – {{ event.visibility }}{% endif %}</small>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No upcoming events.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,73 @@
+<!-- app/templates/inventory/base_inventory.html -->
+<!-- Full path: WebChurchMan/app/templates/inventory/base_inventory.html -->
+<!-- File name: base_inventory.html -->
+<!-- Brief, detailed purpose: Common base template for ALL Inventory module pages.
+   Extends the global base.html (master layout with navigation, head, footer, etc.).
+   Provides glass wrapper, flash messages, internal horizontal pill menu (consistent with Settings, Events, etc.),
+   and block for page-specific content. -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="form-page-wrapper">
+    <div class="form-container">
+        <h1 class="page-title">Inventory Management</h1>
+        <p class="page-description">
+            Track church resources, receive stock, perform audits, and monitor low-stock/expiring items.
+        </p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Internal Inventory Menu – only links to EXISTING endpoints -->
+        <div class="menu">
+            <a href="{{ url_for('inventory.inventory_dashboard') }}"
+               {% if request.endpoint == 'inventory.inventory_dashboard' %}class="active"{% endif %}>
+                Dashboard
+            </a>
+
+            <a href="{{ url_for('inventory.items_list') }}"
+               {% if request.endpoint == 'inventory.items_list' %}class="active"{% endif %}>
+                Items Catalog
+            </a>
+
+            <a href="{{ url_for('inventory.cat_location') }}"
+               {% if request.endpoint == 'inventory.cat_location' %}class="active"{% endif %}>
+                Categories & Locations
+            </a>
+
+            <a href="{{ url_for('inventory.item_manage') }}"
+               {% if request.endpoint == 'inventory.item_manage' %}class="active"{% endif %}>
+                Add / Edit Item
+            </a>
+
+            <a href="{{ url_for('inventory.receive_stock') }}"
+               {% if request.endpoint == 'inventory.receive_stock' %}class="active"{% endif %}>
+                Receive Stock
+            </a>
+
+            {#
+                TODO: Uncomment these when you add the corresponding routes in inventory.py
+                <a href="{{ url_for('inventory.audit_report') }}"
+                   {% if request.endpoint == 'inventory.audit_report' %}class="active"{% endif %}>
+                    Audit Report
+                </a>
+
+                <a href="{{ url_for('inventory.scan', mode='registry') }}"
+                   {% if request.endpoint == 'inventory.scan' %}class="active"{% endif %}>
+                    Rapid Scan
+                </a>
+            #}
+        </div>
+
+        {% block inventory_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}

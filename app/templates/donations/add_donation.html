@@ -1,0 +1,212 @@
+<!-- app/templates/donations/add_donation.html -->
+<!-- Full path: WebChurchMan/app/templates/donations/add_donation.html -->
+<!-- File name: add_donation.html -->
+<!-- Brief, detailed purpose: Rebuilt Add Donation form – now extends base_donations.html for perfect consistency with Events/Announcements.
+   Uses ONLY global classes (.styled-form, .form-group, .btn-primary, etc.) – no module-specific CSS.
+   Preserves all original functionality: live member search (auto-fill name/phone), business toggle + EIN, quid pro quo, compliance info.
+   Clean spacing, high readability, dark/cyan theme. -->
+
+{% extends "donations/base_donations.html" %}
+
+{% block page_title %}Add New Donation{% endblock %}
+
+{% block page_description %}
+Record a new donation. Use member search for existing members (auto-fills name & phone).<br>
+Manual entry allowed for guests, organizations, or businesses (optional Company EIN available).
+{% endblock %}
+
+{% block donations_content %}
+
+{% if user_has_permission('manage_donations') %}
+<section class="content-section">
+    <h2 class="section-title">Record Donation</h2>
+
+    <form method="POST" action="{{ url_for('donations.add_donation') }}" class="styled-form">
+        <!-- Member Search -->
+        <div class="form-group member-search">
+            <label for="member-search-input" class="control-label">Member Search (Individuals)</label>
+            <input type="text" id="member-search-input" class="search-input" placeholder="Type name, email, phone, or address..." autocomplete="off">
+            <div id="member-results" class="table-wrapper" style="margin-top:0.5rem;"></div>
+            <p class="help-text">
+                Click input to show all • Type to filter • Click result to auto-fill Name & Phone.<br>
+                For guests/businesses, leave blank and enter manually below.
+            </p>
+        </div>
+
+        <!-- Donor Name -->
+        <div class="form-group">
+            <label for="name" class="control-label">Donor Name <span class="required">*</span></label>
+            <input type="text" id="name" name="name" class="form-input" required placeholder="Exact member name or company/guest name">
+            <p class="help-text">Exact member name enables phone/address on receipts.</p>
+        </div>
+
+        <!-- Donor Phone -->
+        <div class="form-group">
+            <label for="donor_phone" class="control-label">Donor / Contact Phone (optional)</label>
+            <input type="tel" id="donor_phone" name="donor_phone" class="form-input" placeholder="(555) 123-4567">
+            <p class="help-text">Auto-filled for members • Useful for follow-up.</p>
+        </div>
+
+        <!-- Business Toggle -->
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="is_business" name="is_business">
+                This is a business/corporate donation
+            </label>
+            <p class="help-text">Check to show Company EIN field.</p>
+        </div>
+
+        <!-- Company EIN -->
+        <div id="business-fields" class="form-group" style="display:none;">
+            <label for="company_ein" class="control-label">Company EIN / Tax ID (optional)</label>
+            <input type="text" id="company_ein" name="company_ein" class="form-input" placeholder="e.g., 12-3456789">
+            <p class="help-text">For corporate receipts – copy to Notes if needed for permanent record.</p>
+        </div>
+
+        <!-- Amount -->
+        <div class="form-group">
+            <label for="amount" class="control-label">Amount <span class="required">*</span></label>
+            <input type="number" id="amount" name="amount" class="form-input" step="0.01" min="0.01" required placeholder="0.00">
+        </div>
+
+        <!-- Date -->
+        <div class="form-group">
+            <label for="date" class="control-label">Date <span class="required">*</span></label>
+            <input type="date" id="date" name="date" class="form-input" required value="{{ today }}">
+        </div>
+
+        <!-- Method -->
+        <div class="form-group">
+            <label for="method" class="control-label">Method <span class="required">*</span></label>
+            <select id="method" name="method" class="form-input" required>
+                <option value="">-- Select Method --</option>
+                <option value="Cash">Cash</option>
+                <option value="Check">Check</option>
+                <option value="Online">Online</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Other">Other</option>
+            </select>
+        </div>
+
+        <!-- Confirmation Number -->
+        <div class="form-group">
+            <label for="confirmation_number" class="control-label">Confirmation / Check # (optional)</label>
+            <input type="text" id="confirmation_number" name="confirmation_number" class="form-input" placeholder="e.g., Check #1234 or Transaction ID">
+            <p class="help-text">Appears on contribution receipts.</p>
+        </div>
+
+        <!-- Notes -->
+        <div class="form-group">
+            <label for="notes" class="control-label">Notes (optional)</label>
+            <textarea id="notes" name="notes" rows="5" placeholder="Dedication, memo, or additional details (e.g., Company EIN)..."></textarea>
+        </div>
+
+        <!-- Quid Pro Quo -->
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="goods_services_provided" value="1">
+                Goods or services were provided in exchange
+            </label>
+            <p class="help-text">Check only for quid pro quo → adjusts IRS statement on receipt.</p>
+        </div>
+
+        <!-- Compliance Info -->
+        <div class="content-section compliance-info" style="background:var(--bg-card-glass); padding:2rem; border-radius:var(--radius-medium); margin-top:2rem;">
+            <h3 class="section-title">Receipt Compliance Information</h3>
+            <p><strong>{{ church_info.church_name or 'MyVineChurch.Online' }}</strong></p>
+            {% if church_info.address %}
+                <p>{{ church_info.address }}</p>
+            {% endif %}
+            {% if church_info.phone_number %}
+                <p>Phone: {{ church_info.phone_number }}</p>
+            {% endif %}
+            {% if church_info.tax_status %}
+                <p class="ein">Church Tax ID / EIN: {{ church_info.tax_status }}</p>
+            {% endif %}
+
+            <p class="statement">
+                <strong>Standard IRS Statement (on receipts):</strong><br>
+                "No goods or services were provided in exchange for your contribution, other than intangible religious benefits."
+            </p>
+            <p><em>If goods/services checked, statement adjusts accordingly.</em></p>
+        </div>
+
+        <!-- Actions -->
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Add Donation</button>
+            <a href="{{ url_for('donations.donations_dashboard') }}" class="btn-secondary">Cancel</a>
+        </div>
+    </form>
+</section>
+
+<script>
+  const members = {{ members|tojson }};
+
+  const searchInput = document.getElementById('member-search-input');
+  const resultsDiv = document.getElementById('member-results');
+  const nameInput = document.getElementById('name');
+  const phoneInput = document.getElementById('donor_phone');
+  const businessCheckbox = document.getElementById('is_business');
+  const businessFields = document.getElementById('business-fields');
+
+  // Business toggle
+  businessCheckbox.addEventListener('change', () => {
+    businessFields.style.display = businessCheckbox.checked ? 'block' : 'none';
+  });
+
+  // Member search results
+  function showResults(filtered) {
+    resultsDiv.innerHTML = '';
+    if (filtered.length === 0) {
+      resultsDiv.innerHTML = '<div class="no-data">No members found</div>';
+      return;
+    }
+    const table = document.createElement('table');
+    table.className = 'data-table';
+    const tbody = document.createElement('tbody');
+    filtered.forEach(member => {
+      const tr = document.createElement('tr');
+      tr.className = 'member-result-item';
+      tr.textContent = member.display;
+      tr.style.cursor = 'pointer';
+      tr.onclick = () => {
+        nameInput.value = member.value;
+        phoneInput.value = member.phone || '';
+        resultsDiv.innerHTML = '';
+        searchInput.value = '';
+        businessCheckbox.checked = false;
+        businessFields.style.display = 'none';
+      };
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    resultsDiv.appendChild(table);
+  }
+
+  searchInput.addEventListener('input', () => {
+    const val = searchInput.value.toLowerCase().trim();
+    if (!val) {
+      showResults(members);
+      return;
+    }
+    const filtered = members.filter(m => m.search.toLowerCase().includes(val));
+    showResults(filtered);
+  });
+
+  searchInput.addEventListener('focus', () => {
+    if (!searchInput.value) showResults(members);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!searchInput.contains(e.target) && !resultsDiv.contains(e.target)) {
+      resultsDiv.innerHTML = '';
+    }
+  });
+</script>
+
+{% else %}
+<div class="flash info">
+    You do not have permission to add donation records.
+</div>
+{% endif %}
+{% endblock %}

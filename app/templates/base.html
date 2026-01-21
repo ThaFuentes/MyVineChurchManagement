@@ -1,0 +1,284 @@
+<!-- app/templates/base.html -->
+<!-- Full path: WebChurchMan/app/templates/base.html -->
+<!-- File name: base.html -->
+<!-- Brief, detailed purpose: Master layout template inherited by all pages.
+   Keeps exact dark cyan-glow theme, dynamic branding, multi-theme support.
+   Full header with welcome/clock/logout, global navigation with dropdowns.
+   Dropdowns guaranteed to overlay EVERYTHING (ultra-high z-index 30000+, body relative positioning).
+   Settings link uses /settings/general route.
+   Conditional Donate tab in both public and private nav.
+   "Admin Tools" dropdown visible to Staff/Admin/Owner OR users with 'settings.ticket_managers' permission.
+   "Operations" dropdown visible to Staff/Admin/Owner OR users with 'settings.ticket_managers' permission.
+   "My Portal" dropdown for all logged-in users – groups personal actions (Attendance Check-In, Support Tickets, My Profile).
+   REMOVED: Public "Check-In" tab – self check-in is now fully private (accessible only via My Portal for logged-in members).
+   Active state uses reliable path/endpoint checks.
+   NEW: Inventory added to Operations dropdown (Staff+ access).
+   NEW: Parent dropdowns ("My Portal", "Admin Tools", "Operations", "Gathering Place") stay highlighted when inside any child section (premium feel).
+   NEW: Single "Pastor Area" link inside "Operations" dropdown – visible ONLY to pastoral group members.
+         This is the sole entry point from main navigation.
+         All detailed pastoral sub-tools are inside the Pastoral Area itself (via base_pastoral.html internal nav).
+   Glass wrapper for content, flash messages, footer, clock script preserved.
+   Church name NEVER hard-coded – always pulled from g.settings with sensible fallback.
+   FIXED: Pastor Area link now uses correct endpoint 'pastoral.dashboard_pastoral'. -->
+
+<!DOCTYPE html>
+<html lang="en" data-theme="{% if session.user_theme %}{{ session.user_theme }}{% else %}cyan-glow{% endif %}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  {% set s = g.settings %}
+
+  <title>{% block title %}{% endblock %} | {{ s.get('church_name', 'MyVineChurch.Online') }}</title>
+
+  <!-- Global CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/theme.css') }}?v=20260118">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/base.css') }}?v=20260118">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/layout.css') }}?v=20260118">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/forms.css') }}?v=20260118">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/components-header.css') }}?v=20260118">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/components-navigation.css') }}?v=20260118">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/components-main.css') }}?v=20260118">
+
+  <!-- Pastoral-specific global CSS (shared across pastoral pages) -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/pastoral/pastoral.css') }}">
+
+  {% block extra_css %}{% endblock %}
+
+  <!-- Dynamic favicon -->
+  {% set fav = s.get('favicon_path') %}
+  <link rel="icon" href="{{ url_for('static', filename='images/' ~ fav if fav else 'favicon.ico') }}">
+
+  <!-- Dynamic branding overrides + dropdown fix -->
+  <style>
+    :root {
+      --primary: {{ s.get('primary_color', '#00FFFF') }};
+      --primary-hover: {{ s.get('primary_hover_color', '#00cccc') }};
+      --font-main: '{{ s.get('font_family', "system-ui, -apple-system, sans-serif") }}';
+
+      {% set bg_image = s.get('background_image') %}
+      {% if bg_image %}
+      --bg-page: linear-gradient(rgba(0,0,0,{{ s.get('background_opacity', 0.68) }}),
+                                rgba(0,0,0,{{ s.get('background_opacity', 0.68) }})),
+                 url('{{ url_for('static', filename='images/' ~ bg_image) }}');
+      {% endif %}
+    }
+
+    body {
+      background: var(--bg-page, linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%));
+      background-size: cover;
+      background-attachment: fixed;
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-main);
+      overflow-x: hidden;
+      position: relative; /* Critical for dropdown positioning */
+    }
+
+    .form-page-wrapper {
+      position: relative;
+      z-index: 1;
+    }
+
+    .dropdown {
+      position: relative;
+      z-index: 30000;
+    }
+
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      min-width: 260px;
+      background: rgba(30, 30, 30, 0.98);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--primary-border);
+      border-radius: var(--radius-large);
+      box-shadow: 0 20px 60px rgba(0, 255, 255, 0.6);
+      z-index: 30001 !important;
+      padding: 0.5rem 0;
+    }
+
+    .dropdown:hover .dropdown-content,
+    .dropdown:focus-within .dropdown-content {
+      display: block;
+    }
+
+    .dropdown-content a {
+      display: block;
+      padding: 1rem 1.8rem;
+      color: var(--text-primary);
+      text-decoration: none;
+      transition: all 0.3s ease;
+    }
+
+    .dropdown-content a:hover,
+    .dropdown-content a.active {
+      background: var(--primary);
+      color: var(--text-on-primary);
+    }
+  </style>
+</head>
+
+<body {% block body_style %}{% endblock %}>
+
+  <header class="header">
+    <div class="header-left">
+      {% if session.user_id %}
+        <a href="{{ url_for('profile.profile') }}" class="welcome-btn">
+          Welcome, {{ session.username|default('Member') }}
+          <span class="role-badge">{{ session.user_role|default('Member') }}</span>
+        </a>
+      {% endif %}
+    </div>
+
+    <h1 class="site-title">{{ s.get('church_name', 'MyVineChurch.Online') }}</h1>
+
+    <div class="header-right">
+      <div class="clock" id="clock">--:--:-- --</div>
+      {% if session.user_id %}
+        <a href="{{ url_for('auth.logout') }}" class="btn-pill btn-pill-small">Logout</a>
+      {% else %}
+        <a href="{{ url_for('auth.login') }}" class="btn-pill btn-pill-small">Login</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <nav class="tabs">
+    {% if session.user_id %}
+      <!-- Logged-in Navigation -->
+      <a href="{{ url_for('dashboard.dashboard') }}" class="tab {{ 'active' if request.endpoint == 'dashboard.dashboard' else '' }}">Dashboard</a>
+
+      <!-- My Portal dropdown -->
+      <div class="dropdown">
+        <div class="tab dropdown-trigger {{ 'active' if request.endpoint.startswith('profile.') or request.endpoint == 'attendance.self_checkin' or (request.path.startswith('/tickets/') and request.path != '/tickets/manage') else '' }}">
+          My Portal <span class="dropdown-arrow">▼</span>
+        </div>
+        <div class="dropdown-content">
+          <a href="{{ url_for('attendance.self_checkin') }}" class="{{ 'active' if request.endpoint == 'attendance.self_checkin' else '' }}">Attendance</a>
+          <a href="/tickets/" class="{{ 'active' if request.path.startswith('/tickets/') and request.path != '/tickets/manage' else '' }}">Support Ticket</a>
+          <a href="{{ url_for('profile.profile') }}" class="{{ 'active' if request.endpoint.startswith('profile.') else '' }}">My Profile</a>
+        </div>
+      </div>
+
+      <!-- Gathering Place dropdown -->
+      <div class="dropdown">
+        <div class="tab dropdown-trigger {{ 'active' if request.endpoint.startswith('events.') or request.endpoint.startswith('prayers.') or request.endpoint.startswith('sermons.') or request.endpoint.startswith('dreams.') or request.endpoint.startswith('prophecies.') or request.endpoint.startswith('announcements.') else '' }}">
+          Gathering Place <span class="dropdown-arrow">▼</span>
+        </div>
+        <div class="dropdown-content">
+          <a href="{{ url_for('events.events') }}" class="{{ 'active' if request.endpoint.startswith('events.') else '' }}">Events</a>
+          <a href="{{ url_for('prayers.prayers') }}" class="{{ 'active' if request.endpoint.startswith('prayers.') else '' }}">Prayers</a>
+          <a href="{{ url_for('sermons.sermons') }}" class="{{ 'active' if request.endpoint.startswith('sermons.') else '' }}">Sermons</a>
+          <a href="{{ url_for('dreams.dreams') }}" class="{{ 'active' if request.endpoint.startswith('dreams.') else '' }}">Dreams & Visions</a>
+          <a href="{{ url_for('prophecies.list_prophecies') }}" class="{{ 'active' if request.endpoint.startswith('prophecies.') else '' }}">Prophecies</a>
+          <a href="{{ url_for('announcements.announcements') }}" class="{{ 'active' if request.endpoint.startswith('announcements.') else '' }}">Announcements</a>
+        </div>
+      </div>
+
+      {% if s.get('online_donations_enabled') %}
+        <a href="{{ url_for('public.donate') }}" class="tab {{ 'active' if request.endpoint == 'public.donate' else '' }}">Donate</a>
+      {% endif %}
+
+      {% if session.user_role in ['Staff', 'Admin', 'Owner'] or user_has_permission('settings.ticket_managers') %}
+        <!-- Admin Tools dropdown -->
+        <div class="dropdown">
+          <div class="tab dropdown-trigger {{ 'active' if request.endpoint.startswith('members.') or request.endpoint.startswith('groups.') or request.endpoint.startswith('donations.') or (request.endpoint.startswith('attendance.') and request.endpoint != 'attendance.self_checkin') or request.endpoint == 'log.change_records' or request.path.startswith('/settings/') else '' }}">
+            Admin Tools <span class="dropdown-arrow">▼</span>
+          </div>
+          <div class="dropdown-content">
+            {% if session.user_role in ['Staff', 'Admin', 'Owner'] %}
+              <a href="{{ url_for('members.members_directory') }}" class="{{ 'active' if request.endpoint.startswith('members.') else '' }}">Members</a>
+              <a href="{{ url_for('groups.list_groups') }}" class="{{ 'active' if request.endpoint.startswith('groups.') else '' }}">Groups</a>
+              <a href="{{ url_for('donations.donations_dashboard') }}" class="{{ 'active' if request.endpoint.startswith('donations.') else '' }}">Donations</a>
+              <a href="{{ url_for('attendance.open_kiosk') }}" class="{{ 'active' if request.endpoint.startswith('attendance.') and request.endpoint != 'attendance.self_checkin' else '' }}">Attendance Kiosk</a>
+              <a href="{{ url_for('log.change_records') }}" class="{{ 'active' if request.endpoint == 'log.change_records' else '' }}">Change Records</a>
+            {% endif %}
+            <a href="{{ url_for('settings.general') }}" class="{{ 'active' if request.path.startswith('/settings/') else '' }}">Settings</a>
+          </div>
+        </div>
+
+        <!-- Operations dropdown – includes single Pastor Area entry point -->
+        <div class="dropdown">
+          <div class="tab dropdown-trigger {{ 'active' if request.blueprint == 'pastoral' or request.endpoint.startswith('bills.') or request.endpoint.startswith('inventory.') or request.path.startswith('/tickets/manage') else '' }}">
+            Operations <span class="dropdown-arrow">▼</span>
+          </div>
+          <div class="dropdown-content">
+            {% if session.user_role in ['Staff', 'Admin', 'Owner'] %}
+              <a href="{{ url_for('bills.bills') }}" class="{{ 'active' if request.endpoint.startswith('bills.') else '' }}">Recurring Bills</a>
+              <a href="{{ url_for('inventory.inventory_dashboard') }}" class="{{ 'active' if request.endpoint.startswith('inventory.') else '' }}">Inventory</a>
+            {% endif %}
+            <a href="/tickets/manage" class="{{ 'active' if request.path == '/tickets/manage' else '' }}">Ticket Manager</a>
+
+            <!-- Single Pastor Area entry point – visible only to pastoral group members -->
+            {% if in_pastoral_group %}
+              <hr class="dropdown-divider">
+              <a href="{{ url_for('pastoral.dashboard_pastoral') }}" class="{{ 'active' if request.blueprint == 'pastoral' else '' }}">
+                <strong>Pastor Area</strong>
+              </a>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+
+    {% else %}
+      <!-- Public Navigation -->
+      <a href="{{ url_for('public.public_dashboard') }}" class="tab {{ 'active' if request.endpoint == 'public.public_dashboard' else '' }}">Home</a>
+      <a href="{{ url_for('events.events') }}" class="tab {{ 'active' if request.endpoint.startswith('events.') else '' }}">Events</a>
+      <a href="{{ url_for('sermons.sermons') }}" class="tab {{ 'active' if request.endpoint.startswith('sermons.') else '' }}">Sermons</a>
+      <a href="{{ url_for('announcements.announcements') }}" class="tab {{ 'active' if request.endpoint.startswith('announcements.') else '' }}">Announcements</a>
+
+      {% if s.get('online_donations_enabled') %}
+        <a href="{{ url_for('public.donate') }}" class="tab {{ 'active' if request.endpoint == 'public.donate' else '' }}">Donate</a>
+      {% endif %}
+
+      <a href="{{ url_for('auth.login') }}" class="tab {{ 'active' if request.endpoint == 'auth.login' else '' }}">Login</a>
+    {% endif %}
+  </nav>
+
+  <div class="form-page-wrapper">
+    <div class="form-container">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-messages">
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <main>
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <footer class="footer">
+    © {{ g.get('current_year', '2026') }} {{ s.get('church_name', 'MyVineChurch.Online') }} |
+    <a href="{{ url_for('public.public_dashboard') }}" class="footer-link">Public Home</a>
+  </footer>
+
+  {% block scripts %}
+    <script>
+      function updateClock() {
+        const now = new Date();
+        const clockEl = document.getElementById('clock');
+        if (clockEl) {
+          clockEl.textContent = now.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+          });
+        }
+      }
+      setInterval(updateClock, 1000);
+      updateClock();
+    </script>
+  {% endblock %}
+</body>
+</html>

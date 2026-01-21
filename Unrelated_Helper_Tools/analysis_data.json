@@ -1,0 +1,68 @@
+{
+  "python": [
+    {
+      "rel_path": "inspect_imports.py",
+      "stem": "inspect_imports",
+      "import_refs": [
+        "ast",
+        "os"
+      ],
+      "is_entry": true,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 35,
+      "status": [
+        "entry point"
+      ]
+    },
+    {
+      "rel_path": "random_pass_gen.py",
+      "stem": "random_pass_gen",
+      "import_refs": [
+        "QApplication",
+        "QCheckBox",
+        "QHBoxLayout",
+        "QLabel",
+        "QLineEdit",
+        "QMessageBox",
+        "QPushButton",
+        "QSpinBox",
+        "QVBoxLayout",
+        "QWidget",
+        "Qt",
+        "QtCore",
+        "QtWidgets",
+        "pyperclip",
+        "random",
+        "string",
+        "sys"
+      ],
+      "is_entry": true,
+      "has_routes": false,
+      "creates_flask": false,
+      "defines_bp": false,
+      "loc": 106,
+      "status": [
+        "entry point"
+      ]
+    }
+  ],
+  "templates": [],
+  "static": [],
+  "references": {
+    "py_imports": {
+      "inspect_imports": 0,
+      "random_pass_gen": 0
+    },
+    "templates": [],
+    "static": []
+  },
+  "entry_points": [
+    "inspect_imports.py",
+    "random_pass_gen.py"
+  ],
+  "comments": [
+    "===========================================================\nrandom_pass_gen.py: # random_pass_gen.py # Full\npath: Unrelated_Helper_Tools/random_pass_gen.py #\nPurpose: random_password_generator.py Full path: (drop this anywhere in your helper tools folder) File name: random_password_generator.py Brief, detailed purpose: Standalone PyQt6 GUI tool for generating strong random passwords. Features: - Adjustable length (8\u201364) - Checkboxes for lowercase, uppercase, digits, symbols (all enabled by default) - Optional \"Avoid ambiguous characters\" (removes 0,O,1,l,I to prevent confusion) - Guarantees at least one character from each selected category - Password is hidden by default (toggle to show) - One-click copy to clipboard Requirements: pip install pyqt6 pyperclip\n"
+  ]
+}

@@ -1,0 +1,80 @@
+<!-- app/templates/donations/donations_dashboard.html -->
+<!-- Full path: WebChurchMan/app/templates/donations/donations_dashboard.html -->
+<!-- File name: donations_dashboard.html -->
+<!-- Brief, detailed purpose: Donations Dashboard – extends base_donations.html for full consistency with Events/Announcements.
+   Glassmorphism summary cards (matching private dashboard), glass table for recent donations.
+   NO module-specific CSS – uses only global classes (.card.glass, .table-wrapper.glass, .large-amount, etc.).
+   Add button at top (permission-gated, mirrors Events dashboard). Clean, readable layout. -->
+
+{% extends "donations/base_donations.html" %}
+
+{% block page_title %}Donations Dashboard{% endblock %}
+
+{% block page_description %}
+Overview of donation activity for the current year ({{ current_year }}).<br>
+Use the menu to add donations, view all records, generate reports, or export statements.
+{% endblock %}
+
+{% block donations_content %}
+
+{% if user_has_permission('view_donations') or user_has_permission('manage_donations') %}
+    <!-- Summary Cards -->
+    <section class="content-section">
+        <h2 class="section-title">Current Year Summary ({{ current_year }})</h2>
+        <div class="summary-cards">
+            <div class="card glass">
+                <h3>Total Amount</h3>
+                <p class="large-amount">${{ "%.2f"|format(total_this_year|default(0.0)) }}</p>
+            </div>
+            <div class="card glass">
+                <h3>Recent Activity</h3>
+                <p class="large-amount">{{ recent_donations|length }}</p>
+                <p>donations recorded</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Recent Donations -->
+    <section class="content-section">
+        <h2 class="section-title">Recent Donations</h2>
+
+        {% if user_has_permission('manage_donations') %}
+        <div class="form-actions add-event-top">
+            <a href="{{ url_for('donations.add_donation') }}" class="btn-primary">+ Add New Donation</a>
+        </div>
+        {% endif %}
+
+        {% if recent_donations %}
+            <div class="table-wrapper glass">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Donor Name</th>
+                            <th>Amount</th>
+                            <th>Method</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in recent_donations %}
+                            <tr>
+                                <td>{{ d.date[:10] if d.date else '' }}</td> {# Safe YYYY-MM-DD slice if string #}
+                                <td>{{ d.name }}</td>
+                                <td>${{ "%.2f"|format(d.amount) }}</td>
+                                <td>{{ d.method }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="no-data">No donations recorded yet.</p>
+        {% endif %}
+    </section>
+{% else %}
+    <div class="flash info">
+        You do not have permission to view donation records.
+    </div>
+{% endif %}
+
+{% endblock %}

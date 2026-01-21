@@ -1,0 +1,191 @@
+{# app/templates/pastoral/care/care_request_detail.html #}
+{# Full path: WebChurchMan/app/templates/pastoral/care/care_request_detail.html #}
+{# File name: care_request_detail.html #}
+{# Brief, detailed purpose: View and manage a single pastoral care request. #}
+{#   - Shows request details, assigned pastors, notes timeline #}
+{#   - Forms: add note, assign/remove pastor, update status #}
+{#   - Dark theme, cyan accents, inherits base_pastoral.html #}
+
+{% extends "pastoral/base_pastoral.html" %}
+
+{% block pastoral_content %}
+<div class="container mt-4">
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="text-cyan mb-0">Care Request Details</h2>
+    <a href="{{ url_for('pastoral.care.care_dashboard') }}" class="btn btn-outline-secondary">
+      <i class="fas fa-arrow-left me-2"></i> Back to Dashboard
+    </a>
+  </div>
+
+  <!-- Request Info -->
+  <div class="card bg-dark border-cyan mb-4">
+    <div class="card-header bg-cyan text-dark fw-bold">
+      <h5 class="mb-0">{{ request.title or request.request_type|capitalize }}</h5>
+    </div>
+    <div class="card-body">
+      <dl class="row mb-0">
+        <dt class="col-sm-3 text-muted">Member</dt>
+        <dd class="col-sm-9">{{ request.member_name }}</dd>
+
+        <dt class="col-sm-3 text-muted">Type</dt>
+        <dd class="col-sm-9">{{ request.request_type|capitalize }}</dd>
+
+        <dt class="col-sm-3 text-muted">Urgency</dt>
+        <dd class="col-sm-9">
+          <span class="badge {% if request.urgency == 'urgent' %}bg-danger{% elif request.urgency == 'high' %}bg-warning{% else %}bg-info{% endif %}">
+            {{ request.urgency|capitalize }}
+          </span>
+        </dd>
+
+        <dt class="col-sm-3 text-muted">Status</dt>
+        <dd class="col-sm-9">
+          <span class="badge bg-secondary">{{ request.status|replace('_', ' ')|capitalize }}</span>
+        </dd>
+
+        <dt class="col-sm-3 text-muted">Submitted</dt>
+        <dd class="col-sm-9">{{ request.created_at|relative_time }}</dd>
+
+        <dt class="col-sm-3 text-muted">Description</dt>
+        <dd class="col-sm-9">{{ request.description|nl2br }}</dd>
+      </dl>
+    </div>
+  </div>
+
+  <!-- Assigned Pastors -->
+  <div class="card bg-dark border-cyan mb-4">
+    <div class="card-header bg-cyan text-dark fw-bold d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Assigned Pastors/Staff</h5>
+      <button class="btn btn-sm btn-outline-dark" data-bs-toggle="collapse" data-bs-target="#assignForm">
+        <i class="fas fa-user-plus"></i> Assign
+      </button>
+    </div>
+    <div class="card-body">
+      {% if assignments %}
+      <ul class="list-group list-group-flush">
+        {% for ass in assignments %}
+        <li class="list-group-item bg-transparent border-0 d-flex justify-content-between align-items-center py-3">
+          <div>
+            <strong>{{ ass.pastor_name }}</strong>
+            {% if ass.is_primary %}<span class="badge bg-success ms-2">Primary</span>{% endif %}
+            {% if ass.notes %}<small class="text-muted d-block mt-1">{{ ass.notes }}</small>{% endif %}
+          </div>
+          <form action="{{ url_for('pastoral.care.care_remove_assignment', assignment_id=ass.id) }}" method="POST" class="d-inline">
+            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Remove {{ ass.pastor_name }}?');">
+              <i class="fas fa-times"></i>
+            </button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-muted text-center my-3">No assignments yet.</p>
+      {% endif %}
+    </div>
+
+    <div class="collapse" id="assignForm">
+      <div class="card-body border-top border-cyan">
+        <form action="{{ url_for('pastoral.care.care_assign', request_id=request.id) }}" method="POST">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label for="pastor_id" class="form-label text-cyan">Assign Pastor/Staff</label>
+              <select name="pastor_id" id="pastor_id" class="form-select" required>
+                <option value="">-- Select --</option>
+                {% for pastor in pastoral_team %}
+                  <option value="{{ pastor.id }}">{{ pastor.first_name }} {{ pastor.last_name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-cyan">Primary Contact?</label>
+              <div class="form-check">
+                <input type="checkbox" name="is_primary" id="is_primary" class="form-check-input" value="1">
+                <label class="form-check-label" for="is_primary">Mark as primary</label>
+              </div>
+            </div>
+            <div class="col-12">
+              <label for="notes" class="form-label text-cyan">Notes (optional)</label>
+              <textarea name="notes" id="notes" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="col-12 text-end">
+              <button type="submit" class="btn btn-cyan">Assign</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notes Timeline -->
+  <div class="card bg-dark border-cyan">
+    <div class="card-header bg-cyan text-dark fw-bold">
+      <h5 class="mb-0">Confidential Notes</h5>
+    </div>
+    <div class="card-body">
+      {% if notes %}
+      <div class="timeline">
+        {% for note in notes %}
+        <div class="timeline-item mb-4">
+          <div class="timeline-dot bg-cyan"></div>
+          <div class="timeline-content bg-dark border border-cyan rounded p-3">
+            <div class="d-flex justify-content-between">
+              <strong>{{ note.author_name }}</strong>
+              <small class="text-muted">{{ note.created_at|relative_time }}</small>
+            </div>
+            <p class="mt-2 mb-1">{{ note.note|nl2br }}</p>
+            {% if note.is_private %}
+              <small class="text-warning">(Private to team)</small>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-muted text-center my-3">No notes yet.</p>
+      {% endif %}
+
+      <!-- Add Note -->
+      <form action="{{ url_for('pastoral.care.care_add_note', request_id=request.id) }}" method="POST" class="mt-4">
+        <div class="mb-3">
+          <label for="note" class="form-label text-cyan fw-bold">Add Note</label>
+          <textarea name="note" id="note" class="form-control" rows="4" required placeholder="Enter confidential notes..."></textarea>
+        </div>
+        <div class="form-check mb-3">
+          <input type="checkbox" name="is_private" id="is_private" class="form-check-input" value="1" checked>
+          <label class="form-check-label" for="is_private">Keep private to pastoral team</label>
+        </div>
+        <button type="submit" class="btn btn-cyan">Add Note</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Quick Status Update -->
+  <div class="mt-4 text-end">
+    <form action="{{ url_for('pastoral.care.care_edit', request_id=request.id) }}" method="POST" class="d-inline-flex gap-2">
+      <select name="status" class="form-select w-auto">
+        <option value="open" {% if request.status == 'open' %}selected{% endif %}>Open</option>
+        <option value="assigned" {% if request.status == 'assigned' %}selected{% endif %}>Assigned</option>
+        <option value="in_progress" {% if request.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+        <option value="followed_up" {% if request.status == 'followed_up' %}selected{% endif %}>Followed Up</option>
+        <option value="closed" {% if request.status == 'closed' %}selected{% endif %}>Closed</option>
+      </select>
+      <button type="submit" class="btn btn-outline-cyan">Update Status</button>
+    </form>
+  </div>
+</div>
+
+<style>
+  .timeline { position: relative; padding-left: 30px; }
+  .timeline-item { position: relative; }
+  .timeline-dot {
+    position: absolute;
+    left: -25px;
+    top: 10px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #00aaaa;
+    border: 2px solid #000;
+  }
+</style>
+{% endblock %}

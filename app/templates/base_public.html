@@ -1,0 +1,192 @@
+{# WebChurchMan/app/templates/base_public.html #}
+{# Full path: WebChurchMan/app/templates/base_public.html #}
+{# File name: base_public.html #}
+{# Brief, detailed purpose: Dedicated public master layout – EXACT visual match to private base.html gold standard.
+   • Header identical: glowing status left, church title center, clock + action button right
+   • Single glowing pill navigation row (perfectly styled like private tabs – no dropdowns for public)
+   • Mobile hamburger + sliding menu ONLY visible/functional on mobile (completely hidden on desktop → zero double nav)
+   • Hard-coded paths → zero BuildError
+   • Active via request.path
+   • All branding, theme, glass wrapper, flash, footer, clock script identical to private
+   • Year 2026 hard-coded #}
+
+<!DOCTYPE html>
+<html lang="en" data-theme="{% if session.user_theme %}{{ session.user_theme }}{% else %}cyan-glow{% endif %}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  {% set s = g.settings|default({}) %}
+
+  <title>{% block title %}My Vine Church{% endblock %} | {{ s.get('church_name', 'MyVineChurch.Online') }}</title>
+
+  <!-- Global CSS (exact same as private base.html) -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/theme.css') }}?v=20260115">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/base.css') }}?v=20260115">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/layout.css') }}?v=20260115">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/forms.css') }}?v=20260115">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/components-header.css') }}?v=20260115">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/components-navigation.css') }}?v=20260115">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/components-main.css') }}?v=20260115">
+
+  <!-- Public-specific -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/public/base_public.css') }}?v=20260115">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/public/public_dashboard.css') }}?v=20260115">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/public/public_announcements.css') }}?v=20260115">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/public/public_dreams.css') }}?v=20260115">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/public/public_prophecies.css') }}?v=20260115">
+
+  <!-- Mobile overrides (handles hiding desktop nav & showing hamburger) -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile/public_mobile.css') }}?v=20260115">
+
+  {% block extra_css %}{% endblock %}
+
+  <!-- Dynamic favicon -->
+  {% set fav = s.get('favicon_path') %}
+  <link rel="icon" href="{{ url_for('static', filename='images/' ~ fav if fav else 'favicon.ico') }}">
+
+  <!-- Dynamic branding + dropdown fix (identical to private) -->
+  <style>
+    :root {
+      --primary: {{ s.get('primary_color', '#00FFFF') }};
+      --primary-hover: {{ s.get('primary_hover_color', '#00cccc') }};
+      --font-main: '{{ s.get('font_family', "system-ui, -apple-system, sans-serif") }}';
+
+      {% set bg_image = s.get('background_image') %}
+      {% if bg_image %}
+      --bg-page: linear-gradient(rgba(0,0,0,{{ s.get('background_opacity', 0.68) }}),
+                                rgba(0,0,0,{{ s.get('background_opacity', 0.68) }})),
+                 url('{{ url_for('static', filename='images/' ~ bg_image) }}');
+      {% endif %}
+    }
+
+    body {
+      background: var(--bg-page, linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%));
+      background-size: cover;
+      background-attachment: fixed;
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-main);
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Bulletproof: completely hide mobile nav & hamburger on desktop */
+    @media (min-width: 769px) {
+      .mobile-nav,
+      .hamburger,
+      .mobile-overlay,
+      .mobile-nav-toggle {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+
+<body {% block body_style %}{% endblock %}>
+
+  <!-- Mobile hamburger (hidden on desktop by media query above) -->
+  <input type="checkbox" id="mobile-nav-toggle" class="mobile-nav-toggle" hidden>
+  <label for="mobile-nav-toggle" class="hamburger" aria-label="Toggle menu">
+      <span></span><span></span><span></span>
+  </label>
+  <div class="mobile-overlay" onclick="document.getElementById('mobile-nav-toggle').checked = false;"></div>
+
+  <header class="header">
+    <div class="header-left">
+      {% if session.user_id %}
+        <a href="/profile" class="welcome-btn">
+          Welcome, {{ session.username|default('Member') }}
+          <span class="role-badge">{{ session.user_role|default('Member') }}</span>
+        </a>
+      {% else %}
+        <div class="welcome-btn">
+          Logged in as Guest | <a href="/login">Login</a>
+        </div>
+      {% endif %}
+    </div>
+
+    <h1 class="site-title">{{ s.get('church_name', 'MyVineChurch.Online') }}</h1>
+
+    <div class="header-right">
+      <div class="clock" id="clock">--:--:-- --</div>
+
+      {% if session.user_id %}
+        <a href="/logout" class="btn-pill btn-pill-small">Logout</a>
+      {% else %}
+        <a href="/register" class="btn-pill btn-pill-small">Register</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <!-- ONLY desktop public navigation – perfect glowing pills (same style as private) -->
+  <nav class="tabs">
+    <a href="/" class="tab {{ 'active' if request.path == '/' else '' }}">Home</a>
+    <a href="/events" class="tab {{ 'active' if request.path.startswith('/events') else '' }}">Events</a>
+    <a href="/prayers" class="tab {{ 'active' if request.path.startswith('/prayers') else '' }}">Prayers</a>
+    <a href="/sermons" class="tab {{ 'active' if request.path.startswith('/sermons') else '' }}">Sermons</a>
+    <a href="/dreams" class="tab {{ 'active' if request.path.startswith('/dreams') else '' }}">Dreams & Visions</a>
+    <a href="/prophecies" class="tab {{ 'active' if request.path.startswith('/prophecies') else '' }}">Prophecies</a>
+    <a href="/announcements" class="tab {{ 'active' if request.path.startswith('/announcements') else '' }}">Announcements</a>
+
+    {% if s.get('online_donations_enabled') %}
+      <a href="/donate" class="tab {{ 'active' if request.path == '/donate' else '' }}">Donate</a>
+    {% endif %}
+  </nav>
+
+  <!-- Mobile sliding menu – hidden on desktop by media query above -->
+  <nav class="mobile-nav">
+    <a href="/">Home</a>
+    <a href="/events">Events</a>
+    <a href="/prayers">Prayers</a>
+    <a href="/sermons">Sermons</a>
+    <a href="/dreams">Dreams & Visions</a>
+    <a href="/prophecies">Prophecies</a>
+    <a href="/announcements">Announcements</a>
+    {% if s.get('online_donations_enabled') %}
+      <a href="/donate">Donate</a>
+    {% endif %}
+  </nav>
+
+  <div class="form-page-wrapper">
+    <div class="form-container">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-messages">
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <main>
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>&copy; 2026 {{ s.get('church_name', 'MyVineChurch.Online') }} • Odessa, Texas • All rights reserved.</p>
+  </footer>
+
+  {% block scripts %}
+    <script>
+      function updateClock() {
+        const now = new Date();
+        const clockEl = document.getElementById('clock');
+        if (clockEl) {
+          clockEl.textContent = now.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+          });
+        }
+      }
+      setInterval(updateClock, 1000);
+      updateClock();
+    </script>
+  {% endblock %}
+</body>
+</html>

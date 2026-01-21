@@ -1,0 +1,62 @@
+<!-- app/templates/settings/base_settings.html -->
+<!-- Full path: WebChurchMan/app/templates/settings/base_settings.html -->
+<!-- File name: base_settings.html -->
+<!-- Brief, detailed purpose: Common base template for ALL Settings module pages.
+   Mirrors base_events.html / base_donations.html / base_announcements.html exactly:
+     • Same glass wrapper (inherited from base.html)
+     • Same internal .menu style with pill links
+     • Menu items: Church & General, Timezone, Email Settings & Test, AI Insights, Online Giving, Censored Words
+     • Active class on current section
+     • Flash messages
+   NO sidebar – uses the same horizontal .menu as all other modules for perfect consistency. -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="form-page-wrapper">
+    <div class="form-container">
+        <h1 class="page-title">Settings</h1>
+        <p class="page-description">Global application configuration – Admin/Owner + granted users only.</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Internal Settings Menu – identical style to events, donations, etc. -->
+        <div class="menu">
+            <a href="{{ url_for('settings.general') }}"
+               {% if request.endpoint == 'settings.general' %}class="active"{% endif %}>
+                Church & General
+            </a>
+            <a href="{{ url_for('settings.timezone') }}"
+               {% if request.endpoint == 'settings.timezone' %}class="active"{% endif %}>
+                Timezone
+            </a>
+            <a href="{{ url_for('settings.email') }}"
+               {% if request.endpoint == 'settings.email' %}class="active"{% endif %}>
+                Email Settings & Test
+            </a>
+            <a href="{{ url_for('settings.ai') }}"
+               {% if request.endpoint == 'settings.ai' %}class="active"{% endif %}>
+                AI Insights
+            </a>
+            <a href="{{ url_for('settings.online_giving') }}"
+               {% if request.endpoint == 'settings.online_giving' %}class="active"{% endif %}>
+                Online Giving
+            </a>
+            <a href="{{ url_for('settings.censored_words') }}"
+               {% if request.endpoint == 'settings.censored_words' %}class="active"{% endif %}>
+                Censored Words
+            </a>
+        </div>
+
+        {% block settings_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}

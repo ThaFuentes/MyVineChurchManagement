@@ -1,0 +1,214 @@
+<!-- app/templates/tickets/tickets_dashboard.html -->
+<!-- Full path: WebChurchMan/app/templates/tickets/tickets_dashboard.html -->
+<!-- File name: tickets_dashboard.html -->
+<!-- Brief, detailed purpose: Private Tickets Dashboard / Main Listing page – primary entry point for logged-in users.
+   Extends base_tickets.html for consistent wrapper, flash messages, sub-navigation, active highlighting.
+   Summary cards (open tickets, my tickets).
+   Collapsible search & filters (status, priority, category).
+   Glass table with clickable rows → view_ticket.
+   + New Ticket button duplicated at top for convenience.
+   Managers see ALL tickets; regular Members see only their own.
+   Uses ONLY global CSS classes. -->
+
+{% extends "tickets/base_tickets.html" %}
+
+{% block page_title %}Support Tickets{% endblock %}
+
+{% block page_description %}
+View and manage support tickets. Members can submit new tickets for help with membership, facilities, website issues, and more.<br>
+Staff can assign, update status, and respond.
+{% endblock %}
+
+{% block tickets_content %}
+
+<!-- Summary Cards -->
+<section class="content-section">
+    <h2 class="section-title">Tickets Summary</h2>
+    <div class="summary-cards">
+        <div class="card glass">
+            <h3>Open / In Progress</h3>
+            <p class="large-amount">{{ open_count }}</p>
+        </div>
+        <div class="card glass">
+            <h3>My Tickets</h3>
+            <p class="large-amount">{{ my_count }}</p>
+        </div>
+        {% if is_manager %}
+        <div class="card glass">
+            <h3>Total Tickets</h3>
+            <p class="large-amount">{{ tickets|length }}</p>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Quick Add Button (duplicate of menu link) -->
+<div class="form-actions add-event-top">
+    <a href="{{ url_for('tickets.submit_ticket') }}" class="btn-primary">+ New Ticket</a>
+</div>
+
+<!-- Collapsible Search & Filters -->
+<section class="content-section">
+    <h2 class="section-title">All Accessible Tickets</h2>
+
+    <details class="collapsible-controls">
+        <summary class="collapsible-summary">
+            <strong>Search & Filters</strong> <span class="arrow">▼</span>
+        </summary>
+        <div class="search-controls styled-form inline-form">
+            <div class="form-group search-group">
+                <label for="searchBox" class="control-label">Search Tickets</label>
+                <input type="text" id="searchBox" class="search-input" placeholder="Title, description, category..." autocomplete="off">
+                <p class="help-text">Live search across ticket details</p>
+            </div>
+            <div class="form-group filter-group">
+                <label class="control-label">Status</label>
+                <div class="filter-buttons">
+                    <button data-filter="all" class="btn btn-small filter-btn btn-primary">All</button>
+                    <button data-filter="open" class="btn btn-small filter-btn btn-secondary">Open</button>
+                    <button data-filter="in_progress" class="btn btn-small filter-btn btn-secondary">In Progress</button>
+                    <button data-filter="resolved" class="btn btn-small filter-btn btn-secondary">Resolved</button>
+                    <button data-filter="closed" class="btn btn-small filter-btn btn-secondary">Closed</button>
+                </div>
+            </div>
+            <div class="form-group filter-group">
+                <label class="control-label">Priority</label>
+                <div class="filter-buttons">
+                    <button data-priority="all" class="btn btn-small priority-btn btn-primary">All</button>
+                    <button data-priority="urgent" class="btn btn-small priority-btn btn-secondary">Urgent</button>
+                    <button data-priority="high" class="btn btn-small priority-btn btn-secondary">High</button>
+                    <button data-priority="medium" class="btn btn-small priority-btn btn-secondary">Medium</button>
+                    <button data-priority="low" class="btn btn-small priority-btn btn-secondary">Low</button>
+                </div>
+            </div>
+        </div>
+    </details>
+
+    <!-- Glass Table -->
+    <div class="table-wrapper glass">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>#ID</th>
+                    <th>Title</th>
+                    <th>Category</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    {% if is_manager %}
+                    <th>Assigned To</th>
+                    <th>Creator</th>
+                    {% endif %}
+                    <th>Updated</th>
+                </tr>
+            </thead>
+            <tbody id="ticketsBody">
+                {% if tickets %}
+                    {% for t in tickets %}
+                    <tr class="data-row"
+                        data-status="{{ t.status }}"
+                        data-priority="{{ t.priority }}"
+                        onclick="window.location='{{ url_for('tickets.view_ticket', ticket_id=t.id) }}'"
+                        style="cursor:pointer;">
+                        <td>#{{ t.id }}</td>
+                        <td><strong>{{ t.title }}</strong></td>
+                        <td>{{ t.category_name }}</td>
+                        <td class="priority-{{ t.priority }}">{{ t.priority|capitalize }}</td>
+                        <td>{{ t.status.replace('_', ' ')|title }}</td>
+                        {% if is_manager %}
+                        <td>{{ t.assignee_name or 'Unassigned' }}</td>
+                        <td>{{ t.creator_name or 'Guest' }}</td>
+                        {% endif %}
+                        <td>{{ t.updated_at[:10] }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="{{ 8 if is_manager else 5 }}" class="no-data">
+                            No tickets found.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="no-data" id="noResults" style="display:none;">
+        No tickets match the current search and filters.
+    </div>
+</section>
+
+<script>
+  // Client-side live search + status/priority filters
+  (function() {
+    const searchBox = document.getElementById('searchBox');
+    const ticketsBody = document.getElementById('ticketsBody');
+    const noResults = document.getElementById('noResults');
+    const statusButtons = document.querySelectorAll('.filter-btn');
+    const priorityButtons = document.querySelectorAll('.priority-btn');
+
+    let statusFilter = 'all';
+    let priorityFilter = 'all';
+    let timer;
+
+    function highlightButtons() {
+      statusButtons.forEach(btn => {
+        btn.classList.toggle('btn-primary', btn.dataset.filter === statusFilter);
+        btn.classList.toggle('btn-secondary', btn.dataset.filter !== statusFilter);
+      });
+      priorityButtons.forEach(btn => {
+        btn.classList.toggle('btn-primary', btn.dataset.priority === priorityFilter);
+        btn.classList.toggle('btn-secondary', btn.dataset.priority !== priorityFilter);
+      });
+    }
+
+    function applyFilters() {
+      const query = searchBox ? searchBox.value.toLowerCase().trim() : '';
+      const rows = ticketsBody.querySelectorAll('.data-row');
+      let visibleCount = 0;
+
+      rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        const status = row.dataset.status;
+        const priority = row.dataset.priority;
+
+        const matchesSearch = query === '' || text.includes(query);
+        const matchesStatus = statusFilter === 'all' || status === statusFilter;
+        const matchesPriority = priorityFilter === 'all' || priority === priorityFilter;
+
+        const show = matchesSearch && matchesStatus && matchesPriority;
+        row.style.display = show ? '' : 'none';
+        if (show) visibleCount++;
+      });
+
+      noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+
+    if (searchBox) {
+      searchBox.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(applyFilters, 300);
+      });
+    }
+
+    statusButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        statusFilter = btn.dataset.filter;
+        highlightButtons();
+        applyFilters();
+      });
+    });
+
+    priorityButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        priorityFilter = btn.dataset.priority;
+        highlightButtons();
+        applyFilters();
+      });
+    });
+
+    highlightButtons();
+    applyFilters();
+  })();
+</script>
+
+{% endblock %}

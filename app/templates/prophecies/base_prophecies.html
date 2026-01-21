@@ -1,0 +1,46 @@
+<!-- app/templates/prophecies/base_prophecies.html -->
+<!-- Full path: WebChurchMan/app/templates/prophecies/base_prophecies.html -->
+<!-- File name: base_prophecies.html -->
+<!-- Brief, detailed purpose: Common base template for ALL Prophecies module pages (dashboard, add, edit, view).
+   Exact mirror of base_events.html / base_dreams.html → identical glassmorphism wrapper, menu, flash handling.
+   Menu: Prophecies Dashboard (always) + Add Prophecy (always visible – guests see link but route protected).
+   Active highlighting for dashboard, add, edit pages.
+   NO module-specific CSS – uses only global classes.
+   Provides blocks: page_title, page_description, prophecies_content.
+   Fixed to use correct endpoint 'prophecies.list_prophecies' for dashboard (matches existing route name). -->
+
+{% extends "base.html" %}
+
+{% block extra_css %}
+{# Global CSS only – no prophecies-specific files #}
+{% block prophecies_page_css %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="form-page-wrapper">
+    <div class="form-container">
+        <h1 class="page-title">{% block page_title %}Prophecies{% endblock %}</h1>
+        <p class="page-description">{% block page_description %}{% endblock %}</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="menu">
+            <a {% if request.endpoint == 'prophecies.list_prophecies' %}class="active"{% endif %}
+               href="{{ url_for('prophecies.list_prophecies') }}">Prophecies Dashboard</a>
+
+            <a {% if request.endpoint in ['prophecies.add_prophecy', 'prophecies.edit_prophecy'] %}class="active"{% endif %}
+               href="{{ url_for('prophecies.add_prophecy') }}">Add Prophecy</a>
+        </div>
+
+        {% block prophecies_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}

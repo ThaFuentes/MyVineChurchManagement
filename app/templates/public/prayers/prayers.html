@@ -1,0 +1,59 @@
+<!-- app/templates/public/prayers/prayers.html -->
+<!-- Full path: WebChurchMan/app/templates/public/prayers/prayers.html -->
+<!-- File name: prayers.html -->
+<!-- Brief, detailed purpose: Public-facing Prayer Requests page.
+   FULL REBUILD – matches public/events/events.html exactly in structure and style.
+   Extends base_public.html – inherits single top-level nav + header.
+   Clean, spacious, centered text on dark background.
+   Simple readable list with subtle cyan accents and borders.
+   NO extra CSS – all styling minimal inline (identical to events).
+   Displays ONLY public-visibility prayer requests.
+   Prayer titles clickable → link to individual prayer detail page (/prayers/<id>).
+   Full description shown (safe HTML via |safe).
+   If no public prayers, just intro remains (clean open feel). -->
+
+{% extends "base_public.html" %}
+
+{% block title %}Prayer Requests{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 6rem 2rem 5rem;">
+  <h2 style="font-size: 3.5rem; color: var(--primary); margin-bottom: 2.5rem; text-shadow: 0 0 30px var(--primary);">
+    Prayer Requests
+  </h2>
+
+  <p style="font-size: 1.8rem; max-width: 900px; margin: 0 auto 4rem; line-height: 1.8;">
+    We believe in the power of prayer.<br>
+    Join us in lifting up these requests from our community.
+  </p>
+</div>
+
+<!-- Prayers list – only appears if prayers exist -->
+{% if prayers %}
+<div style="padding: 0 2rem 8rem;">
+  <div style="max-width: 1000px; margin: 0 auto;">
+    <ul style="list-style: none; padding: 0;">
+      {% for prayer in prayers %}
+      <li style="margin-bottom: 3rem; padding-bottom: 2.5rem; border-bottom: 1px solid rgba(0, 255, 255, 0.2);">
+        <h3 style="font-size: 2.2rem; margin: 0 0 1.2rem;">
+          <a href="{{ url_for('prayers.view_prayer', prayer_id=prayer.id) }}"
+             style="color: var(--primary); text-decoration: none; text-shadow: 0 0 20px var(--primary);">
+            {{ prayer.title|title|censor }}
+          </a>
+        </h3>
+        <small style="color: var(--text-muted); font-size: 1.3rem; display: block; margin-bottom: 1.5rem;">
+          Posted on {{ prayer.date_posted.strftime('%B %d, %Y') }}
+          {% if prayer.creator_name %} by {{ prayer.creator_name }}{% endif %}
+        </small>
+        {% if prayer.description %}
+        <div style="font-size: 1.3rem; line-height: 1.8; opacity: 0.95;">
+          {{ prayer.description | nl2br | censor }}
+        </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

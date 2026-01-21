@@ -1,0 +1,107 @@
+# =============================================================================
+# MyVineChurch.Online – Comprehensive .gitignore
+# =============================================================================
+# This file is designed to protect sensitive data, prevent committing large/generated
+# files, and keep the repository clean while preserving all source code, templates,
+# static assets (except uploads), and configuration that should be version-controlled.
+#
+# DO NOT commit anything listed here – especially encryption keys or user uploads.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Python / Flask / General
+# ─────────────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# Environment variables & secrets
+.env
+.flaskenv
+.local
+
+# Sensitive encryption / config files (NEVER commit these)
+config_key.bin
+config_data.bin
+
+# PyCharm / IDE files
+.idea/
+*.iml
+*.iws
+.vscode/
+
+# Database files (local SQLite – even if production uses MariaDB)
+*.sqlite3
+*.db
+church_management.db
+
+# Logs
+*.log
+logs/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Project-specific generated / sensitive folders
+# ─────────────────────────────────────────────────────────────────────────────
+
+# User uploads (sermons, donation proofs, images, etc.)
+uploads/
+sermons_uploads/
+static/uploads/
+static/uploads/**/*
+
+# Generated exports & reports (DOCX, PDFs, CSVs, etc.)
+export/
+exports/
+export/**/*
+exports/**/*
+
+# Any potential large media or generated files
+*.mp3
+*.mp4
+*.wav
+*.pdf
+*.docx
+*.xlsx
+
+# Docker volumes or local containers (if you run MariaDB locally)
+docker-volume/
+mysql-data/
+
+# =============================================================================
+# What IS committed (for reference)
+# =============================================================================
+# - All source code (app/, main.py, etc.)
+# - Templates (app/templates/ – including "possibly unused" ones; easy to delete later)
+# - Static assets EXCEPT uploads (css, js, images that are part of the theme)
+# - requirements.txt
+# - docker-compose.yml (if you use it)
+# - README.md, LICENSE, etc.
+
+# If you later decide to remove legacy/unused files:
+#   1. Delete them locally
+#   2. git rm <file> (or git rm -r <folder>)
+#   3. Commit the removal
+# This .gitignore only prevents adding new unwanted files – it won't remove existing ones.
+
+# Save this as .gitignore in the project root and commit it.

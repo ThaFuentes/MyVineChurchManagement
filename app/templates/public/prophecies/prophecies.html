@@ -1,0 +1,55 @@
+<!-- WebChurchMan/app/templates/public/prophecies/prophecies.html -->
+<!-- Full path: WebChurchMan/app/templates/public/prophecies/prophecies.html -->
+<!-- File name: prophecies.html -->
+<!-- Brief, detailed purpose: Public-facing Prophecies listing page.
+   FULL REBUILD – extends base_public.html (single top-level nav + header).
+   Standardized to exactly match public events/announcements/sermons style: clean, spacious, centered text on dark background.
+   NO extra CSS file – all styling global/minimal inline.
+   Simple readable list with subtle cyan accents and borders.
+   Displays ONLY public-visibility prophecies.
+   Prophecy titles NOT clickable (no detail page).
+   Full content shown directly in flow (matches events description display).
+   NO empty state message or large container – if no prophecies, just intro remains (clean open feel). -->
+
+{% extends "base_public.html" %}
+
+{% block title %}Prophecies{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 6rem 2rem 5rem;">
+  <h2 style="font-size: 3.5rem; color: var(--primary); margin-bottom: 2.5rem; text-shadow: 0 0 30px var(--primary);">
+    Prophecies
+  </h2>
+
+  <p style="font-size: 1.8rem; max-width: 900px; margin: 0 auto 4rem; line-height: 1.8;">
+    Shared words of encouragement, insight, and direction from our community.<br>
+    May these messages strengthen your faith and draw you closer to God.
+  </p>
+</div>
+
+<!-- Prophecies list – only appears if prophecies exist -->
+{% if prophecies %}
+<div style="padding: 0 2rem 8rem;">
+  <div style="max-width: 1000px; margin: 0 auto;">
+    <ul style="list-style: none; padding: 0;">
+      {% for pr in prophecies %}
+      <li style="margin-bottom: 3rem; padding-bottom: 2.5rem; border-bottom: 1px solid rgba(0, 255, 255, 0.2);">
+        <h3 style="font-size: 2.2rem; margin: 0 0 1.2rem; color: var(--primary); text-shadow: 0 0 20px var(--primary);">
+          {{ pr.title|title }}
+        </h3>
+        <small style="color: var(--text-muted); font-size: 1.3rem; display: block; margin-bottom: 1.5rem;">
+          Shared on {{ pr.datetime }}{% if pr.posted_by %} • by {{ pr.posted_by }}{% endif %}
+        </small>
+
+        {% if pr.content %}
+        <div style="font-size: 1.3rem; line-height: 1.8; opacity: 0.95;">
+          {{ pr.content | safe }}
+        </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,16 @@
+
+PyPDF2
+Werkzeug
+cryptography
+flask
+itertools
+markupsafe
+pymysql
+python-docx
+python-dotenv
+requests
+secrets
+tempfile
+textwrap
+zipfile
+zoneinfo

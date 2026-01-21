@@ -1,0 +1,59 @@
+<!-- app/templates/tickets/ticket_managers.html -->
+<!-- Full path: WebChurchMan/app/templates/tickets/ticket_managers.html -->
+<!-- File name: ticket_managers.html -->
+<!-- Brief, detailed purpose: Page to manage membership in the Ticket Managers group.
+   Simple table listing all users with Add/Remove buttons.
+   Now correctly placed in the Tickets module and extends the tickets base template for consistent navigation/styling.
+   Only Admin/Owner can access (enforced in route). -->
+
+{% extends "tickets/base_tickets.html" %}
+
+{% block page_title %}Manage Ticket Managers Group{% endblock %}
+
+{% block page_description %}
+Users in this group have full access to the Ticket Manager dashboard (all tickets, quick actions, close tickets).<br>
+Add or remove users below. Only Admin/Owner can manage this group.
+{% endblock %}
+
+{% block tickets_content %}
+<section class="content-section">
+    <h2 class="section-title">Manage Ticket Managers Group</h2>
+
+    <div class="table-wrapper glass">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in all_users %}
+                <tr>
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.first_name }} {{ user.last_name }}</td>
+                    <td>{{ user.role }}</td>
+                    <td>
+                        {% if user.id in manager_ids %}
+                        <form method="POST" style="display:inline;">
+                            <input type="hidden" name="action" value="remove">
+                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                            <button type="submit" class="btn-danger btn-small">Remove</button>
+                        </form>
+                        {% else %}
+                        <form method="POST" style="display:inline;">
+                            <input type="hidden" name="action" value="add">
+                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                            <button type="submit" class="btn-primary btn-small">Add</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

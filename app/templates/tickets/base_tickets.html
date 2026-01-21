@@ -1,0 +1,45 @@
+<!-- app/templates/tickets/base_tickets.html -->
+<!-- Full path: WebChurchMan/app/templates/tickets/base_tickets.html -->
+<!-- File name: base_tickets.html -->
+<!-- Brief, detailed purpose: Common base template for ALL private Tickets module pages (dashboard, view, submit, manager).
+   Mirrors other module bases: glass wrapper, flash messages, sub-navigation menu with active state.
+   Menu: Tickets Dashboard (always), + New Ticket (always), Ticket Manager (if can_manage).
+   REMOVED: "Manage Ticket Managers" link – group membership is handled in the general Groups module only.
+   Pure global CSS – no tickets-specific styles.
+   Provides blocks: page_title, page_description, tickets_content. -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="form-page-wrapper">
+    <div class="form-container">
+        <h1 class="page-title">{% block page_title %}Support Tickets{% endblock %}</h1>
+        <p class="page-description">{% block page_description %}{% endblock %}</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Sub-navigation menu – consistent across all private Tickets pages -->
+        <div class="menu">
+            <a {% if request.endpoint == 'tickets.tickets' %}class="active"{% endif %}
+               href="{{ url_for('tickets.tickets') }}">Tickets Dashboard</a>
+            <a {% if request.endpoint == 'tickets.submit_ticket' %}class="active"{% endif %}
+               href="{{ url_for('tickets.submit_ticket') }}">+ New Ticket</a>
+
+            {% if can_manage %}
+            <a {% if request.endpoint == 'tickets.manager_dashboard' %}class="active"{% endif %}
+               href="{{ url_for('tickets.manager_dashboard') }}">Ticket Manager</a>
+            {% endif %}
+        </div>
+
+        {% block tickets_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}

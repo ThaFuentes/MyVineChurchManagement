@@ -1,0 +1,41 @@
+<!-- app/templates/sermons/base_sermons.html -->
+<!-- Full path: WebChurchMan/app/templates/sermons/base_sermons.html -->
+<!-- File name: base_sermons.html -->
+<!-- Brief, detailed purpose: Common base template for ALL Sermons module pages (dashboard/listing, upload/add).
+   Mirrors base_events.html / base_members.html exactly: glassmorphism form-page-wrapper > form-container,
+   shared flash messages, manual menu with active state highlighting.
+   Menu: Sermons Dashboard (always) + Upload Sermon (Staff/Admin/Owner only).
+   Uses ONLY global CSS – no sermons-specific CSS files. -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="form-page-wrapper">
+    <div class="form-container">
+        <h1 class="page-title">{% block page_title %}Sermons{% endblock %}</h1>
+        <p class="page-description">{% block page_description %}{% endblock %}</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="menu">
+            <a {% if request.endpoint == 'sermons.sermons' %}class="active"{% endif %}
+               href="{{ url_for('sermons.sermons') }}">Sermons Dashboard</a>
+
+            {% if session.user_role in ['Staff', 'Admin', 'Owner'] %}
+                <a {% if request.endpoint == 'sermons.upload_sermon' %}class="active"{% endif %}
+                   href="{{ url_for('sermons.upload_sermon') }}">Upload Sermon</a>
+            {% endif %}
+        </div>
+
+        {% block sermons_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,189 @@
+<!-- app/templates/donations/reports.html -->
+<!-- Full path: WebChurchMan/app/templates/donations/reports.html -->
+<!-- File name: reports.html -->
+<!-- Brief, detailed purpose: Donation Reports page – extends base_donations.html for full consistency.
+   Year/month filter form at top, then (when selected) report title, individual donations table (glass),
+   overall totals as glass summary cards, optional monthly breakdown table (glass), method breakdown table (glass).
+   Uses ONLY global classes – no module-specific CSS. Clean, spacious layout matching other Donations pages. -->
+
+{% extends "donations/base_donations.html" %}
+
+{% set month_names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] %}
+
+{% block page_title %}Donation Reports{% endblock %}
+
+{% block page_description %}
+View donation summaries and breakdowns by year or month.<br>
+All data is read-only — exports available on the Export page.
+{% endblock %}
+
+{% block donations_content %}
+
+{% if user_has_permission('view_donations') or user_has_permission('manage_donations') %}
+<section class="content-section">
+    <h2 class="section-title">Select Year and (Optional) Month</h2>
+
+    <form method="GET" action="{{ url_for('donations.reports') }}" class="styled-form" style="max-width:900px; margin:0 auto;">
+        <div class="form-group">
+            <label for="year-select" class="control-label">Year <span class="required">*</span></label>
+            <select name="year" id="year-select" class="form-input" required>
+                <option value="">-- Select Year --</option>
+                {% for y in years %}
+                    <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+            <p class="help-text">Required — choose the year for the report.</p>
+        </div>
+
+        <div class="form-group">
+            <label for="month-select" class="control-label">Month (optional)</label>
+            <select name="month" id="month-select" class="form-input">
+                <option value="">-- All Months --</option>
+                {% for i in range(1,13) %}
+                    {% set m = "%02d"|format(i) %}
+                    <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>
+                        {{ month_names[i-1] }}
+                    </option>
+                {% endfor %}
+            </select>
+            <p class="help-text">Optional — filter to a specific month within the selected year.</p>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Generate Report</button>
+        </div>
+    </form>
+</section>
+
+{% if selected_year %}
+<section class="content-section">
+    <h2 class="section-title" style="text-align:center; margin:3rem 0;">
+        Donation Report for {{ selected_year }}
+        {% if selected_month %}
+            — {{ month_names[selected_month|int - 1] }}
+        {% endif %}
+    </h2>
+</section>
+
+<!-- Individual Donations -->
+<section class="content-section">
+    <h2 class="section-title">Individual Donations</h2>
+    <div class="table-wrapper glass">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                    <th>Method</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if donations %}
+                    {% for d in donations %}
+                        <tr>
+                            <td>{{ d.name }}</td>
+                            <td>${{ "%.2f"|format(d.amount) }}</td>
+                            <td>{{ d.date[:10] if d.date else '' }}</td>
+                            <td>{{ d.method }}</td>
+                            <td>{{ d.notes|default('None')|nl2br }}</td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="no-data">No donations found for this period.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- Overall Totals -->
+<section class="content-section">
+    <h2 class="section-title">Overall Totals</h2>
+    <div class="summary-cards">
+        <div class="card glass">
+            <h3>Total Amount</h3>
+            <p class="large-amount">${{ "%.2f"|format(total_amount|default(0.0)) }}</p>
+        </div>
+        <div class="card glass">
+            <h3>Number of Donations</h3>
+            <p class="large-amount">{{ total_count|default(0) }}</p>
+        </div>
+    </div>
+</section>
+
+<!-- Monthly Breakdown (only when no month selected) -->
+{% if not selected_month %}
+<section class="content-section">
+    <h2 class="section-title">Monthly Breakdown for {{ selected_year }}</h2>
+    <div class="table-wrapper glass">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Month</th>
+                    <th>Total Amount</th>
+                    <th>Total Donations</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if monthly_totals %}
+                    {% for m in monthly_totals %}
+                        <tr>
+                            <td>{{ m.month }}</td>
+                            <td>${{ "%.2f"|format(m.total_amount) }}</td>
+                            <td>{{ m.total_count }}</td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="3" class="no-data">No monthly data available.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+
+<!-- Method Breakdown -->
+<section class="content-section">
+    <h2 class="section-title">Donation Method Breakdown</h2>
+    <div class="table-wrapper glass">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Method</th>
+                    <th>Total Amount</th>
+                    <th>Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if donation_types %}
+                    {% for t in donation_types %}
+                        <tr>
+                            <td>{{ t.method }}</td>
+                            <td>${{ "%.2f"|format(t.total_amount) }}</td>
+                            <td>{{ t.total_count }}</td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="3" class="no-data">No donation method data available.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+
+{% else %}
+<div class="flash info">
+    You do not have permission to view donation reports.
+</div>
+{% endif %}
+
+{% endblock %}

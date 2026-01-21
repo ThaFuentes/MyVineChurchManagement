@@ -1,0 +1,61 @@
+<!-- app/templates/members/email_roster.html -->
+<!-- Full path: myvinechurchonline/app/templates/members/email_roster.html -->
+<!-- File name: email_roster.html -->
+<!-- Purpose: Form for Admin/Owner to broadcast an email to all members who accept emails.
+     Optional inclusion of full roster (name + phone + email) in the email body.
+     Uses same Events-style glassmorphism + cyan styling. -->
+
+{% extends "base.html" %}
+
+{% block title %}Email Church Roster{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/events_common.css') }}?v=20260105">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/events_forms.css') }}?v=20260105">
+{% endblock %}
+
+{% block content %}
+<div class="form-page-wrapper">
+  <div class="form-container">
+    <h1 class="page-title">Email Church Roster</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages">
+          {% for category, msg in messages %}
+            <div class="flash {{ category }}">{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <p class="help-text" style="text-align:center;margin-bottom:2rem;">
+      This will send to <strong>all members who have "Accepts church emails" enabled</strong>.
+    </p>
+
+    <form method="POST" class="styled-form">
+      <div class="form-group">
+        <label for="subject">Subject <span class="required">*</span></label>
+        <input type="text" name="subject" required>
+      </div>
+
+      <div class="form-group">
+        <label for="message">Message (optional)</label>
+        <textarea name="message" rows="10" placeholder="Add any custom message here..."></textarea>
+      </div>
+
+      <div class="form-group checkbox-group">
+        <label>
+          <input type="checkbox" name="include_roster" checked>
+          Include full roster in email body (Name • Phone • Email)
+        </label>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-primary">Send Email</button>
+        <a href="{{ url_for('members.members_directory') }}" class="btn-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
