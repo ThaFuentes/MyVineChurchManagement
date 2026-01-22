@@ -1,0 +1,43 @@
+{# app/templates/pastoral/planning_assignment_row.html #}
+{# Full path: WebChurchMan/app/templates/pastoral/planning_assignment_row.html #}
+{# File name: planning_assignment_row.html #}
+{# Brief, detailed purpose:
+#   Partial template for a single role assignment row in the Service Planning editor.
+#   Used dynamically by planning_edit.html for both existing assignments and "Add Role" cloning.
+#   Fully rebuilt for:
+#     - Accessibility (labels, aria attributes)
+#     - Responsive layout (input-group with proper flex)
+#     - Consistent dark/cyan theme (form-control-dark, btn-danger)
+#     - Required role name with helpful placeholder
+#     - Unassigned option always present
+#     - Clean removal button with icon
+#     - Dropdown now populated exclusively with Pastoral Group members (assignable_users)
+#   No inline styles – relies on global pastoral.css for smoothness. #}
+
+<div class="input-group mb-3 assignment-row" role="group" aria-label="Role assignment row">
+    <input type="text"
+           name="role_name"
+           class="form-control form-control-dark"
+           placeholder="e.g. Worship Leader, Sound Tech, Greeter"
+           value="{{ assignment.role_name if assignment else '' }}"
+           required
+           aria-label="Role name">
+
+    <select name="user_id"
+            class="form-select form-control-dark"
+            aria-label="Assigned user">
+        <option value="">Unassigned</option>
+        {% for user in assignable_users %}
+            <option value="{{ user.id }}"
+                    {% if assignment and assignment.user_id == user.id %}selected{% endif %}>
+                {{ user.full_name }} ({{ user.username }})
+            </option>
+        {% endfor %}
+    </select>
+
+    <button type="button"
+            class="btn btn-danger remove-role-btn"
+            aria-label="Remove this role assignment">
+        <i class="fas fa-times"></i>
+    </button>
+</div>

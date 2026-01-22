@@ -1,190 +1,238 @@
-# app/templates/pastoral/planning_edit.html
-# Full path: WebChurchMan/app/templates/pastoral/planning_edit.html
-# File name: planning_edit.html
-# Brief, detailed purpose: 
+{# app/templates/pastoral/planning_edit.html #}
+{# Full path: WebChurchMan/app/templates/pastoral/planning_edit.html #}
+{# File name: planning_edit.html #}
+{# Brief, detailed purpose:
 #   Focused editor for creating or updating a single service plan.
-#   Displays the service date prominently (read-only).
-#   Includes fields for title, rich-text notes (Quill light), linked sermon dropdown.
-#   Dynamic role assignments section with "Add Role" button and removable rows.
-#   Save/Cancel actions. Censorship is enforced server-side on title/notes.
+#   Jump to any date picker at top – never stuck on one day.
+#   Recurrence section expanded by default.
+#   NEW: Shows detected future weekly plans count and last date (for main weekly services)
+#   NEW PLANS: recurrence checkbox CHECKED + count=0 (ongoing/indefinite ~10 years ahead) by default – perfect for main services.
+#   EXISTING PLANS: checkbox unchecked, count=0 – safe, no accidental duplicates.
+#   To extend any series: check box, set count=0 (or higher), save – adds more future plans.
+#   count=0 = "set and forget" ongoing – creates 520 future plans (~10 years weekly) once, practically never edit again.
+#   Titles fully editable – label your service types (Sunday Morning Worship, Sunday Evening Service, etc.).
+#   Everything saves: roles (dynamic), recurrence generates future plans copying ALL details (including roles).
+#   Any date supported. #}
 
 {% extends "pastoral/base_pastoral.html" %}
 
 {% block extra_head %}
-    <!-- Quill for Notes (light theme, minimal toolbar) -->
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/global/pastoral/planning.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/global/pastoral/planning.css') }}?v=1">
 {% endblock %}
 
 {% block pastoral_content %}
-
-<!-- Page Header with Date -->
-<div class="row mb-4">
-    <div class="col-12 text-center">
-        <h2 class="mb-1">
-            Service Plan{% if plan.id %} – Edit{% else %} – New{% endif %}
-        </h2>
-        <h3 class="text-cyan fw-bold">
-            {{ service_date.strftime('%A, %B %d, %Y') }}
-            {% if service_date == today %}
-                <span class="badge bg-cyan ms-2">Today</span>
-            {% elif service_date < today %}
-                <span class="badge bg-secondary ms-2">Past</span>
-            {% endif %}
-        </h3>
-    </div>
-</div>
-
-<!-- Main Editor Card -->
-<div class="row justify-content-center">
-    <div class="col-lg-10 col-xxl-8">
-        <div class="card glass-card">
-            <div class="card-body p-4">
-                <form method="POST" id="planning-form">
-                    {{ csrf_token() if csrf_token else '' }} {# If using Flask-WTF #}
-
-                    <!-- Title -->
-                    <div class="mb-4">
-                        <label for="title" class="form-label">Plan Title <span class="text-muted">(optional)</span></label>
-                        <input type="text" name="title" id="title" class="form-control form-control-lg" 
-                               value="{{ plan.title if plan else '' }}" placeholder="e.g., Sunday Worship Service">
+<div class="container-fluid py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10 col-xxl-8">
+            <!-- Jump to Any Date – at the very top -->
+            <div class="card glass-card mb-4 p-4">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label text-cyan">Jump to Different Date</label>
+                        <input type="date" class="form-control form-control-dark" id="date-jumper" value="{{ service_date.strftime('%Y-%m-%d') }}">
                     </div>
-
-                    <!-- Linked Sermon -->
-                    <div class="mb-4">
-                        <label for="linked_sermon_id" class="form-label">Linked Sermon</label>
-                        <select name="linked_sermon_id" id="linked_sermon_id" class="form-select">
-                            <option value="">None</option>
-                            {% for sermon in linkable_sermons %}
-                                <option value="{{ sermon.id }}" 
-                                        {% if plan and plan.linked_sermon_id == sermon.id %}selected{% endif %}>
-                                    {{ sermon.title }} ({{ sermon.service_date.strftime('%b %d') if sermon.service_date else 'No date' }})
-                                </option>
-                            {% endfor %}
-                        </select>
-                        <small class="text-muted">Recent sermons you can access. Leave blank for no link.</small>
-                    </div>
-
-                    <!-- Notes (Quill) -->
-                    <div class="mb-4">
-                        <label for="notes-editor" class="form-label">Notes / Order of Service</label>
-                        <div id="notes-editor" class="quill-light" style="height: 300px;">
-                            {{ plan.notes|safe if plan else '' }}
-                        </div>
-                        <input type="hidden" name="notes" id="notes-hidden">
-                    </div>
-
-                    <!-- Role Assignments -->
-                    <div class="mb-4">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <label class="form-label mb-0">Role Assignments</label>
-                            <button type="button" class="btn btn-outline-cyan btn-sm" id="add-role-btn">
-                                <i class="fas fa-plus me-1"></i> Add Role
-                            </button>
-                        </div>
-
-                        <div id="assignments-container">
-                            {% if assignments %}
-                                {% for assignment in assignments %}
-                                    <div class="input-group mb-2 assignment-row">
-                                        <input type="text" name="role_name" class="form-control" 
-                                               placeholder="Role name" value="{{ assignment.role_name }}" required>
-                                        <select name="assigned_user_id" class="form-select">
-                                            <option value="">Unassigned</option>
-                                            {% for user in all_users %}
-                                                <option value="{{ user.id }}" 
-                                                        {% if assignment.user_id == user.id %}selected{% endif %}>
-                                                    {{ user.first_name }} {{ user.last_name }} ({{ user.username }})
-                                                </option>
-                                            {% endfor %}
-                                        </select>
-                                        <button type="button" class="btn btn-danger remove-role-btn">×</button>
-                                    </div>
-                                {% endfor %}
-                            {% else %}
-                                <!-- Empty state row -->
-                                <div class="input-group mb-2 assignment-row">
-                                    <input type="text" name="role_name" class="form-control" placeholder="Role name" required>
-                                    <select name="assigned_user_id" class="form-select">
-                                        <option value="">Unassigned</option>
-                                        {% for user in all_users %}
-                                            <option value="{{ user.id }}">
-                                                {{ user.first_name }} {{ user.last_name }} ({{ user.username }})
-                                            </option>
-                                        {% endfor %}
-                                    </select>
-                                    <button type="button" class="btn btn-danger remove-role-btn">×</button>
-                                </div>
-                            {% endif %}
-                        </div>
-                        <small class="text-muted">Add common roles like Preacher, Worship Leader, Sound Tech, etc.</small>
-                    </div>
-
-                    <!-- Actions -->
-                    <div class="d-grid d-md-flex gap-3 justify-content-md-end">
-                        <a href="{{ url_for('pastoral.planning_list') }}" class="btn btn-outline-secondary order-md-1">
-                            Cancel
-                        </a>
-                        <button type="submit" class="btn btn-cyan btn-lg order-md-2">
-                            <i class="fas fa-save me-2"></i> Save Plan
+                    <div class="col-md-3">
+                        <button type="button" class="btn btn-outline-cyan w-100" onclick="let d=document.getElementById('date-jumper').value; if(d) window.location='/pastoral/planning/edit/'+d;">
+                            <i class="fas fa-calendar-alt me-2"></i>Go to Date
                         </button>
                     </div>
-                </form>
+                    <div class="col-md-5">
+                        <small class="text-muted">
+                            Instantly switch to any date – holidays, mid-week services, special events, etc.
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Header with Current Date -->
+            <div class="text-center mb-5">
+                <h1 class="text-cyan mb-3">
+                    Service Plan{% if plan %} – Edit{% else %} – New{% endif %}
+                </h1>
+                <h2 class="display-5 fw-bold text-white">
+                    {{ service_date.strftime('%A, %B %d, %Y') }}
+                    {% if service_date == today %}
+                        <span class="badge bg-success fs-6 ms-3">Today</span>
+                    {% elif service_date < today %}
+                        <span class="badge bg-secondary fs-6 ms-3">Past</span>
+                    {% endif %}
+                </h2>
+            </div>
+
+            <!-- Editor Card -->
+            <div class="card glass-card shadow">
+                <div class="card-body p-5">
+                    <form method="POST" id="planning-form">
+                        <!-- Service Times -->
+                        <div class="mb-5">
+                            <h4 class="text-cyan mb-4">Service Times</h4>
+                            <div class="row g-4">
+                                <div class="col-md-6">
+                                    <label class="form-label">Service Start Time</label>
+                                    <input type="time" name="start_time" class="form-control form-control-dark"
+                                           value="{{ plan.start_time.strftime('%H:%M') if plan and plan.start_time else '10:00' }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Worship Start Time</label>
+                                    <input type="time" name="worship_start_time" class="form-control form-control-dark"
+                                           value="{{ plan.worship_start_time.strftime('%H:%M') if plan and plan.worship_start_time else '10:15' }}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Title – this is your label for the service type -->
+                        <div class="mb-4">
+                            <label class="form-label text-cyan fs-5">Service Title / Label</label>
+                            <input type="text" name="title" class="form-control form-control-lg form-control-dark"
+                                   value="{{ plan.title if plan else '' }}" placeholder="e.g., Sunday Morning Worship, Sunday Evening Service, Wednesday Bible Study">
+                            <small class="text-muted">Use this to distinguish Morning vs Evening, Youth Night, Special Events, etc.</small>
+                        </div>
+
+                        <!-- Linked Sermon -->
+                        <div class="mb-4">
+                            <label class="form-label text-cyan fs-5">Linked Sermon</label>
+                            <select name="pastoral_sermon_id" class="form-select form-control-dark">
+                                <option value="">None</option>
+                                {% for sermon in linkable_sermons %}
+                                    <option value="{{ sermon.id }}" {% if plan and plan.pastoral_sermon_id == sermon.id %}selected{% endif %}>
+                                        {{ sermon.title }} {% if sermon.service_date %}({{ sermon.service_date.strftime('%b %d, %Y') }}){% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="mb-5">
+                            <label class="form-label text-cyan fs-5">Notes / Order of Service</label>
+                            <div id="notes-editor" class="quill-light" style="height: 400px;">
+                                {{ plan.notes|safe if plan else '' }}
+                            </div>
+                            <input type="hidden" name="notes" id="notes-hidden">
+                        </div>
+
+                        <!-- Role Assignments -->
+                        <div class="mb-5">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <label class="form-label text-cyan fs-5 mb-0">Role Assignments</label>
+                                <button type="button" id="add-role-btn" class="btn btn-outline-cyan">
+                                    <i class="fas fa-plus me-2"></i>Add Role
+                                </button>
+                            </div>
+                            <div id="assignments-container">
+                                {% for assignment in assignments %}
+                                    {% include 'pastoral/planning_assignment_row.html' %}
+                                {% endfor %}
+                                {% if not assignments %}
+                                    {% include 'pastoral/planning_assignment_row.html' %}
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Recurrence – expanded, checked + count=0 (ongoing) by default for NEW plans -->
+                        <div class="accordion mb-5">
+                            <div class="accordion-item glass-card">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button text-cyan" type="button" data-bs-toggle="collapse" data-bs-target="#recurrence-collapse" aria-expanded="true">
+                                        <i class="fas fa-redo me-2"></i>Recurrence – Create Future Plans Automatically
+                                    </button>
+                                </h2>
+                                <div id="recurrence-collapse" class="accordion-collapse collapse show">
+                                    <div class="accordion-body">
+                                        <!-- Detected future plans info (for weekly series) -->
+                                        {% if future_count > 0 %}
+                                            <div class="alert alert-success py-2 mb-4">
+                                                <strong>Detected series:</strong> {{ future_count }} future weekly plans (last on {{ last_future_date.strftime('%B %d, %Y') }})
+                                            </div>
+                                        {% endif %}
+
+                                        <div class="form-check mb-4">
+                                            <input class="form-check-input" type="checkbox" id="enable-recurrence" name="enable_recurrence" value="1" {% if not plan %}checked{% endif %}>
+                                            <label class="form-check-label text-white" for="enable-recurrence">
+                                                Enable recurrence – creates future copies (uncheck for one-off events)
+                                            </label>
+                                        </div>
+
+                                        <div id="recurrence-options">
+                                            <div class="row g-4">
+                                                <div class="col-md-5">
+                                                    <label class="form-label">Frequency</label>
+                                                    <select class="form-select form-control-dark" name="recurrence_freq">
+                                                        <option value="weekly" selected>Weekly (every week on {{ service_date.strftime('%A') }})</option>
+                                                        <option value="biweekly">Bi-weekly (every 2 weeks on {{ service_date.strftime('%A') }})</option>
+                                                        <option value="monthly">Monthly (same date each month)</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Number of future plans to create</label>
+                                                    <input type="number" class="form-control form-control-dark" name="recurrence_count" min="0" max="104" value="0">
+                                                    <small class="text-muted">
+                                                        0 = ongoing/indefinite (~10 years ahead – set once for main services, never edit again)<br>
+                                                        Positive number = limited series (e.g., 8 for 2 months) • Max 104
+                                                    </small>
+                                                </div>
+                                            </div>
+                                            <p class="mt-3 text-muted small">
+                                                Future plans only created if the date is empty.<br>
+                                                Everything is copied: title (your service label), notes, times, sermon, roles.<br>
+                                                For main services (Sunday Morning/Evening), set to 0 – 10 years planned, truly set-and-forget.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="d-grid d-md-flex gap-3 justify-content-md-end">
+                            <a href="{{ url_for('pastoral.planning.index') }}" class="btn btn-outline-secondary order-md-1">
+                                Cancel
+                            </a>
+                            <button type="submit" class="btn btn-success btn-lg order-md-2">
+                                <i class="fas fa-save me-2"></i>Save Plan
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
 </div>
-
 {% endblock %}
 
 {% block extra_js %}
-    <!-- Quill -->
-    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+<script>
+    const quill = new Quill('#notes-editor', {
+        theme: 'snow',
+        modules: { toolbar: [['bold', 'italic', 'underline'], [{'list': 'ordered'}, {'list': 'bullet'}], ['link'], ['clean']] }
+    });
 
-    <!-- Planning Edit JS: Quill init, dynamic roles, serialize notes -->
-    <script>
-        // Quill for notes (light toolbar)
-        const quill = new Quill('#notes-editor', {
-            theme: 'snow',
-            modules: {
-                toolbar: [
-                    [{'header': [1, 2, false]}],
-                    ['bold', 'italic', 'underline'],
-                    [{'list': 'ordered'}, {'list': 'bullet'}],
-                    ['link'],
-                    ['clean']
-                ]
+    document.getElementById('planning-form').onsubmit = function() {
+        document.getElementById('notes-hidden').value = quill.root.innerHTML;
+    };
+
+    document.getElementById('add-role-btn').addEventListener('click', function() {
+        const container = document.getElementById('assignments-container');
+        const template = container.querySelector('.assignment-row').cloneNode(true);
+        template.querySelector('input').value = '';
+        template.querySelector('select').selectedIndex = 0;
+        container.appendChild(template);
+    });
+
+    document.getElementById('assignments-container').addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-role-btn')) {
+            const row = e.target.closest('.assignment-row');
+            if (document.querySelectorAll('.assignment-row').length > 1) {
+                row.remove();
+            } else {
+                row.querySelector('input').value = '';
+                row.querySelector('select').selectedIndex = 0;
             }
-        });
+        }
+    });
 
-        // Serialize notes on submit
-        document.getElementById('planning-form').onsubmit = function() {
-            document.getElementById('notes-hidden').value = quill.root.innerHTML;
-        };
-
-        // Add Role button
-        document.getElementById('add-role-btn').addEventListener('click', function() {
-            const container = document.getElementById('assignments-container');
-            const template = container.querySelector('.assignment-row').cloneNode(true);
-            template.querySelectorAll('input, select').forEach(el => {
-                el.value = '';
-                if (el.tagName === 'SELECT') el.selectedIndex = 0;
-            });
-            container.appendChild(template);
-        });
-
-        // Remove Role buttons (delegated)
-        document.getElementById('assignments-container').addEventListener('click', function(e) {
-            if (e.target.classList.contains('remove-role-btn') || e.target.closest('.remove-role-btn')) {
-                const row = e.target.closest('.assignment-row');
-                if (document.querySelectorAll('.assignment-row').length > 1) {
-                    row.remove();
-                } else {
-                    // Clear if only one left
-                    row.querySelector('input').value = '';
-                    row.querySelector('select').selectedIndex = 0;
-                }
-            }
-        });
-    </script>
+    // Recurrence options always visible
+    document.getElementById('recurrence-options').style.display = 'block';
+</script>
 {% endblock %}

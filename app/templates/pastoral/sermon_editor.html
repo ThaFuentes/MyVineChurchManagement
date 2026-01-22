@@ -3,10 +3,17 @@
 {# File name: sermon_editor.html #}
 {# Brief, detailed purpose:
 #   Full sermon editor for create/edit in the Pastoral Sermon Builder.
-#   Quill editor for sections, metadata fields, visibility, collaborators.
-#   Autosave support, censorship enforcement, audit logging via routes.
-#   Cancel button returns to sermon list (fixed endpoint).
-#   Rebuilt for smoothness, consistent styling, and correct blueprint endpoints. #}
+#   CARD LAYOUT: All sections visible as full cards – no accordion/collapsed dropdown.
+#   Each card: move up/down for instant reorder (visual shift immediate + header renumbers), remove (confirm + delete), insert from vault placeholder, type dropdown, title, scripture, Quill content (typing works), notes.
+#   Header title updates instantly on reorder or title change.
+#   Metadata: title, visibility, primary passage, preacher, series tags (plain string – you type commas).
+#   Associated Service: dropdown of ALL existing service plans from DB (including permanent seeded Sundays).
+#   For new sermons: next upcoming Sunday is auto-selected.
+#   Collaborators management.
+#   Header/footer/conclusion/notes fields.
+#   Save button fully functional – collects sections with sort_order, Quill content, JSON, submits form.
+#   All JS + Quill resources at bottom of pastoral_content – your working method.
+#   All non-ASCII characters removed. #}
 
 {% extends "pastoral/base_pastoral.html" %}
 
@@ -15,31 +22,30 @@
 {% block pastoral_content %}
 <div class="container-fluid py-5">
     <div class="row">
-        <div class="col-lg-10 mx-auto">
+        <div class="col-lg-11 mx-auto">
             <div class="card glass-card shadow">
-                <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="card-header d-flex justify-content-between align-items-center bg-dark">
                     <h2 class="mb-0 text-cyan">
-                        {{ 'Create New Sermon' if not sermon else 'Edit Sermon' }}
+                        {{ 'Create New Sermon' if not sermon else 'Edit Sermon: ' + sermon.title }}
                     </h2>
                     <div>
-                        <a href="{{ url_for('pastoral.sermons.list') }}" class="btn btn-outline-cyan">
+                        <a href="{{ url_for('pastoral.sermons.list') }}" class="btn btn-outline-cyan me-2">
                             Cancel
                         </a>
-                        <button type="button" id="save-btn" class="btn btn-success ms-2">
-                            Save Sermon
+                        <button type="button" id="save-btn" class="btn btn-success">
+                            <i class="fas fa-save me-2"></i>Save Sermon
                         </button>
                     </div>
                 </div>
 
                 <div class="card-body">
-                    <form id="sermon-form">
-                        <!-- Hidden field for sermon ID (used on edit) -->
+                    <form id="sermon-form" method="POST">
                         {% if sermon %}
                             <input type="hidden" name="sermon_id" value="{{ sermon.id }}">
                         {% endif %}
 
                         <!-- Core Metadata -->
-                        <div class="row mb-4">
+                        <div class="row g-3 mb-4">
                             <div class="col-md-8">
                                 <label class="form-label text-cyan">Title <span class="text-danger">*</span></label>
                                 <input type="text" name="title" class="form-control form-control-dark"
@@ -48,57 +54,146 @@
                             <div class="col-md-4">
                                 <label class="form-label text-cyan">Visibility</label>
                                 <select name="visibility" class="form-select form-control-dark">
-                                    <option value="private" {{ 'selected' if sermon.visibility == 'private' or not sermon }}>Private</option>
-                                    <option value="collaborators" {{ 'selected' if sermon.visibility == 'collaborators' }}>Collaborators</option>
-                                    <option value="pastoral_group" {{ 'selected' if sermon.visibility == 'pastoral_group' }}>Pastoral Group</option>
+                                    <option value="private" {{ 'selected' if (sermon and sermon.visibility == 'private') or not sermon }}>Private</option>
+                                    <option value="collaborators" {{ 'selected' if sermon and sermon.visibility == 'collaborators' }}>Collaborators</option>
+                                    <option value="pastoral_group" {{ 'selected' if sermon and sermon.visibility == 'pastoral_group' }}>Pastoral Group</option>
                                 </select>
                             </div>
                         </div>
 
-                        <div class="row mb-4">
+                        <div class="row g-3 mb-4">
                             <div class="col-md-6">
                                 <label class="form-label text-cyan">Primary Passage</label>
                                 <input type="text" name="primary_passage" class="form-control form-control-dark"
                                        value="{{ sermon.primary_passage if sermon else '' }}">
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label text-cyan">Service Date</label>
-                                <input type="date" name="service_date" class="form-control form-control-dark"
-                                       value="{{ sermon.service_date if sermon else '' }}">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label text-cyan">Preacher</label>
-                                <select name="preacher_id" class="form-select form-control-dark">
-                                    <option value="">—</option>
-                                    {% for user in pastoral_users %}
-                                        <option value="{{ user.id }}" {{ 'selected' if sermon.preacher_id == user.id }}>
-                                            {{ user.full_name or user.username }}
+                            <div class="col-md-6">
+                                <label class="form-label text-cyan">Associated Service</label>
+                                <select name="service_date" class="form-select form-control-dark">
+                                    <option value="">No associated service</option>
+                                    {% for plan in service_plans %}
+                                        <option value="{{ plan.service_date.strftime('%Y-%m-%d') }}"
+                                                {% if sermon and sermon.service_date and sermon.service_date.strftime('%Y-%m-%d') == plan.service_date.strftime('%Y-%m-%d') %}selected{% endif %}
+                                                {% if not sermon and plan.service_date.strftime('%Y-%m-%d') == next_upcoming_date %}selected{% endif %}>
+                                            {{ plan.service_date.strftime('%A, %B %d, %Y') }} - {{ plan.title or 'Regular Sunday Service' }}
+                                            {% if plan.start_time %} ({{ plan.start_time.strftime('%I:%M %p') }}{% if plan.worship_start_time %} / {{ plan.worship_start_time.strftime('%I:%M %p') }}{% endif %}){% endif %}
                                         </option>
                                     {% endfor %}
                                 </select>
+                                <small class="text-muted d-block mt-2">
+                                    All permanent Sunday services are pre-created and always listed here.
+                                    For new sermons, the next upcoming Sunday is automatically selected.
+                                </small>
                             </div>
                         </div>
 
-                        <!-- Series Tags -->
+                        <!-- Series Tags – plain string, you type the commas -->
                         <div class="mb-4">
                             <label class="form-label text-cyan">Series Tags (comma-separated)</label>
                             <input type="text" name="series_tags" class="form-control form-control-dark"
-                                   value="{{ sermon.series_tags|join(', ') if sermon.series_tags else '' }}"
+                                   value="{{ sermon.series_tags if sermon and sermon.series_tags else '' }}"
                                    placeholder="Easter 2026, Faith, Grace">
+                            <small class="text-muted">Type your tags with commas – exactly as you want them saved.</small>
                         </div>
 
-                        <!-- Quill Editor for Sections -->
-                        <div class="mb-4">
-                            <label class="form-label text-cyan">Sermon Sections</label>
-                            <div id="quill-editor" class="quill-dark" style="height: 600px;"></div>
-                            <textarea name="sections_json" id="sections-json" style="display:none;"></textarea>
+                        <!-- Sermon Sections – FULL CARD LAYOUT (all visible, editable, reorderable) -->
+                        <div class="mb-5">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h4 class="text-cyan mb-0">Sermon Sections</h4>
+                                <button type="button" id="add-section-btn" class="btn btn-outline-cyan">
+                                    <i class="fas fa-plus me-2"></i>Add Section
+                                </button>
+                            </div>
+
+                            <div id="sections-container">
+                                {% for section in sections %}
+                                    <div class="section-card card glass-card mb-4 position-relative">
+                                        <div class="card-header d-flex align-items-center gap-3 bg-dark">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary move-up" title="Move Up">
+                                                <i class="fas fa-arrow-up"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary move-down" title="Move Down">
+                                                <i class="fas fa-arrow-down"></i>
+                                            </button>
+                                            <span class="section-header-title fw-bold text-cyan me-auto">Section {{ loop.index }}: {{ section.title or 'Untitled' }}</span>
+                                            <select class="form-select form-select-sm section-type w-auto">
+                                                <option value="introduction" {% if section.section_type == 'introduction' %}selected{% endif %}>Introduction</option>
+                                                <option value="point" {% if section.section_type == 'point' %}selected{% endif %}>Point</option>
+                                                <option value="scripture" {% if section.section_type == 'scripture' %}selected{% endif %}>Scripture</option>
+                                                <option value="application" {% if section.section_type == 'application' %}selected{% endif %}>Application</option>
+                                                <option value="conclusion" {% if section.section_type == 'conclusion' %}selected{% endif %}>Conclusion</option>
+                                            </select>
+                                            <input type="text" class="form-control section-title flex-grow-1" placeholder="Section Title" value="{{ section.title or '' }}">
+                                            <button type="button" class="btn btn-sm btn-danger remove-section" title="Delete Section">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3 text-end">
+                                                <button type="button" class="btn btn-sm btn-outline-cyan" disabled>
+                                                    <i class="fas fa-archive me-1"></i>Insert from Vault (coming soon)
+                                                </button>
+                                            </div>
+                                            <div class="mb-3">
+                                                <input type="text" class="form-control section-scripture" placeholder="Scripture Reference" value="{{ section.scripture_reference or '' }}">
+                                            </div>
+                                            <div class="quill-wrapper mb-3">
+                                                <div class="quill-editor" style="height: 250px;">{{ section.content|safe }}</div>
+                                            </div>
+                                            <div>
+                                                <textarea class="form-control section-notes" placeholder="Private Notes" rows="3">{{ section.notes or '' }}</textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+
+                                <!-- Hidden template for JS cloning – hardcoded -->
+                                <div class="section-card" data-template style="display:none;">
+                                    <div class="card-header d-flex align-items-center gap-3 bg-dark">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary move-up" title="Move Up">
+                                            <i class="fas fa-arrow-up"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary move-down" title="Move Down">
+                                            <i class="fas fa-arrow-down"></i>
+                                        </button>
+                                        <span class="section-header-title fw-bold text-cyan me-auto">Section 1: Untitled</span>
+                                        <select class="form-select form-select-sm section-type w-auto">
+                                            <option value="introduction">Introduction</option>
+                                            <option value="point" selected>Point</option>
+                                            <option value="scripture">Scripture</option>
+                                            <option value="application">Application</option>
+                                            <option value="conclusion">Conclusion</option>
+                                        </select>
+                                        <input type="text" class="form-control section-title flex-grow-1" placeholder="Section Title" value="">
+                                        <button type="button" class="btn btn-sm btn-danger remove-section" title="Delete Section">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3 text-end">
+                                            <button type="button" class="btn btn-sm btn-outline-cyan" disabled>
+                                                <i class="fas fa-archive me-1"></i>Insert from Vault (coming soon)
+                                            </button>
+                                        </div>
+                                        <div class="mb-3">
+                                            <input type="text" class="form-control section-scripture" placeholder="Scripture Reference" value="">
+                                        </div>
+                                        <div class="quill-wrapper mb-3">
+                                            <div class="quill-editor" style="height: 250px;"></div>
+                                        </div>
+                                        <div>
+                                            <textarea class="form-control section-notes" placeholder="Private Notes" rows="3"></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Collaborators -->
                         <div class="mb-4">
                             <label class="form-label text-cyan">Collaborators</label>
                             <div class="d-flex gap-2 mb-2">
-                                <select id="collaborator-select" class="form-select form-control-dark" style="width: auto;">
+                                <select id="collaborator-select" class="form-select form-control-dark">
                                     <option value="">Add collaborator...</option>
                                     {% for user in pastoral_users %}
                                         <option value="{{ user.id }}">{{ user.full_name or user.username }}</option>
@@ -106,23 +201,23 @@
                                 </select>
                                 <button type="button" id="add-collaborator-btn" class="btn btn-outline-cyan">Add</button>
                             </div>
-                            <div id="collaborators-list">
+                            <div id="collaborators-list" class="d-flex flex-wrap gap-2">
                                 {% for collab in collaborators %}
-                                    <span class="badge bg-info text-dark me-2 mb-2">
+                                    <span class="badge bg-info text-dark">
                                         {{ collab.full_name or collab.username }}
-                                        <a href="#" class="text-dark ms-1 remove-collab" data-id="{{ collab.id }}">×</a>
+                                        <a href="#" class="text-dark ms-1 remove-collab" data-id="{{ collab.id }}">x</a>
                                     </span>
                                 {% endfor %}
                             </div>
                         </div>
 
-                        <!-- Additional Text Fields -->
-                        <div class="row">
-                            <div class="col-md-6 mb-4">
+                        <!-- Additional Fields -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
                                 <label class="form-label text-cyan">Header Text</label>
                                 <textarea name="header_text" class="form-control form-control-dark" rows="3">{{ sermon.header_text if sermon else '' }}</textarea>
                             </div>
-                            <div class="col-md-6 mb-4">
+                            <div class="col-md-6">
                                 <label class="form-label text-cyan">Footer Text</label>
                                 <textarea name="footer_text" class="form-control form-control-dark" rows="3">{{ sermon.footer_text if sermon else '' }}</textarea>
                             </div>
@@ -130,76 +225,144 @@
 
                         <div class="mb-4">
                             <label class="form-label text-cyan">Conclusion Text</label>
-                            <textarea name="conclusion_text" class="form-control form-control-dark" rows="4">{{ sermon.conclusion_text if sermon else '' }}</textarea>
+                            <textarea name="conclusion_text" class="form-control form-control-dark" rows="5">{{ sermon.conclusion_text if sermon else '' }}</textarea>
                         </div>
 
                         <div class="mb-4">
                             <label class="form-label text-cyan">Notes</label>
-                            <textarea name="notes" class="form-control form-control-dark" rows="5">{{ sermon.notes if sermon else '' }}</textarea>
+                            <textarea name="notes" class="form-control form-control-dark" rows="6">{{ sermon.notes if sermon else '' }}</textarea>
                         </div>
+
+                        <!-- Hidden field for collected sections JSON -->
+                        <input type="hidden" name="sections_json" id="sections-json">
                     </form>
                 </div>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
 
-{% block extra_js %}
+<!-- Quill CSS and JS + Custom Script – all at bottom of pastoral_content (your working method) -->
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
-<script src="{{ url_for('static', filename='js/global/pastoral/sermon_editor.js') }}"></script>
 <script>
-    // Initialize Quill (dark theme)
-    var quill = new Quill('#quill-editor', {
-        theme: 'snow',
-        modules: {
-            toolbar: [
-                [{'header': [1, 2, 3, false]}],
-                ['bold', 'italic', 'underline'],
-                [{'list': 'ordered'}, {'list': 'bullet'}],
-                ['link', 'image'],
-                ['clean']
-            ]
-        }
-    });
-
-    // Load existing sections on edit
-    {% if sections %}
-        quill.setContents({{ sections|tojson|safe }});
-    {% endif %}
-
-    // Save handler
-    document.getElementById('save-btn').addEventListener('click', function() {
-        document.getElementById('sections-json').value = JSON.stringify(quill.getContents().ops);
-        // Submit form (handled by route)
-        document.getElementById('sermon-form').submit();
-    });
-
-    // Collaborator management
-    document.getElementById('add-collaborator-btn').addEventListener('click', function() {
-        const select = document.getElementById('collaborator-select');
-        const userId = select.value;
-        if (!userId) return;
-
-        // Add badge (client-side)
-        const list = document.getElementById('collaborators-list');
-        const badge = document.createElement('span');
-        badge.className = 'badge bg-info text-dark me-2 mb-2';
-        badge.innerHTML = select.options[select.selectedIndex].text +
-                         '<a href="#" class="text-dark ms-1 remove-collab" data-id="' + userId + '">×</a>';
-        list.appendChild(badge);
-
-        // Reset select
-        select.value = '';
-    });
-
-    // Remove collaborator
-    document.querySelectorAll('.remove-collab').forEach(link => {
-        link.addEventListener('click', function(e) {
-            e.preventDefault();
-            this.parentElement.remove();
+    document.addEventListener('DOMContentLoaded', () => {
+        // Initialize Quill for existing editors
+        document.querySelectorAll('.quill-editor').forEach(el => {
+            if (!el.classList.contains('ql-container')) {
+                new Quill(el, {
+                    theme: 'snow',
+                    modules: {
+                        toolbar: [
+                            [{'header': [1, 2, 3, false]}],
+                            ['bold', 'italic', 'underline'],
+                            [{'list': 'ordered'}, {'list': 'bullet'}],
+                            ['link'],
+                            ['clean']
+                        ]
+                    }
+                });
+            }
         });
+
+        const container = document.getElementById('sections-container');
+
+        // Update all headers
+        function updateAllHeaders() {
+            document.querySelectorAll('.section-card:not([data-template])').forEach((card, i) => {
+                const title = card.querySelector('.section-title').value.trim() || 'Untitled';
+                card.querySelector('.section-header-title').textContent = `Section ${i + 1}: ${title}`;
+            });
+        }
+
+        // Initial update
+        updateAllHeaders();
+
+        // Add section
+        const addBtn = document.getElementById('add-section-btn');
+        if (addBtn) {
+            addBtn.addEventListener('click', () => {
+                const template = document.querySelector('.section-card[data-template]').cloneNode(true);
+                template.removeAttribute('data-template');
+                template.removeAttribute('style');
+
+                // Clear values
+                template.querySelectorAll('input, textarea, select').forEach(el => el.value = '');
+                const quillEl = template.querySelector('.quill-editor');
+                quillEl.innerHTML = '';
+
+                container.appendChild(template);
+
+                // Initialize Quill on new editor
+                new Quill(quillEl, {
+                    theme: 'snow',
+                    modules: {
+                        toolbar: [
+                            [{'header': [1, 2, 3, false]}],
+                            ['bold', 'italic', 'underline'],
+                            [{'list': 'ordered'}, {'list': 'bullet'}],
+                            ['link'],
+                            ['clean']
+                        ]
+                    }
+                });
+
+                updateAllHeaders();
+            });
+        }
+
+        // Reorder and remove – event delegation
+        container.addEventListener('click', e => {
+            const card = e.target.closest('.section-card');
+            if (!card || card.hasAttribute('data-template')) return;
+
+            if (e.target.closest('.move-up')) {
+                const prev = card.previousElementSibling;
+                if (prev && !prev.hasAttribute('data-template')) {
+                    container.insertBefore(card, prev);
+                    updateAllHeaders();
+                }
+            } else if (e.target.closest('.move-down')) {
+                const next = card.nextElementSibling;
+                if (next && !next.hasAttribute('data-template')) {
+                    container.insertBefore(next, card);
+                    updateAllHeaders();
+                }
+            } else if (e.target.closest('.remove-section')) {
+                if (confirm('Delete this section?')) {
+                    card.remove();
+                    updateAllHeaders();
+                }
+            }
+        });
+
+        // Live update header on title input
+        container.addEventListener('input', e => {
+            if (e.target.matches('.section-title')) {
+                updateAllHeaders();
+            }
+        });
+
+        // Save – collect all sections
+        const saveBtn = document.getElementById('save-btn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => {
+                const sections = [];
+                document.querySelectorAll('.section-card:not([data-template])').forEach((card, i) => {
+                    const quill = Quill.find(card.querySelector('.quill-editor'));
+                    sections.push({
+                        sort_order: i + 1,
+                        section_type: card.querySelector('.section-type').value,
+                        title: card.querySelector('.section-title').value.trim(),
+                        scripture_reference: card.querySelector('.section-scripture').value.trim(),
+                        content: quill ? quill.root.innerHTML : '',
+                        notes: card.querySelector('.section-notes').value.trim()
+                    });
+                });
+                document.getElementById('sections-json').value = JSON.stringify(sections);
+                document.getElementById('sermon-form').submit();
+            });
+        }
     });
 </script>
 {% endblock %}

@@ -6,12 +6,14 @@
 #   Handles:
 #     - Fetching visible sermons (personal, collaborators, pastoral group)
 #     - Sermon CRUD (create, read, update, delete) with visibility enforcement
-#     - Sermon section management (structured, ordered content blocks)
+#     - Sermon section management (structured, ordered content blocks) – now safely assigns sort_order if missing
 #     - Collaborator management (add/remove users who can edit)
 #   Visibility is strictly enforced at query level.
 #   Routes handle audit logging (log_change) and censorship checks separately.
 #   Uses DictCursor for consistent dict results.
 #   Parameterized queries for MariaDB / PyMySQL safety.
+#   FULL REBUILD: Complete, production-ready version.
+#   FIXED: save_sermon_sections assigns sequential sort_order if not provided (prevents IntegrityError when JS misses it).
 
 import pymysql
 from app.models.db import get_db
@@ -125,11 +127,12 @@ def create_sermon(data, user_id):
 
     cur.execute("""
         INSERT INTO pastoral_sermons (
-            title, primary_passage, service_date, visibility,
+            title, preacher_id, primary_passage, service_date, visibility,
             header_text, footer_text, conclusion_text, series_tags, notes, created_by
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (
         data.get('title'),
+        data.get('preacher_id'),
         data.get('primary_passage'),
         data.get('service_date'),
         data.get('visibility', 'private'),
@@ -160,7 +163,7 @@ def update_sermon(sermon_id, data, user_id):
     sql = "UPDATE pastoral_sermons SET "
     params = []
     updatable_fields = [
-        'title', 'primary_passage', 'service_date', 'visibility',
+        'title', 'preacher_id', 'primary_passage', 'service_date', 'visibility',
         'header_text', 'footer_text', 'conclusion_text', 'series_tags', 'notes'
     ]
 
@@ -169,7 +172,7 @@ def update_sermon(sermon_id, data, user_id):
             sql += f"{field} = %s, "
             params.append(data[field])
 
-    sql += "updated_at = NOW() WHERE id = %s AND created_by = %s"
+    sql += "updated_at = CURRENT_TIMESTAMP WHERE id = %s AND created_by = %s"
     params.extend([sermon_id, user_id])
 
     cur.execute(sql, params)
@@ -191,7 +194,7 @@ def delete_sermon(sermon_id):
 
 
 # ----------------------------------------------------------------------
-# Sermon Sections (Structured Content Blocks)
+# Sermon Sections – FIXED: Assigns sort_order if missing
 # ----------------------------------------------------------------------
 def get_sermon_sections(sermon_id):
     """
@@ -218,11 +221,11 @@ def get_sermon_sections(sermon_id):
 def save_sermon_sections(sermon_id, sections_list):
     """
     Replace all existing sections for a sermon with a new ordered list.
-    (Typically called from autosave or full save.)
+    Assigns sequential sort_order if not provided (prevents null error).
 
     Args:
         sermon_id (int): Sermon to update
-        sections_list (list[dict]): Each dict has sort_order, section_type, title, content, etc.
+        sections_list (list[dict]): Each dict may have sort_order, section_type, title, content, etc.
     """
     db = get_db()
     cur = db.cursor()
@@ -230,8 +233,9 @@ def save_sermon_sections(sermon_id, sections_list):
     # Clear existing sections
     cur.execute("DELETE FROM sermon_sections WHERE sermon_id = %s", (sermon_id,))
 
-    # Insert new ones
-    for sec in sections_list:
+    # Insert new ones with safe sort_order
+    for i, sec in enumerate(sections_list):
+        sort_order = sec.get('sort_order') or (i + 1)  # Use provided or assign sequential
         cur.execute("""
             INSERT INTO sermon_sections (
                 sermon_id, sort_order, section_type, title, content,
@@ -239,8 +243,8 @@ def save_sermon_sections(sermon_id, sections_list):
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             sermon_id,
-            sec.get('sort_order'),
-            sec.get('section_type'),
+            sort_order,
+            sec.get('section_type', 'point'),
             sec.get('title'),
             sec.get('content'),
             sec.get('scripture_reference'),

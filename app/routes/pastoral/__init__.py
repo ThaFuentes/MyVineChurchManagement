@@ -4,17 +4,19 @@
 # Brief, detailed purpose:
 #   Central factory for the Pastoral Area blueprint (/pastoral prefix).
 #   - Defines pastoral_required decorator (login + Pastoral Group membership)
-#   - Registers root dashboard route (/pastoral/)
+#   - Registers root dashboard route (/pastoral/) with upcoming_service context for the "Next Upcoming Service" card
 #   - Explicitly imports and registers all sub-module blueprints
 #   - Uses explicit imports → fully compatible with Python 3.14+
 #   - Core sub-modules fail loud if missing; optional ones fail silently
 #   - All pastoral routes protected by @pastoral_required
+#   UPDATED: Dashboard route now fetches and passes upcoming_service to template (fixes UndefinedError)
 
 from flask import Blueprint, flash, redirect, render_template, session, url_for
 from typing import Callable, Optional
 
 from app.utils.decorators import login_required
 from app.models.pastoral.shared import is_in_pastoral_group
+from app.models.pastoral.service_plans import get_upcoming_service  # NEW: for Next Upcoming Service card
 
 # Create main pastoral blueprint
 pastoral_bp = Blueprint(
@@ -76,10 +78,13 @@ def pastoral_required(permission: Optional[str] = None) -> Callable:
 def dashboard_pastoral():
     """
     Main entry point for Pastoral Command Center.
-    Renders the command-center style dashboard with quick-access cards.
+    Renders the command-center style dashboard with quick-access cards
+    and a prominent "Next Upcoming Service" card (real plan or recurring default).
     """
+    upcoming_service = get_upcoming_service()
     return render_template(
         'pastoral/dashboard_pastoral.html',
+        upcoming_service=upcoming_service,
         page_title="Pastoral Command Center"
     )
 
@@ -124,13 +129,13 @@ except (ImportError, AttributeError) as e:
 
 try:
     from .sermons_core import sermons_bp
-    pastoral_bp.register_blueprint(sermons_bp)  # ← FIXED: was sermons_core.sermons_bp
+    pastoral_bp.register_blueprint(sermons_bp)
 except (ImportError, AttributeError) as e:
     raise ImportError(f"Critical: Failed to load sermons_core sub-module: {e}")
 
 try:
     from .sermons_export import export_bp
-    pastoral_bp.register_blueprint(export_bp)  # ← FIXED: was sermons_export.export_bp
+    pastoral_bp.register_blueprint(export_bp)
 except (ImportError, AttributeError) as e:
     raise ImportError(f"Critical: Failed to load sermons_export sub-module: {e}")
 
@@ -143,7 +148,7 @@ except (ImportError, AttributeError) as e:
 # Optional / newer modules (silent fail if not yet implemented)
 try:
     from .ai_assistant import ai_bp
-    pastoral_bp.register_blueprint(ai_bp)  # ← FIXED: was ai_assistant.ai_bp
+    pastoral_bp.register_blueprint(ai_bp)
 except (ImportError, AttributeError):
     pass  # Not implemented yet – no crash
 

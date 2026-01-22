@@ -1,0 +1,43 @@
+{# app/templates/pastoral/sermon_section_card.html #}
+{# Full path: WebChurchMan/app/templates/pastoral/sermon_section_card.html #}
+{# File name: sermon_section_card.html #}
+{# Brief, detailed purpose: Single sermon section card – full visible, editable, reorderable. #}
+
+<div class="section-card card glass-card mb-4 position-relative">
+    <div class="card-header d-flex align-items-center gap-3 bg-dark">
+        <button type="button" class="btn btn-sm btn-outline-secondary move-up" title="Move Up">
+            <i class="fas fa-arrow-up"></i>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary move-down" title="Move Down">
+            <i class="fas fa-arrow-down"></i>
+        </button>
+        <span class="section-header-title fw-bold text-cyan me-auto">Section 1: Untitled</span>
+        <select class="form-select form-select-sm section-type w-auto">
+            <option value="introduction">Introduction</option>
+            <option value="point" selected>Point</option>
+            <option value="scripture">Scripture</option>
+            <option value="application">Application</option>
+            <option value="conclusion">Conclusion</option>
+        </select>
+        <input type="text" class="form-control section-title flex-grow-1" placeholder="Section Title" value="">
+        <button type="button" class="btn btn-sm btn-danger remove-section" title="Delete Section">
+            <i class="fas fa-trash"></i>
+        </button>
+    </div>
+    <div class="card-body">
+        <div class="mb-3 text-end">
+            <button type="button" class="btn btn-sm btn-outline-cyan" disabled>
+                <i class="fas fa-archive me-1"></i>Insert from Vault (coming soon)
+            </button>
+        </div>
+        <div class="mb-3">
+            <input type="text" class="form-control section-scripture" placeholder="Scripture Reference" value="">
+        </div>
+        <div class="quill-wrapper mb-3">
+            <div class="quill-editor" style="height: 250px;"></div>
+        </div>
+        <div>
+            <textarea class="form-control section-notes" placeholder="Private Notes" rows="3"></textarea>
+        </div>
+    </div>
+</div>

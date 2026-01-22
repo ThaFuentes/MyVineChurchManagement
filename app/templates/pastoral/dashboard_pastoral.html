@@ -1,7 +1,12 @@
-<!-- app/templates/pastoral/dashboard_pastoral.html -->
-<!-- Full path: WebChurchMan/app/templates/pastoral/dashboard_pastoral.html -->
-<!-- File name: dashboard_pastoral.html -->
-<!-- Brief, detailed purpose: Pastoral Command Center – quick-access hero cards for all pastoral modules -->
+{# app/templates/pastoral/dashboard_pastoral.html #}
+{# Full path: WebChurchMan/app/templates/pastoral/dashboard_pastoral.html #}
+{# File name: dashboard_pastoral.html #}
+{# Brief, detailed purpose:
+#   Pastoral Command Center – main hub for all pastoral tools.
+#   Features a prominent "Next Upcoming Service" card at the top (with date, times, title, linked sermon, and edit/create link).
+#   Below: responsive grid of quick-access hero cards for Sermon Builder, Illustration Library, Service Planning, Podium Mode, Sermon Export, and placeholders for future modules (Vault, Care).
+#   Dark/cyan theme consistent, fully responsive, smooth layout.
+#   Uses get_upcoming_service() data for the top card – safely handles missing times (None). #}
 
 {% extends "pastoral/base_pastoral.html" %}
 
@@ -11,8 +16,58 @@
 <div class="container-fluid py-5">
     <h1 class="text-center mb-5 text-cyan">Pastoral Command Center</h1>
 
+    <!-- Next Upcoming Service – Prominent Card -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-12 col-lg-9 col-xxl-8">
+            <div class="card glass-card shadow-lg border border-cyan">
+                <div class="card-body text-center py-5">
+                    <h3 class="text-white mb-4">Next Upcoming Service</h3>
+                    <h2 class="display-6 text-cyan">
+                        {{ upcoming_service.service_date.strftime('%A, %B %d, %Y') }}
+                    </h2>
+
+                    {% if upcoming_service.start_time or upcoming_service.worship_start_time %}
+                        <p class="lead text-white mb-3">
+                            {% if upcoming_service.start_time %}
+                                Service starts at {{ upcoming_service.start_time.strftime('%I:%M %p') }}<br>
+                            {% endif %}
+                            {% if upcoming_service.worship_start_time %}
+                                Worship begins at {{ upcoming_service.worship_start_time.strftime('%I:%M %p') }}
+                            {% endif %}
+                        </p>
+                    {% endif %}
+
+                    <p class="text-white fs-4 mb-2">
+                        {{ upcoming_service.title or 'Regular Sunday Service' }}
+                    </p>
+
+                    {% if upcoming_service.linked_sermon_title %}
+                        <p class="text-muted mb-3">
+                            Sermon: <a href="{{ url_for('pastoral.sermons.edit', sermon_id=upcoming_service.pastoral_sermon_id) }}" class="text-cyan">
+                                {{ upcoming_service.linked_sermon_title }}
+                            </a>
+                        </p>
+                    {% endif %}
+
+                    {% if upcoming_service.get('is_recurring_default') %}
+                        <small class="text-muted d-block mb-3">
+                            Recurring default – create a plan to customize
+                        </small>
+                    {% endif %}
+
+                    <a href="{{ url_for('pastoral.planning.edit', date_str=upcoming_service.service_date.strftime('%Y-%m-%d')) }}"
+                       class="btn btn-success btn-lg">
+                        <i class="fas fa-calendar-alt me-2"></i>
+                        {% if upcoming_service.get('id') %}Edit Plan{% else %}Create Plan{% endif %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Access Hero Cards -->
     <div class="row g-4 justify-content-center">
-        <!-- Sermons -->
+        <!-- Sermon Builder -->
         <div class="col-12 col-md-6 col-lg-4">
             <a href="{{ url_for('pastoral.sermons.list') }}" class="hero-card d-block text-decoration-none bg-dark border border-cyan rounded-5 shadow-lg p-5 text-center">
                 <img src="{{ url_for('static', filename='images/sermons.png') }}" alt="Sermons" class="mb-3" style="height: 80px;">
@@ -21,7 +76,7 @@
             </a>
         </div>
 
-        <!-- Illustrations -->
+        <!-- Illustration Library -->
         <div class="col-12 col-md-6 col-lg-4">
             <a href="{{ url_for('pastoral.illustrations.library') }}" class="hero-card d-block text-decoration-none bg-dark border border-cyan rounded-5 shadow-lg p-5 text-center">
                 <img src="{{ url_for('static', filename='images/illustrations.png') }}" alt="Illustrations" class="mb-3" style="height: 80px;">
@@ -30,16 +85,16 @@
             </a>
         </div>
 
-        <!-- Planning -->
+        <!-- Service Planning -->
         <div class="col-12 col-md-6 col-lg-4">
             <a href="{{ url_for('pastoral.planning.index') }}" class="hero-card d-block text-decoration-none bg-dark border border-cyan rounded-5 shadow-lg p-5 text-center">
                 <img src="{{ url_for('static', filename='images/planning.png') }}" alt="Planning" class="mb-3" style="height: 80px;">
                 <h3 class="text-white">Service Planning</h3>
-                <p class="text-cyan">Plan services, assign roles</p>
+                <p class="text-cyan">Plan services, assign roles, set times</p>
             </a>
         </div>
 
-        <!-- Podium -->
+        <!-- Podium Mode -->
         <div class="col-12 col-md-6 col-lg-4">
             <a href="{{ url_for('pastoral.sermons.list') }}" class="hero-card d-block text-decoration-none bg-dark border border-cyan rounded-5 shadow-lg p-5 text-center">
                 <img src="{{ url_for('static', filename='images/podium.png') }}" alt="Podium" class="mb-3" style="height: 80px;">
@@ -48,7 +103,7 @@
             </a>
         </div>
 
-        <!-- Export -->
+        <!-- Sermon Export -->
         <div class="col-12 col-md-6 col-lg-4">
             <a href="{{ url_for('pastoral.sermons_export.list') }}" class="hero-card d-block text-decoration-none bg-dark border border-cyan rounded-5 shadow-lg p-5 text-center">
                 <img src="{{ url_for('static', filename='images/export.png') }}" alt="Export" class="mb-3" style="height: 80px;">
@@ -56,17 +111,6 @@
                 <p class="text-cyan">DOCX single or bulk ZIP export</p>
             </a>
         </div>
-
-        <!-- Vault (once implemented) -->
-        <!-- <div class="col-12 col-md-6 col-lg-4">
-            <a href="{{ url_for('pastoral.vault.library') }}" class="hero-card ...">
-                <h3 class="text-white">Pastoral Vault</h3>
-                <p class="text-cyan">Personal & shared notes/quotes</p>
-            </a>
-        </div> -->
-
-        <!-- Care (once implemented) -->
-        <!-- Add similar card when care_bp is ready -->
     </div>
 </div>
 {% endblock %}
