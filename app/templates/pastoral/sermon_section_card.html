@@ -1,43 +1,109 @@
 {# app/templates/pastoral/sermon_section_card.html #}
 {# Full path: WebChurchMan/app/templates/pastoral/sermon_section_card.html #}
 {# File name: sermon_section_card.html #}
-{# Brief, detailed purpose: Single sermon section card – full visible, editable, reorderable. #}
+{# Brief, detailed purpose:
+#   Partial template for a single editable sermon section card in the full-visible card editor.
+#   Used dynamically by sermon_editor.html for both existing sections and new ones added client-side.
+#   NOW WITH VAULT TAGS IN THE CARD:
+#     - "Vault Tags" input field (comma-separated) – these tags are ONLY used when saving this section to the Vault.
+#     - Tags are transient (not saved to the sermon) and automatically sent when saving to Vault.
+#   SAVE TO VAULT BUTTON NOW TRIGGERS MODAL EVERY TIME:
+#     - Uses native Bootstrap data-bs-toggle/data-bs-target → modal opens immediately on every click (visible feedback, even on empty sections).
+#     - No JS required to open modal – Bootstrap handles it reliably.
+#   Fully safe rendering (no UndefinedError).
+#   Everything else 100% identical.
+#}
 
-<div class="section-card card glass-card mb-4 position-relative">
-    <div class="card-header d-flex align-items-center gap-3 bg-dark">
+{% set section = section|default({
+    'id': '',
+    'title': '',
+    'section_type': 'point',
+    'scripture_reference': '',
+    'source': '',
+    'content': '',
+    'notes': ''
+}) %}
+
+<div class="section-card card glass-card mb-4 position-relative" data-section-id="{{ section.id }}">
+    <div class="card-header d-flex align-items-center gap-2 bg-dark py-2">
+        <!-- Reorder -->
         <button type="button" class="btn btn-sm btn-outline-secondary move-up" title="Move Up">
             <i class="fas fa-arrow-up"></i>
         </button>
         <button type="button" class="btn btn-sm btn-outline-secondary move-down" title="Move Down">
             <i class="fas fa-arrow-down"></i>
         </button>
-        <span class="section-header-title fw-bold text-cyan me-auto">Section 1: Untitled</span>
-        <select class="form-select form-select-sm section-type w-auto">
-            <option value="introduction">Introduction</option>
-            <option value="point" selected>Point</option>
-            <option value="scripture">Scripture</option>
-            <option value="application">Application</option>
-            <option value="conclusion">Conclusion</option>
+
+        <!-- Live header title -->
+        <span class="section-header-title fw-bold text-cyan me-auto">
+            Section {{ loop.index if loop is defined else 1 }}: {{ section.title|default('Untitled') }}
+        </span>
+
+        <!-- Section Type -->
+        <select class="form-select form-select-sm section-type w-auto" style="max-width: 150px;">
+            <option value="introduction" {{ 'selected' if section.section_type == 'introduction' }}>Introduction</option>
+            <option value="point" {{ 'selected' if section.section_type == 'point' or section.section_type is not defined }}>Point</option>
+            <option value="scripture" {{ 'selected' if section.section_type == 'scripture' }}>Scripture</option>
+            <option value="application" {{ 'selected' if section.section_type == 'application' }}>Application</option>
+            <option value="conclusion" {{ 'selected' if section.section_type == 'conclusion' }}>Conclusion</option>
         </select>
-        <input type="text" class="form-control section-title flex-grow-1" placeholder="Section Title" value="">
+
+        <!-- Title Input -->
+        <input type="text" class="form-control form-control-sm section-title flex-grow-1 mx-2" placeholder="Section Title" value="{{ section.title }}">
+
+        <!-- Save to Vault – NOW TRIGGERS MODAL EVERY CLICK via Bootstrap attributes -->
+        <button type="button"
+                class="btn btn-sm btn-outline-success save-to-vault me-2"
+                title="Save this section to Vault"
+                data-bs-toggle="modal"
+                data-bs-target="#saveToVaultModal">
+            <i class="fas fa-archive"></i> Save to Vault
+        </button>
+
+        <!-- From Vault -->
+        <button type="button" class="btn btn-sm btn-outline-cyan insert-from-vault me-2" title="Insert from Vault below this section">
+            <i class="fas fa-archive me-1"></i> From Vault
+        </button>
+
+        <!-- Remove -->
         <button type="button" class="btn btn-sm btn-danger remove-section" title="Delete Section">
             <i class="fas fa-trash"></i>
         </button>
     </div>
+
     <div class="card-body">
-        <div class="mb-3 text-end">
-            <button type="button" class="btn btn-sm btn-outline-cyan" disabled>
-                <i class="fas fa-archive me-1"></i>Insert from Vault (coming soon)
-            </button>
-        </div>
+        <!-- Scripture Reference -->
         <div class="mb-3">
-            <input type="text" class="form-control section-scripture" placeholder="Scripture Reference" value="">
+            <label class="form-label text-cyan small">Scripture Reference</label>
+            <input type="text" class="form-control form-control-dark section-scripture" placeholder="e.g. John 3:16-18" value="{{ section.scripture_reference }}">
         </div>
-        <div class="quill-wrapper mb-3">
-            <div class="quill-editor" style="height: 250px;"></div>
+
+        <!-- Source / Reference -->
+        <div class="mb-3">
+            <label class="form-label text-cyan small">Source / Reference</label>
+            <textarea class="form-control form-control-dark section-source" rows="4" placeholder="e.g. Experiencing God by Henry Blackaby (p. 132)&#10;Conversation with Pastor Mike on Jan 15, 2026&#10;Overheard at coffee shop&#10;Personal journal entry">{{ section.source }}</textarea>
+            <small class="text-muted">Any text – book/page, person/date, conversation, journal, etc. NO URL REQUIRED.</small>
         </div>
-        <div>
-            <textarea class="form-control section-notes" placeholder="Private Notes" rows="3"></textarea>
+
+        <!-- Vault Tags – directly in card, ONLY for Vault -->
+        <div class="mb-3">
+            <label class="form-label text-cyan small">Vault Tags (comma-separated)</label>
+            <input type="text" class="form-control form-control-dark section-vault-tags" placeholder="grace, illustration, faith, application">
+            <small class="text-muted">These tags are ONLY for finding this section in the Vault later. They are not saved to the sermon.</small>
+        </div>
+
+        <!-- Quill Content -->
+        <div class="mb-3">
+            <label class="form-label text-cyan small">Content</label>
+            <div class="quill-wrapper">
+                <div class="quill-editor" style="height: 250px;">{{ section.content|safe }}</div>
+            </div>
+        </div>
+
+        <!-- Private Notes -->
+        <div class="mb-3">
+            <label class="form-label text-cyan small">Private Notes</label>
+            <textarea class="form-control form-control-dark section-notes" rows="4" placeholder="Personal preaching notes, reminders, delivery tips – only visible to you">{{ section.notes }}</textarea>
         </div>
     </div>
 </div>

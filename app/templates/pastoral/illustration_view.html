@@ -1,0 +1,93 @@
+{# app/templates/pastoral/illustration_view.html #}
+{# Full path: WebChurchMan/app/templates/pastoral/illustration_view.html #}
+{# File name: illustration_view.html #}
+{# Brief, detailed purpose:
+#   Read-only full view of a single illustration.
+#   Accessed from library "View" button or direct link.
+#   Displays title, tags, source/reference (free text, multi-line preserved), full Quill content.
+#   Private notes visible only to creator (user_id match) or Admin/Owner.
+#   Back button to library.
+#   Dark/cyan theme consistent.
+#   FINAL PRODUCTION VERSION – clean, robust, no validation issues. #}
+
+{% extends "pastoral/base_pastoral.html" %}
+
+{% block title %}View Illustration: {{ illustration.title }}{% endblock %}
+
+{% block pastoral_content %}
+
+<div class="container-fluid py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card glass-card">
+                <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+                    <h2 class="mb-0 text-cyan">{{ illustration.title }}</h2>
+                    <a href="{{ url_for('pastoral.illustrations.library') }}" class="btn btn-outline-cyan">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Library
+                    </a>
+                </div>
+                <div class="card-body">
+                    <!-- Tags -->
+                    {% if illustration.tag_list %}
+                        <div class="mb-3">
+                            <strong class="text-cyan">Tags:</strong>
+                            {% for tag in illustration.tag_list %}
+                                <span class="badge bg-dark ms-2">{{ tag }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <!-- Source / Reference – multi-line preserved -->
+                    {% if illustration.source %}
+                        <div class="mb-4">
+                            <strong class="text-cyan">Source / Reference:</strong>
+                            <p class="mt-2 text-white whitespace-pre-wrap">{{ illustration.source }}</p>
+                        </div>
+                    {% endif %}
+
+                    <!-- Full Content (Quill rendered) -->
+                    <div class="mb-4">
+                        <strong class="text-cyan">Content:</strong>
+                        <div class="quill-view-wrapper p-4 bg-dark rounded mt-2" style="min-height: 300px;">
+                            {{ illustration.content|safe }}
+                        </div>
+                    </div>
+
+                    <!-- Private Notes – only show to creator or Admin/Owner -->
+                    {% if current_user_id == illustration.user_id or current_user_role in ['Admin', 'Owner'] %}
+                        {% if illustration.notes %}
+                            <div class="mb-4">
+                                <strong class="text-cyan">Private Notes:</strong>
+                                <div class="p-4 bg-secondary rounded mt-2 text-white whitespace-pre-wrap">
+                                    {{ illustration.notes }}
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endif %}
+
+                    <!-- Visibility badge -->
+                    <div class="text-end mt-4">
+                        <span class="badge {% if illustration.user_id %}bg-secondary{% else %}bg-cyan{% endif %}">
+                            {% if illustration.user_id %}Private{% else %}Shared with Pastoral Group{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quill CSS for proper rendering (view only) -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<style>
+    .quill-view-wrapper .ql-editor {
+        padding: 0;
+        min-height: auto;
+        background: transparent;
+    }
+    .whitespace-pre-wrap {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+</style>
+{% endblock %}

@@ -310,7 +310,7 @@
       "has_routes": false,
       "creates_flask": false,
       "defines_bp": false,
-      "loc": 91,
+      "loc": 113,
       "status": [
         "imported 2 times"
       ]
@@ -462,7 +462,7 @@
       "defines_bp": false,
       "loc": 23,
       "status": [
-        "imported 48 times"
+        "imported 49 times"
       ]
     },
     {
@@ -525,7 +525,7 @@
       "defines_bp": false,
       "loc": 12,
       "status": [
-        "imported 37 times",
+        "imported 39 times",
         "entry point"
       ]
     },
@@ -672,9 +672,9 @@
       "has_routes": false,
       "creates_flask": false,
       "defines_bp": false,
-      "loc": 107,
+      "loc": 108,
       "status": [
-        "imported 5 times"
+        "imported 6 times"
       ]
     },
     {
@@ -707,9 +707,9 @@
       "has_routes": false,
       "creates_flask": false,
       "defines_bp": false,
-      "loc": 67,
+      "loc": 49,
       "status": [
-        "imported 3 times"
+        "imported 4 times"
       ]
     },
     {
@@ -1225,7 +1225,7 @@
       "defines_bp": true,
       "loc": 44,
       "status": [
-        "imported 37 times",
+        "imported 39 times",
         "defines routes",
         "defines blueprint"
       ]
@@ -1667,7 +1667,7 @@
       "has_routes": true,
       "creates_flask": false,
       "defines_bp": true,
-      "loc": 84,
+      "loc": 189,
       "status": [
         "imported 3 times",
         "defines routes",
@@ -1679,6 +1679,7 @@
       "stem": "planning",
       "import_refs": [
         "Blueprint",
+        "calendar",
         "create_or_update_service_plan",
         "datetime",
         "db",
@@ -1690,6 +1691,8 @@
         "get_service_plan_by_date",
         "get_visible_sermons",
         "jsonify",
+        "log",
+        "log_change",
         "pastoral_required",
         "pymysql",
         "redirect",
@@ -1706,7 +1709,7 @@
       "has_routes": true,
       "creates_flask": false,
       "defines_bp": true,
-      "loc": 26,
+      "loc": 28,
       "status": [
         "imported 1 time",
         "defines routes",
@@ -1719,22 +1722,27 @@
       "import_refs": [
         "Blueprint",
         "abort",
+        "datetime",
+        "db",
         "flask",
+        "get_db",
         "get_sermon_by_id",
         "get_sermon_sections",
-        "jsonify",
+        "get_service_plan_by_date",
         "log",
         "log_change",
         "pastoral_required",
+        "pymysql",
         "render_template",
         "sermons",
+        "service_plans",
         "session"
       ],
       "is_entry": false,
       "has_routes": true,
       "creates_flask": false,
       "defines_bp": true,
-      "loc": 32,
+      "loc": 28,
       "status": [
         "imported 1 time",
         "defines routes",
@@ -1891,7 +1899,6 @@
         "get_shared_vault",
         "helpers",
         "json",
-        "jsonify",
         "log",
         "log_change",
         "pastoral_required",
@@ -1908,9 +1915,39 @@
       "has_routes": true,
       "creates_flask": false,
       "defines_bp": true,
-      "loc": 106,
+      "loc": 98,
       "status": [
-        "imported 3 times",
+        "imported 4 times",
+        "defines routes",
+        "defines blueprint"
+      ]
+    },
+    {
+      "rel_path": "app/routes/pastoral/vault_integration.py",
+      "stem": "vault_integration",
+      "import_refs": [
+        "Blueprint",
+        "add_vault_item",
+        "contains_censored_word",
+        "flask",
+        "helpers",
+        "json",
+        "jsonify",
+        "log",
+        "log_change",
+        "pastoral_required",
+        "request",
+        "search_vault_and_sermons",
+        "session",
+        "vault"
+      ],
+      "is_entry": false,
+      "has_routes": true,
+      "creates_flask": false,
+      "defines_bp": true,
+      "loc": 86,
+      "status": [
+        "imported 1 time",
         "defines routes",
         "defines blueprint"
       ]
@@ -1952,13 +1989,15 @@
         "typing",
         "url_for",
         "vault",
-        "vault_bp"
+        "vault_bp",
+        "vault_integration",
+        "vault_integration_bp"
       ],
       "is_entry": false,
       "has_routes": true,
       "creates_flask": false,
       "defines_bp": true,
-      "loc": 87,
+      "loc": 92,
       "status": [
         "defines routes",
         "defines blueprint"
@@ -2322,7 +2361,7 @@
       "defines_bp": false,
       "loc": 75,
       "status": [
-        "imported 26 times"
+        "imported 27 times"
       ]
     },
     {
@@ -2667,8 +2706,20 @@
       "used": true
     },
     {
+      "rel_path": "pastoral/illustration_edit_card.html",
+      "used": false
+    },
+    {
+      "rel_path": "pastoral/illustration_view.html",
+      "used": true
+    },
+    {
       "rel_path": "pastoral/planning_assignment_row.html",
       "used": true
+    },
+    {
+      "rel_path": "pastoral/planning_defaults.html",
+      "used": false
     },
     {
       "rel_path": "pastoral/planning_edit.html",
@@ -2679,8 +2730,12 @@
       "used": true
     },
     {
+      "rel_path": "pastoral/podium_list.html",
+      "used": true
+    },
+    {
       "rel_path": "pastoral/podium_view.html",
-      "used": false
+      "used": true
     },
     {
       "rel_path": "pastoral/sermons_export.html",
@@ -2695,8 +2750,12 @@
       "used": true
     },
     {
+      "rel_path": "pastoral/sermon_section_card.html",
+      "used": false
+    },
+    {
       "rel_path": "pastoral/sermon_section_partial.html",
-      "used": true
+      "used": false
     },
     {
       "rel_path": "prayers/add_prayer.html",
@@ -2966,7 +3025,7 @@
     },
     {
       "rel_path": "js/global/pastoral/podium.js",
-      "used": false
+      "used": true
     },
     {
       "rel_path": "js/global/pastoral/sermon_editor.js",
@@ -3071,36 +3130,37 @@
   ],
   "references": {
     "py_imports": {
-      "shared": 5,
-      "helpers": 26,
-      "decorators": 21,
-      "db": 48,
-      "pastoral": 2,
       "owner": 1,
       "builddb": 1,
+      "helpers": 27,
+      "pastoral": 2,
       "settings": 4,
-      "service_plans": 5,
+      "decorators": 21,
+      "db": 49,
+      "shared": 5,
+      "service_plans": 6,
       "time_utils": 10,
-      "log": 37,
+      "log": 39,
+      "bible": 3,
+      "vault": 4,
       "illustrations": 3,
       "sermons": 6,
-      "vault": 3,
-      "bible": 3,
       "care": 2,
       "emailer": 7,
       "donation": 1,
-      "ai_assistant": 1,
       "sermons_export": 1,
-      "podium": 1,
       "sermons_core": 1,
+      "ai_assistant": 1,
       "planning": 1,
-      "online_giving": 1,
-      "general": 1,
-      "email": 1,
-      "ai": 1,
-      "ticket_managers": 1,
+      "vault_integration": 1,
+      "podium": 1,
       "timezone": 2,
       "censored_words": 1,
+      "online_giving": 1,
+      "ai": 1,
+      "ticket_managers": 1,
+      "general": 1,
+      "email": 1,
       "users": 1,
       "groups": 1,
       "main": 0,
@@ -3198,19 +3258,19 @@
       "pastoral/care/care_new.html",
       "pastoral/care/care_request_detail.html",
       "pastoral/dashboard_pastoral.html",
-      "pastoral/illustrations_edit.html",
+      "pastoral/illustration_view.html",
       "pastoral/illustrations_library.html",
       "pastoral/planning_assignment_row.html",
       "pastoral/planning_edit.html",
       "pastoral/planning_list.html",
+      "pastoral/podium_list.html",
+      "pastoral/podium_view.html",
       "pastoral/sermon_editor.html",
-      "pastoral/sermon_section_partial.html",
       "pastoral/sermons_export.html",
       "pastoral/sermons_list.html",
       "pastoral/vault_edit.html",
       "pastoral/vault_library.html",
       "pastoral/vault_search.html",
-      "podium_view.html",
       "prayers/base_prayers.html",
       "prayers/edit_prayer.html",
       "profile/profile.html",
@@ -3270,7 +3330,8 @@
       "images/illustrations.png",
       "images/planning.png",
       "images/podium.png",
-      "images/sermons.png"
+      "images/sermons.png",
+      "js/global/pastoral/podium.js"
     ]
   },
   "entry_points": [
@@ -3299,7 +3360,7 @@
     "===========================================================\nFile: app/builddb/kiosk_sessions.py\nPath: myvinechurchonline/app/builddb/kiosk_sessions.py\nPurpose: Creates the kiosk_sessions table for MariaDB. Tracks active attendance kiosk sessions (token-based, secure, expirable). Core fields: token (UNIQUE), created_by, created_at, expires_at, active. Used for public kiosk access \u2013 token required, no login. Tokens auto-expire or manual close. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module \u2013 called from builddb.py during DB initialization. FK to users.id for creator.\n",
     "===========================================================\nFile: app/builddb/member_roles.py\nPath: myvinechurchonline/app/builddb/member_roles.py\nPurpose: Creates the member_roles table for MariaDB. Enables many-to-many assignment of roles to users (multiple roles per user). Supports future flexible permission systems beyond the single 'role' column in users table. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module \u2013 called from builddb.py during DB initialization. Fixes MariaDB Errno 150 by using UNSIGNED INT and VARCHAR for indexing.\n",
     "===========================================================\nFile: app/builddb/online_donation_options.py\nPath: myvinechurchonline/app/builddb/online_donation_options.py\nPurpose: Creates the online_donation_options table. Stores multiple configurable giving methods (Stripe link, PayPal embed, Venmo, QR code, etc.). Each row is one public giving option (repeater in Settings UI). Safe schema evolution: creates table if missing, adds columns safely. Isolated module \u2013 called from builddb.py during DB initialization (after old_settings.py). FIXED FOR MARIADB: Uses MySQL/MariaDB-compatible AUTO_INCREMENT syntax (no SQLite \"INTEGER PRIMARY KEY AUTOINCREMENT\").\n",
-    "===========================================================\nFile: app/builddb/pastoral.py\nPath: myvinechurchonline/app/builddb/pastoral.py\nPurpose: Creates and safely migrates ALL database tables for the Pastoral Area module (full comprehensive rebuild). Includes every table and column that has ever been part of the Pastoral Area design: - offline Bible storage - sermon builder (sermons + structured sections + collaborators + edit history) - service planning + role assignments - illustration library (personal + group-shared via NULL user_id) - sermon templates - dedicated pastoral group membership table (kept for completeness/legacy/future use) - new Pastoral Vault (personal + shared favorites) Nothing is removed \u2013 this is the longest, most complete version that preserves every historical and planned field. Matches exact style of existing builddb modules: explicit CREATE TABLE IF NOT EXISTS, safe column additions for migrations, idempotent constraints/indexes via safe_exec. ALL IDs/FKs use INT UNSIGNED to match users.id and avoid errno 150. Safe for repeated execution on fresh or existing databases. FIXED: Reordered table creation so referenced tables exist before referencing ones (fixes errno 150 on sermon_sections FKs). UPDATED: Added start_time and worship_start_time to service_plans with safe migration. NEW: After all tables are created, automatically seed recurring Sunday service plans (next 52 weeks) using the new seed_recurring_sunday_plans() function from models/pastoral/service_plans.py.\n",
+    "===========================================================\nFile: app/builddb/pastoral.py\nPath: myvinechurchonline/app/builddb/pastoral.py\nPurpose: Creates and safely migrates ALL database tables for the Pastoral Area module (full comprehensive rebuild). Includes every table and column that has ever been part of the Pastoral Area design. Nothing is removed \u2013 this is the longest, most complete version that preserves every historical and planned field. Matches exact style of existing builddb modules: explicit CREATE TABLE IF NOT EXISTS, safe column additions for migrations, idempotent constraints/indexes via safe_exec. ALL IDs/FKs use INT UNSIGNED to match typical users.id (unsigned for larger positive range). REMOVED: Drop tables block \u2013 this was wiping all your saved plans on every app restart! Now data persists between runs \u2013 your saved plans will stay and appear in the list. NEW: Added default_service_plan_assignments table for global default role assignments (pre-fill new plans). UPDATED: Added start_time and worship_start_time to service_plans with safe migration. UPDATED (Vault \u2194 Sermon Integration): Fully aligned pastoral_vault schema with sermon sections for lossless round-trip. - Added title (required), section_type, scripture_reference, source_url - visibility \u2192 ENUM with strict values - user_id \u2192 NULLable (NULL = shared with pastoral_group) - Removed legacy restrictive 'type' column/constraint - Safe migrations preserve existing data (title populated from legacy fields where possible) NEW: After all tables are created, automatically seed recurring Sunday service plans (next 52 weeks).\n",
     "===========================================================\nFile: app/builddb/prayers.py\nPath: myvinechurchonline/app/builddb/prayers.py\nPurpose: Creates the prayers and prayers_added tables for MariaDB. Supports public/private visibility (defaults to 'public' per project guidelines), guest submissions (contributor_name/ip_address), and prayer responses (\"added prayers\") with similar guest tracking. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module \u2013 called from builddb.py during DB initialization. All ID/FK columns use UNSIGNED INT to match users.id type and fix errno 150.\n",
     "===========================================================\nFile: app/builddb/prophecies.py\nPath: myvinechurchonline/app/builddb/prophecies.py\nPurpose: Creates/updates the prophecies and prophecy_comments tables for MariaDB. Standardized timestamps: created_at (DEFAULT CURRENT_TIMESTAMP), updated_at (ON UPDATE CURRENT_TIMESTAMP). Visibility levels: public / private / personal (CHECK constraint). Guest contributions supported (contributor_name, ip_address). Safe schema evolution \u2013 adds missing columns/constraints without data loss. Isolated module \u2013 called from builddb.py during DB initialization. FIXED: Multi-line CREATE TABLE strings reformatted with no leading whitespace on continued lines to prevent MariaDB syntax errors from Python indentation preservation.\n",
     "===========================================================\nFile: app/builddb/recurring_bills.py\nPath: myvinechurchonline/app/builddb/recurring_bills.py\nPurpose: Creates/updates the recurring_bills, recurring_bill_assignments, and bill_payment_history tables for MariaDB.\n",
@@ -3321,9 +3382,9 @@
     "===========================================================\nFile: app/models/pastoral/care.py\nPath: myvinechurchonline/app/models/pastoral/care.py\nPurpose: All database operations related to the Pastoral Care module. Handles confidential care requests for members (hospital visits, counseling, prayer needs, bereavement, etc.), including: - Requests CRUD (create, read, update, delete) - Pastor/staff assignments (add/remove) - Chronological private notes (team-only visibility) All data is confidential \u2014 visibility enforced by pastoral_required decorator in routes. Routes handle audit logging (log_change) and censorship checks separately. Uses DictCursor for consistent dict results with human-readable names. Parameterized queries for MariaDB / PyMySQL safety.\n",
     "===========================================================\nFile: app/models/pastoral/illustrations.py\nPath: myvinechurchonline/app/models/pastoral/illustrations.py\nPurpose: Pure database layer for the Illustration Library. Handles fetching, CRUD, search, and tag parsing. Visibility: 'private' (user_id = owner), 'pastoral_group' (user_id IS NULL). NO Flask imports \u2014 models must remain independent of routes.\n",
     "===========================================================\nFile: app/models/pastoral/sermons.py\nPath: myvinechurchonline/app/models/pastoral/sermons.py\nPurpose: All database operations related to the Sermon Builder module. Handles: - Fetching visible sermons (personal, collaborators, pastoral group) - Sermon CRUD (create, read, update, delete) with visibility enforcement - Sermon section management (structured, ordered content blocks) \u2013 now safely assigns sort_order if missing - Collaborator management (add/remove users who can edit) Visibility is strictly enforced at query level. Routes handle audit logging (log_change) and censorship checks separately. Uses DictCursor for consistent dict results. Parameterized queries for MariaDB / PyMySQL safety. FULL REBUILD: Complete, production-ready version. FIXED: save_sermon_sections assigns sequential sort_order if not provided (prevents IntegrityError when JS misses it).\n",
-    "===========================================================\nFile: app/models/pastoral/service_plans.py\nPath: myvinechurchonline/app/models/pastoral/service_plans.py\nPurpose: All database operations related to Service Planning module. Handles: - Listing all service plans with creator and linked sermon info - Fetching a single plan by exact date - Creating or updating a plan (true upsert: UPDATE if exists, INSERT if new) - Managing role assignments for a plan (full replace pattern: delete then insert) - Returning the next upcoming service (real plan or fallback recurring Sunday with defaults) - Seeding recurring Sunday plans for the next 52 weeks (idempotent, fully editable/deletable rows) Now fully supports start_time and worship_start_time columns with sensible defaults (10:00 / 10:15). UPDATED: Normalizes start_time / worship_start_time if PyMySQL returns timedelta (rare edge case for TIME columns) No visibility enforcement needed (pastoral group only via routes/decorator). Routes handle audit logging (log_change) and input validation/censorship separately. Uses DictCursor for consistent dict results. Parameterized queries for MariaDB / PyMySQL safety.\n",
+    "===========================================================\nFile: app/models/pastoral/service_plans.py\nPath: myvinechurchonline/app/models/pastoral/service_plans.py\nPurpose: All database operations related to Service Planning module. Handles: - Listing all service plans with creator and linked sermon info \u2013 UPCOMING FIRST (next closest at top) - Fetching a single plan by exact date - Creating or updating a plan (true upsert: UPDATE if exists, INSERT if new) - Managing role assignments for a plan (full replace pattern: delete then insert) - Returning the next upcoming service (real plan or fallback recurring Sunday with defaults) - Seeding recurring Sunday plans for the next 52 weeks (idempotent, fully editable/deletable rows) Now fully supports start_time and worship_start_time columns with sensible defaults (10:00 / 10:15). UPDATED: Normalizes start_time / worship_start_time if PyMySQL returns timedelta (rare edge case for TIME columns) NEW: Global default role assignments \u2013 pre-fill new plans, overridable per week No visibility enforcement needed (pastoral group only via routes/decorator). Routes handle audit logging (log_change) and input validation/censorship separately. Uses DictCursor for consistent dict results. Parameterized queries for MariaDB / PyMySQL safety.\n",
     "===========================================================\nFile: app/models/pastoral/shared.py\nPath: myvinechurchonline/app/models/pastoral/shared.py\nPurpose: Shared / cross-cutting helper functions used across multiple Pastoral Area sub-modules. Currently contains only the core permission check: is_in_pastoral_group(). More shared utilities can be added here later (e.g. common visibility helpers, date formatting for pastoral views, team member counts, permission checks, etc.). Uses DictCursor for consistency where needed. Parameterized queries for MariaDB / PyMySQL safety.\n",
-    "===========================================================\nFile: app/models/pastoral/vault.py\nPath: myvinechurchonline/app/models/pastoral/vault.py\nPurpose: All database operations related to the Pastoral Vault module. Handles: - Personal vault items (private to user) - Shared vault items (pastoral_group visibility) - CRUD operations with ownership enforcement - Unified search across vault + visible sermons Visibility: 'private' (user_id = owner) or 'pastoral_group' (shared) Routes handle audit logging (log_change) and censorship checks separately. Tags stored as JSON string; parsed to list on fetch. Uses DictCursor for consistent dict results. Parameterized queries for MariaDB / PyMySQL safety.\n",
+    "===========================================================\nFile: app/models/pastoral/vault.py\nPath: myvinechurchonline/app/models/pastoral/vault.py\nPurpose: Database operations for the Pastoral Vault (personal + shared). Fully aligned with the updated pastoral_vault schema (title required, section_type, scripture_reference, source_url).\n",
     "===========================================================\nFile: app/models/pastoral/__init__.py\nPath: myvinechurchonline/app/models/pastoral/__init__.py\nPurpose: Sub-package initializer and public facade for all Pastoral Area model functions. Re-exports EVERY function from the modular sub-files so existing code can continue importing like this (during transition): from app.models.pastoral import get_visible_sermons, is_in_pastoral_group, ...  Once all routes are updated to import directly from sub-modules (recommended long-term), this file can be simplified or removed. Shared / cross-cutting helpers\n",
     "===========================================================\nFile: app/routes/announcements.py\nPath: myvinechurchonline/app/routes/announcements.py\nPurpose: Fully rebuilt Announcements blueprint \u2013 100% MariaDB-compatible (pymysql). \u2022 Single route /announcements \u2192 different template based on login status: - Guests (not logged in): public/announcements/announcements.html (simple public list, only public + active). - Logged-in: announcements/announcements_dashboard.html (full private dashboard with comments, management, etc.). \u2022 Guests see ONLY public + active announcements, full content, no comments/management. \u2022 Logged-in members: all announcements + comment ability (if enabled). \u2022 Create/edit/delete/email: Staff/Admin/Owner only. \u2022 All actions audit-logged + censored word checks. \u2022 Uses pymysql %s placeholders + DictCursor for dict-like rows. \u2022 Permissions: can_manage / is_logged_in passed to templates. \u2022 INSERTs explicitly list columns to match schema (ignores optional/extra columns safely). \u2022 All log_change calls provide 5 arguments consistently (user_id, action, item_id, item_title, details).\n",
     "===========================================================\nFile: app/routes/attendance.py\nPath: myvinechurchonline/app/routes/attendance.py\nPurpose: Attendance module blueprint \u2013 complete, MySQL/pymysql-compatible version. Features: \u2022 Staff/Admin/Owner dashboard: today's count + recent days list + clickable day details \u2022 Staff+ secure token-based kiosk open/close (8-hour expiry) \u2022 Public token-protected kiosk: live AJAX search (name + username), PIN/proxy support \u2022 Private self-check-in (/self_checkin): mobile-friendly, logged-in members only \u2022 Timestamps stored in UTC in DB (using time_utils.utc_now() or to_utc()) \u2022 Displayed times converted to church local time via time_utils.format_church() \u2022 Client local time captured when possible (self_checkin) \u2192 converted to UTC on save \u2022 Robust ISO parsing with fallback to server UTC now \u2022 All significant actions audit-logged \u2022 Uses base_attendance.html for admin views \u2022 FULL REBUILD: Integrated timezone-aware UTC storage + church local display All existing functionality preserved exactly \u2013 only time handling updated.\n",
@@ -3348,14 +3409,15 @@
     "===========================================================\nFile: app/routes/pastoral/ai_assistant.py\nPath: myvinechurchonline/app/routes/pastoral/ai_assistant.py\nPurpose: AI-powered sermon assistance endpoints for the Pastoral Sermon Builder. \u2022 Generate outline from title/primary passage \u2022 Suggest discussion/application questions \u2022 Expand a selected point/section \u2022 Uses the globally configured AI provider from settings table (grok, openai, gemini, ollama) \u2022 API key loaded and decrypted on each call (from settings.ai_api_key) \u2022 Falls back to disabled if no valid config \u2022 Site-wide censored word check on user prompt text \u2022 Generated output checked and redacted if contains censored words (rare but safe) \u2022 Audit-logged AI usage \u2022 Returns JSON for editor JS integration\n",
     "===========================================================\nFile: app/routes/pastoral/bible.py\nPath: myvinechurchonline/app/routes/pastoral/bible.py\nPurpose: Blueprint for offline Bible tools within the Pastoral Area. Provides: - Upload/replace Bible translation (JSON format, Admin/Owner only) - AJAX verse search endpoint for sermon editor integration - JSON chapter fetch for reader/editor views All routes require @pastoral_required() Upload restricted to Admin/Owner via @role_required Audit-logged uploads/deletes\n",
     "===========================================================\nFile: app/routes/pastoral/care.py\nPath: myvinechurchonline/app/routes/pastoral/care.py\nPurpose: Blueprint and routes for the Pastoral Care module. Handles confidential care requests (hospital visits, counseling, prayer needs, bereavement, etc.), assignment to pastors/staff, and private chronological notes. All routes require pastoral_required() decorator \u2192 only Pastoral Group members can access. Enforces confidentiality: notes are private by default, only visible to pastoral team. Audit-logged actions (create/update/assign/note). Uses centralized models.pastoral functions for DB access. FIXED: Removed circular import (from .. import pastoral_bp) \u2192 uses relative import from .\n",
-    "===========================================================\nFile: app/routes/pastoral/illustrations.py\nPath: myvinechurchonline/app/routes/pastoral/illustrations.py\nPurpose: Routes and Blueprint for the Illustration Library (pastoral area only). All routes protected by @pastoral_required. Delegates all DB work to app/models/pastoral/illustrations.py.\n",
-    "===========================================================\nFile: app/routes/pastoral/planning.py\nPath: myvinechurchonline/app/routes/pastoral/planning.py\nPurpose: Blueprint for Service Planning within the Pastoral Area. Provides: - /planning/ \u2192 list all service plans (newest first) with next Sunday suggestion - /planning/edit/<date_str> \u2192 view/edit/create a plan by date (upsert behavior) - /planning/assignments/<int:plan_id> \u2192 AJAX endpoint to get/save role assignments All routes require @pastoral_required() Delegates all DB work to app/models/pastoral/service_plans.py Passes next_sunday_str, service_date (date object), today, assignable_users (Pastoral Group members), linkable_sermons (visible sermons for dropdown), and assignments (existing role assignments) Now fully supports start_time and worship_start_time editing with defaults (10:00 / 10:15) Endpoints: pastoral.planning.index, pastoral.planning.edit Fully rebuilt for consistency, correctness, and smoothness.\n",
-    "===========================================================\nFile: app/routes/pastoral/podium.py\nPath: myvinechurchonline/app/routes/pastoral/podium.py\nPurpose: Blueprint for Podium / Teleprompter mode within the Pastoral Area. Provides a clean, full-screen preaching view optimized for pulpit/projector use. Features: - Large readable text with high contrast dark theme - Ordered sermon sections (title, scripture, content, notes) - Auto-scroll toggle, manual next/prev navigation - Elapsed timer, full-screen support - Toggle preacher notes and scripture highlighting - Audit log access to podium mode All routes require @pastoral_required() Delegates DB work to app/models/pastoral/sermons.py\n",
-    "===========================================================\nFile: app/routes/pastoral/sermons_core.py\nPath: myvinechurchonline/app/routes/pastoral/sermons_core.py\nPurpose: Dedicated blueprint for core sermon management in the Pastoral Area. \u2022 List visible sermons \u2022 Create new sermon \u2022 Full editor with metadata, visibility, collaborators \u2022 Main save, autosave, delete \u2022 Unified censorship check across all fields and sections \u2022 Audit logging for all actions \u2022 Consistent with other pastoral sub-blueprints (illustrations, planning, podium) FULL REBUILD: Complete, production-ready version. \u2022 Passes all service plans (including permanent seeded Sundays) to editor for dropdown \u2022 Auto-pre-selects next upcoming Sunday for new sermons \u2022 Save fully functional with inline JS in template (no external dependency) \u2022 All existing logic preserved exactly FIXED: No HTML or non-ASCII characters in Python file \u2013 pure code only.\n",
+    "===========================================================\nFile: app/routes/pastoral/illustrations.py\nPath: myvinechurchonline/app/routes/pastoral/illustrations.py\nPurpose: Routes and Blueprint for the rebuilt Illustration Library (pastoral area only). All routes protected by @pastoral_required. Single /library route handles: - Browsing with keyword search (?q=) - Optional vault scope inclusion (future-ready via ?scope=my_vault&scope=shared_vault) - Inline rich Quill edit/add card at top (prefilled via ?edit_id=) - Unified POST for create/update (content from hidden field synced by Quill JS) - Delete via POST New: /view/<id> read-only viewer \u2013 private notes visible only to owner or Admin/Owner New: Session-based temp dock (dock/undock/clear) for illustrations \u2013 easy individual control Edit permission: Private (owner) or Admin/Owner; Shared only Admin/Owner Visibility: 'private' \u2192 user_id = current, 'pastoral_group' \u2192 user_id = None Tags: comma-separated input \u2192 JSON list in DB (always stored as JSON string) Source/Reference: free text (book, person, conversation \u2013 NO URL REQUIRED EVER) Private Notes: personal field, only visible to creator or Admin/Owner Robust handling for legacy/bad tags data Censorship check on all editable text fields. Audit-logged create/update/delete/insert. Delegates DB work to app/models/pastoral/illustrations.py. FULL REBUILD \u2013 complete, production-ready.\n",
+    "===========================================================\nFile: app/routes/pastoral/planning.py\nPath: myvinechurchonline/app/routes/pastoral/planning.py\nPurpose: Blueprint for Service Planning within the Pastoral Area. Provides: - /planning/ \u2192 list all service plans (upcoming first \u2013 next closest at top) - /planning/edit/<date_str> \u2192 view/edit/create a plan by date (upsert behavior) - /planning/assignments/<int:plan_id> \u2192 AJAX endpoint to get/save role assignments - /planning/delete/<date_str> \u2192 POST delete a service plan (with assignment cleanup) All routes require @pastoral_required() Delegates all DB work to app/models/pastoral/service_plans.py Passes next_sunday_str, service_date (date object), today, assignable_users (Pastoral Group members), linkable_sermons (visible sermons for dropdown), and assignments (existing role assignments) Now fully supports start_time and worship_start_time editing with defaults (10:00 / 10:15) RECURRENCE LOGIC: - count > 0: create exactly that many future plans (limited series) - count = 0: ongoing main service mode \u2013 always maintain 70 future instances (~1.3 years weekly) ahead from TODAY On every save with count=0, it checks from today and adds missing plans to reach 70 This keeps main services always ~1.3 years ahead with no extra work \u2013 pastor just saves when updating (e.g., roles) No cron needed \u2013 buffer topped up on normal saves FUTURE COUNT DISPLAY: Shows how many future weekly plans exist and last date (for main weekly series) Everything preserved from original code \u2013 no features lost, only enhanced for busy pastors Endpoints: pastoral.planning.index, pastoral.planning.edit, pastoral.planning.delete Fully rebuilt for consistency, correctness, and smoothness.\n",
+    "===========================================================\nFile: app/routes/pastoral/podium.py\nPath: myvinechurchonline/app/routes/pastoral/podium.py\nPurpose: Blueprint for Podium / Teleprompter mode within the Pastoral Area. Provides: - /podium/ \u2192 sermon selection list (today's linked sermon highlighted at top) - /podium/view/<sermon_id> \u2192 full-screen teleprompter for selected sermon Features: - Large readable text with user-saved font size (localStorage) - Teleprompter controls: play/pause, speed, timer, reset, fullscreen - Toggle preacher notes - All sections displayed (title, scripture, content, notes) - Audit log access to podium mode All routes require @pastoral_required() Delegates DB work to sermons and service_plans models FIXED: render_template with 'pastoral/' prefix to match blueprint template_folder\n",
+    "===========================================================\nFile: app/routes/pastoral/sermons_core.py\nPath: myvinechurchonline/app/routes/pastoral/sermons_core.py\nPurpose: Dedicated blueprint for core sermon management in the Pastoral Area. \u2022 List visible sermons \u2022 Create new sermon \u2022 Full editor with metadata, visibility, collaborators \u2022 Main save, autosave, delete \u2022 Unified censorship check across all fields and sections \u2022 Audit logging for all actions \u2022 Consistent with other pastoral sub-blueprints (illustrations, planning, podium) FULL REBUILD: Complete, production-ready version. \u2022 Passes all service plans (including permanent seeded Sundays) to editor for dropdown \u2022 Auto-pre-selects next upcoming Sunday for new sermons \u2022 Save fully functional with inline JS in template (no external dependency) \u2022 All existing logic preserved exactly \u2022 UPDATED: source_url renamed to source (free text \u2013 books, conversations, etc., NO URL REQUIRED) \u2022 Private notes per section (personal, matches illustrations) \u2022 Vault integration ready (save to vault uses section content, source, notes \u2013 title separate for sermon structure)\n",
     "===========================================================\nFile: app/routes/pastoral/sermons_export.py\nPath: myvinechurchonline/app/routes/pastoral/sermons_export.py\nPurpose: Blueprint for sermon export functionality (single & bulk DOCX). \u2022 Export list view with selectable sermons \u2022 Single sermon DOCX download \u2022 Bulk export \u2192 ZIP of multiple DOCX files \u2022 Clean formatting with python-docx \u2022 Respects visibility enforcement \u2022 Audit-logged exports \u2022 Blueprint variable named export_bp to match existing import in pastoral/__init__.py\n",
     "===========================================================\nFile: app/routes/pastoral/sermons_exports.py\nPath: myvinechurchonline/app/routes/pastoral/sermons_exports.py\nPurpose: Dedicated blueprint for sermon export functionality (single & bulk DOCX). \u2022 Export list view with selectable sermons \u2022 Single sermon DOCX download \u2022 Bulk export \u2192 ZIP of multiple DOCX files \u2022 Clean formatting with python-docx (title, passage, sections, notes) \u2022 Respects existing visibility enforcement \u2022 Audit-logged single and bulk exports \u2022 Consistent modular blueprint pattern (separate from sermons_core)\n",
-    "===========================================================\nFile: app/routes/pastoral/vault.py\nPath: myvinechurchonline/app/routes/pastoral/vault.py\nPurpose: Blueprint for the Pastoral Vault module (personal + pastoral_group shared items). \u2022 Main view: unified list with tabs for My Vault / Shared Vault \u2022 Add/edit/delete items (private or shared) \u2022 Unified search across vault + sermons (reuses model function) \u2022 All routes require @pastoral_required() \u2022 Censorship check on content/reference/notes/tags \u2022 Audit-logged create/update/delete\n",
-    "===========================================================\nFile: app/routes/pastoral/__init__.py\nPath: myvinechurchonline/app/routes/pastoral/__init__.py\nPurpose: Central factory for the Pastoral Area blueprint (/pastoral prefix). - Defines pastoral_required decorator (login + Pastoral Group membership) - Registers root dashboard route (/pastoral/) with upcoming_service context for the \"Next Upcoming Service\" card - Explicitly imports and registers all sub-module blueprints - Uses explicit imports \u2192 fully compatible with Python 3.14+ - Core sub-modules fail loud if missing; optional ones fail silently - All pastoral routes protected by @pastoral_required UPDATED: Dashboard route now fetches and passes upcoming_service to template (fixes UndefinedError)\n",
+    "===========================================================\nFile: app/routes/pastoral/vault.py\nPath: myvinechurchonline/app/routes/pastoral/vault.py\nPurpose: Blueprint for the Pastoral Vault module (personal + pastoral_group shared items). \u2022 Main view: unified list with tabs for My Vault / Shared Vault \u2022 Add/edit/delete items (private or shared) \u2022 Unified search across vault + sermons (reuses model function) \u2022 All routes require @pastoral_required() \u2022 Censorship check on all text fields (title, content, scripture_reference, source_url, reference, notes, tags) \u2022 Audit-logged create/update/delete \u2022 Fully aligned with updated pastoral_vault schema (title required, section_type, scripture_reference, source_url)\n",
+    "===========================================================\nFile: app/routes/pastoral/vault_integration.py\nPath: myvinechurchonline/app/routes/pastoral/vault_integration.py\nPurpose: Dedicated blueprint for seamless sermon section \u2194 Vault integration endpoints. Provides: - POST /vault/integration/quick_save   \u2192 Quick-save current sermon section as a new Vault item (private or shared) - GET  /vault/integration/search       \u2192 Live search across visible Vault items (My Vault / Shared / All tabs) All routes require membership in the Pastoral Group (@pastoral_required). Enforces censorship checks on all text fields. Audit-logs quick-save actions. Fully compatible with the updated pastoral_vault schema (title required, section_type, scripture_reference, source_url, visibility ENUM). Designed to be called via AJAX from sermon_editor.html (Save to Vault modal and Insert from Vault modal).\n",
+    "===========================================================\nFile: app/routes/pastoral/__init__.py\nPath: myvinechurchonline/app/routes/pastoral/__init__.py\nPurpose: Central factory for the Pastoral Area blueprint (/pastoral prefix). - Defines pastoral_required decorator (login + Pastoral Group membership) - Registers root dashboard route (/pastoral/) with upcoming_service context for the \"Next Upcoming Service\" card - Explicitly imports and registers all sub-module blueprints - Uses explicit imports \u2192 fully compatible with Python 3.14+ - Core sub-modules fail loud if missing; optional ones fail silently - All pastoral routes protected by @pastoral_required UPDATED: Dashboard route now fetches and passes upcoming_service to template (fixes UndefinedError) UPDATED: Added registration for vault_integration blueprint (seamless sermon \u2194 vault quick-save & search)\n",
     "===========================================================\nFile: app/routes/settings/ai.py\nPath: myvinechurchonline/app/routes/settings/ai.py\nPurpose: AI provider/key/base URL configuration. CONFIRMED CORRECT: Package-relative imports \u2013 loads shared items from settings/__init__.py. Optimized DB access: single load_settings() call, reload after save for fresh data. Standardized 5-argument log_change.\n",
     "===========================================================\nFile: app/routes/settings/censored_words.py\nPath: myvinechurchonline/app/routes/settings/censored_words.py\nPurpose: Censored words list management (quick single-add + bulk editor). No censorship check on this section (admins must be able to add any word). Case-insensitive duplicate prevention on single add. All actions audit-logged with full 5-argument log_change. Uses DictCursor for safe row access. CONFIRMED CORRECT: Package-relative imports + pymysql.\n",
     "===========================================================\nFile: app/routes/settings/email.py\nPath: myvinechurchonline/app/routes/settings/email.py\nPurpose: Multi-account email configuration + test send. FIXED: Imports changed to package-relative (from .) \u2013 loads shared items from settings/__init__.py. Added missing pymysql import for DictCursor.\n",

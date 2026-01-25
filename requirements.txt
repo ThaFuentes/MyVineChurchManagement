@@ -1,6 +1,7 @@
 
 PyPDF2
 Werkzeug
+calendar
 cryptography
 flask
 itertools

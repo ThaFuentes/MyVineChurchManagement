@@ -15,7 +15,9 @@
 #   • Auto-pre-selects next upcoming Sunday for new sermons
 #   • Save fully functional with inline JS in template (no external dependency)
 #   • All existing logic preserved exactly
-#   FIXED: No HTML or non-ASCII characters in Python file – pure code only.
+#   • UPDATED: source_url renamed to source (free text – books, conversations, etc., NO URL REQUIRED)
+#   • Private notes per section (personal, matches illustrations)
+#   • Vault integration ready (save to vault uses section content, source, notes – title separate for sermon structure)
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
 from datetime import datetime, timedelta
@@ -28,7 +30,7 @@ from app.models.pastoral.sermons import (
     delete_sermon, get_sermon_sections, save_sermon_sections,
     get_collaborators, add_collaborator, remove_collaborator
 )
-from app.models.pastoral.service_plans import get_all_service_plans  # All plans for Associated Service dropdown
+from app.models.pastoral.service_plans import get_all_service_plans
 from app.models.log import log_change
 from app.utils.helpers import contains_censored_word
 from app.models.db import get_db
@@ -66,6 +68,7 @@ def collect_all_text(sermon_data: dict, sections: list) -> str:
         texts.extend([
             sec.get('title', ''),
             sec.get('content', ''),
+            sec.get('source', ''),  # Updated from source_url
             sec.get('notes', ''),
             sec.get('scripture_reference', '')
         ])

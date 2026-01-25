@@ -1,148 +1,126 @@
-# app/templates/pastoral/illustrations_library.html
-# Full path: WebChurchMan/app/templates/pastoral/illustrations_library.html
-# File name: illustrations_library.html
-# Brief, detailed purpose: 
-#   Full-page illustration library for browsing, searching, creating, editing, and deleting illustrations.
-#   Visible illustrations: own (user_id = current) + group-shared (user_id NULL).
-#   Inline add/edit form at top (preloaded for edit via ?edit_id=).
-#   Grid of cards with preview, tags, owner/shared badge.
-#   Edit/Delete actions (route enforces permissions).
-#   Censorship enforced server-side on submit.
+{# app/templates/pastoral/illustrations_library.html #}
+{# Full path: WebChurchMan/app/templates/pastoral/illustrations_library.html #}
+{# File name: illustrations_library.html #}
+{# Brief, detailed purpose:
+#   Full-page Illustration Library – final production version with viewer and temp dock.
+#   • Cards clickable on title → full view (/view/<id>)
+#   • "View" button added
+#   • Checkbox per card for temp dock (session-based)
+#   • Dock Selected / Clear Dock buttons
+#   • Fresh generative card for add/edit
+#   • Source free text, private notes, visibility
+#   • No URL forcing ever #}
 
 {% extends "pastoral/base_pastoral.html" %}
 
+{% block title %}Illustration Library{% endblock %}
+
 {% block pastoral_content %}
 
-<!-- Page Header -->
-<div class="row mb-4 align-items-center">
-    <div class="col-md-6">
-        <h3 class="mb-0">Illustration Library</h3>
-        <p class="text-muted mb-0">{{ illustrations|length }} illustrations (own + shared)</p>
+<div class="container-fluid py-5">
+
+    <!-- Page Header -->
+    <div class="text-center mb-5">
+        <h1 class="text-cyan mb-3">Illustration Library</h1>
+        <p class="text-muted">Search, create, and manage sermon illustrations • {{ total_count }} total (own + shared)</p>
+        {% if session.docked_illustrations|length > 0 %}
+            <p class="text-info">Docked for next sermon: {{ session.docked_illustrations|length }}</p>
+        {% endif %}
     </div>
-    <div class="col-md-6 text-md-end">
-        <form method="GET" class="d-inline-flex gap-2">
-            <input type="text" name="search" class="form-control" placeholder="Search titles or content..." value="{{ search }}">
-            <button type="submit" class="btn btn-outline-cyan">Search</button>
-            {% if search %}
-                <a href="{{ url_for('pastoral.illustrations_library') }}" class="btn btn-outline-secondary">Clear</a>
-            {% endif %}
+
+    <!-- Search Bar -->
+    <div class="card glass-card mb-4 p-4">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-12 col-md-6">
+                <label class="form-label text-cyan">Search Keywords</label>
+                <input type="text" name="q" class="form-control form-control-dark" placeholder="e.g. grace, prodigal, forgiveness"
+                       value="{{ q }}">
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label text-cyan">Include in Search</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="scope_illustrations" checked disabled>
+                    <label class="form-check-label text-white" for="scope_illustrations">Illustrations (always included)</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="scope" value="my_vault" id="scope_my_vault"
+                           {% if 'my_vault' in scopes %}checked{% endif %}>
+                    <label class="form-check-label" for="scope_my_vault">My Vault</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="scope" value="shared_vault" id="scope_shared_vault"
+                           {% if 'shared_vault' in scopes %}checked{% endif %}>
+                    <label class="form-check-label" for="scope_shared_vault">Shared Vault</label>
+                </div>
+            </div>
+            <div class="col-12 col-md-2 text-md-end">
+                <button type="submit" class="btn btn-cyan w-100">Search</button>
+            </div>
         </form>
     </div>
-</div>
 
-<!-- Add / Edit Form (always at top) -->
-<div class="row mb-5">
-    <div class="col-12">
-        <div class="card glass-card">
-            <div class="card-header">
-                <h4 class="mb-0">
-                    {% if edit_illus %}Edit Illustration{% else %}Add New Illustration{% endif %}
-                </h4>
-            </div>
-            <div class="card-body">
-                <form method="POST">
-                    <input type="hidden" name="action" value="{% if edit_illus %}update{% else %}create{% endif %}">
-                    {% if edit_illus %}
-                        <input type="hidden" name="illustration_id" value="{{ edit_illus.id }}">
-                    {% endif %}
-                    {{ csrf_token() if csrf_token else '' }} {# If using Flask-WTF #}
-
-                    <div class="row g-3">
-                        <div class="col-lg-8">
-                            <div class="mb-3">
-                                <label for="title" class="form-label">Title <span class="text-danger">*</span></label>
-                                <input type="text" name="title" id="title" class="form-control" 
-                                       value="{{ edit_illus.title if edit_illus else '' }}" required>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="content" class="form-label">Content <span class="text-danger">*</span></label>
-                                <textarea name="content" id="content" class="form-control" rows="6" required>{{ edit_illus.content if edit_illus else '' }}</textarea>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="source" class="form-label">Source (optional)</label>
-                                <input type="text" name="source" id="source" class="form-control" 
-                                       value="{{ edit_illus.source if edit_illus else '' }}" placeholder="e.g., Book, Author, URL">
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="tags" class="form-label">Tags (comma-separated, optional)</label>
-                                <input type="text" name="tags" id="tags" class="form-control" 
-                                       value="{{ edit_illus.tags if edit_illus else '' }}" placeholder="e.g., grace, forgiveness, family">
-                            </div>
-                        </div>
-
-                        <div class="col-lg-4">
-                            <div class="form-check mb-3">
-                                <input class="form-check-input" type="checkbox" name="shared" id="shared" 
-                                       {% if edit_illus and edit_illus.user_id is none %}checked{% endif %}>
-                                <label class="form-check-label" for="shared">
-                                    Share with Pastoral Group (visible/editable by all group members)
-                                </label>
-                            </div>
-
-                            <div class="text-end">
-                                {% if edit_illus %}
-                                    <a href="{{ url_for('pastoral.illustrations_library') }}" class="btn btn-outline-secondary me-2">
-                                        Cancel Edit
-                                    </a>
-                                {% endif %}
-                                <button type="submit" class="btn btn-cyan btn-lg">
-                                    {% if edit_illus %}Update{% else %}Add{% endif %} Illustration
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
+    <!-- Add New Illustration Button -->
+    <div class="text-center mb-4">
+        <button id="add-illustration-btn" class="btn btn-success btn-lg px-5">
+            <i class="fas fa-plus me-2"></i>Add New Illustration
+        </button>
     </div>
-</div>
 
-<!-- Illustrations Grid -->
-{% if illustrations %}
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-        {% for illus in illustrations %}
-            <div class="col">
-                <div class="card glass-card h-100 illustration-card">
-                    <div class="card-body d-flex flex-column">
-                        <!-- Owner / Shared Badge -->
-                        <div class="mb-2 text-end">
-                            {% if illus.user_id is none %}
-                                <span class="badge bg-success">Shared</span>
-                            {% else %}
-                                <span class="badge bg-secondary">by {{ illus.owner_name or 'You' }}</span>
+    <!-- Fresh card injected here -->
+    <div id="edit-card-container"></div>
+
+    <!-- Dock Controls -->
+    <div class="text-center my-4">
+        <button id="dock-selected-btn" class="btn btn-outline-info me-3">Dock Selected ({{ session.docked_illustrations|length|default(0) }})</button>
+        <button id="clear-dock-btn" class="btn btn-outline-secondary">Clear Dock</button>
+    </div>
+
+    <!-- Results Grid -->
+    {% if illustrations %}
+        <div class="row g-4">
+            {% for illus in illustrations %}
+                <div class="col-12 col-md-6 col-lg-4">
+                    <div class="card glass-card h-100 d-flex flex-column">
+                        <div class="card-header bg-dark">
+                            <a href="{{ url_for('pastoral.illustrations.view', illus_id=illus.id) }}" class="text-cyan text-decoration-none">
+                                <h5 class="mb-0 text-truncate">{{ illus.title }}</h5>
+                            </a>
+                            <small class="text-muted">
+                                {% if illus.user_id %}<span class="badge bg-secondary">Private</span>{% else %}<span class="badge bg-cyan">Shared</span>{% endif %}
+                                {% if illus.source %}<i class="fas fa-link ms-2"></i>{% endif %}
+                            </small>
+                        </div>
+                        <div class="card-body flex-grow-1">
+                            <div class="illustration-preview mb-3" style="max-height: 150px; overflow:hidden;">
+                                {{ illus.content|striptags|truncate(300)|safe }}
+                            </div>
+                            {% if illus.tag_list %}
+                                <div class="mb-2">
+                                    {% for tag in illus.tag_list %}
+                                        <span class="badge bg-dark me-1">{{ tag }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            {% if illus.source %}
+                                <small class="text-muted d-block text-truncate">
+                                    <i class="fas fa-external-link-alt me-1"></i>{{ illus.source }}
+                                </small>
                             {% endif %}
                         </div>
-
-                        <!-- Title -->
-                        <h5 class="card-title mb-3">{{ illus.title }}</h5>
-
-                        <!-- Content Preview -->
-                        <blockquote class="flex-grow-1 mb-3">
-                            <p class="small text-muted mb-2">{{ illus.content|truncate(200) }}</p>
-                            {% if illus.source %}
-                                <footer class="blockquote-footer small">{{ illus.source }}</footer>
-                            {% endif %}
-                        </blockquote>
-
-                        <!-- Tags -->
-                        {% if illus.tags %}
-                            <div class="mb-3">
-                                {% set tags = illus.tags.split(',') if illus.tags is string else illus.tags %}
-                                {% for tag in tags|list %}
-                                    <span class="badge bg-cyan text-dark me-1">{{ tag.strip() }}</span>
-                                {% endfor %}
+                        <div class="card-footer bg-dark d-flex justify-content-between align-items-center">
+                            <div>
+                                <a href="{{ url_for('pastoral.illustrations.view', illus_id=illus.id) }}" class="btn btn-sm btn-outline-cyan me-2">View</a>
+                                <a href="{{ url_for('pastoral.illustrations.library') }}?edit_id={{ illus.id }}{% if q %}&q={{ q }}{% endif %}"
+                                   class="btn btn-sm btn-outline-cyan">Edit</a>
                             </div>
-                        {% endif %}
-
-                        <!-- Actions -->
-                        <div class="mt-auto d-flex gap-2">
-                            <a href="{{ url_for('pastoral.illustrations_library', edit_id=illus.id) }}" 
-                               class="btn btn-sm btn-cyan flex-fill">Edit</a>
-
-                            <form method="POST" action="{{ url_for('pastoral.illustrations_delete', illus_id=illus.id) }}"
+                            <div class="form-check">
+                                <input class="form-check-input dock-checkbox" type="checkbox" value="{{ illus.id }}" id="dock{{ illus.id }}"
+                                       {% if illus.id in (session.docked_illustrations|default([])) %}checked{% endif %}>
+                                <label class="form-check-label text-white small" for="dock{{ illus.id }}">Dock</label>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-dark border-top-0">
+                            <form method="POST" action="{{ url_for('pastoral.illustrations.delete', illus_id=illus.id) }}"
                                   onsubmit="return confirm('Permanently delete this illustration?');" class="d-inline">
                                 <button type="submit" class="btn btn-sm btn-danger">
                                     <i class="fas fa-trash"></i>
@@ -151,20 +129,177 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        {% endfor %}
-    </div>
-{% else %}
-    <!-- Empty State -->
-    <div class="text-center py-5">
-        <i class="fas fa-lightbulb fa-5x text-muted mb-4"></i>
-        <h4>No illustrations found</h4>
-        <p class="text-muted">Add your first illustration above, or adjust your search.</p>
-    </div>
-{% endif %}
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-lightbulb fa-5x text-muted mb-4 opacity-50"></i>
+            <h3 class="text-muted">No Illustrations Found</h3>
+            <p class="text-muted mb-4">Try adjusting your search or add your first illustration above.</p>
+            <button id="add-illustration-btn-empty" class="btn btn-success btn-lg">
+                <i class="fas fa-plus me-2"></i>Add Your First Illustration
+            </button>
+        </div>
+    {% endif %}
 
-{% endblock %}
+</div>
 
-{% block extra_js %}
-    <!-- Optional: Auto-focus title on load, or live preview -->
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const container = document.getElementById('edit-card-container');
+        const editData = {{ illustration|tojson|safe if illustration else 'null' }};
+
+        function generateCard(data = {}, isEdit = false) {
+            container.innerHTML = `
+            <div class="card glass-card mb-5">
+                <div class="card-header bg-dark d-flex align-items-center justify-content-between">
+                    <h4 class="mb-0 text-cyan">${isEdit ? 'Edit Illustration' : 'Add New Illustration'}</h4>
+                    <button type="button" class="btn btn-sm btn-outline-secondary cancel-edit">Cancel</button>
+                </div>
+                <div class="card-body">
+                    <form method="POST" id="illustration-form">
+                        ${isEdit ? `<input type="hidden" name="illustration_id" value="${data.id}">` : ''}
+                        <input type="hidden" name="content" id="content-hidden">
+                        <div class="mb-3">
+                            <label class="form-label text-cyan">Title <span class="text-danger">*</span></label>
+                            <input type="text" name="title" class="form-control form-control-dark" value="${data.title || ''}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-cyan">Tags</label>
+                            <input type="text" name="tags" class="form-control form-control-dark" value="${data.tags_input || ''}" placeholder="grace, forgiveness (comma-separated)">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-cyan">Source / Reference</label>
+                            <textarea name="source" class="form-control form-control-dark" rows="4" placeholder="e.g. Experiencing God by Henry Blackaby (p. 132)
+Conversation with Pastor Mike on Jan 15, 2026
+Overheard at coffee shop
+Personal journal entry">${data.source || ''}</textarea>
+                            <small class="text-muted">Any text – book/page, person/date, conversation, journal, etc. NO URL REQUIRED.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-cyan">Private Notes</label>
+                            <textarea name="notes" class="form-control form-control-dark" rows="4" placeholder="Personal preaching notes, reminders, delivery tips – only visible to you">${data.notes || ''}</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-cyan">Visibility</label>
+                            <select name="visibility" class="form-select form-control-dark">
+                                <option value="private" ${data.visibility !== 'pastoral_group' ? 'selected' : ''}>Private (only me)</option>
+                                <option value="pastoral_group" ${data.visibility === 'pastoral_group' ? 'selected' : ''}>Shared with Pastoral Group</option>
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label text-cyan">Content <span class="text-danger">*</span></label>
+                            <div class="quill-wrapper" style="background:#1a1a1a;border:3px solid #333;border-radius:0.5rem;">
+                                <div class="quill-editor" style="height:450px;">${data.content || ''}</div>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-outline-secondary me-2 cancel-edit">Cancel</button>
+                            <button type="submit" class="btn btn-cyan">${isEdit ? 'Update' : 'Save'} Illustration</button>
+                        </div>
+                    </form>
+                </div>
+            </div>`;
+
+            const editorEl = container.querySelector('.quill-editor');
+            if (editorEl && !editorEl.classList.contains('ql-container')) {
+                const quill = new Quill(editorEl, {
+                    theme: 'snow',
+                    placeholder: 'Start typing your illustration...',
+                    modules: {
+                        toolbar: [
+                            [{'header': [1, 2, 3, false]}],
+                            ['bold', 'italic', 'underline'],
+                            [{'list': 'ordered'}, {'list': 'bullet'}],
+                            ['link', 'clean']
+                        ]
+                    }
+                });
+
+                editorEl.closest('.quill-wrapper').addEventListener('mousedown', (e) => {
+                    if (!e.target.closest('.ql-toolbar')) {
+                        setTimeout(() => quill.focus(), 0);
+                    }
+                });
+            }
+
+            container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function clearCard() {
+            container.innerHTML = '';
+        }
+
+        document.getElementById('add-illustration-btn')?.addEventListener('click', () => {
+            clearCard();
+            generateCard();
+        });
+
+        document.getElementById('add-illustration-btn-empty')?.addEventListener('click', () => {
+            clearCard();
+            generateCard();
+        });
+
+        container.addEventListener('click', (e) => {
+            if (e.target.closest('.cancel-edit')) {
+                clearCard();
+            }
+        });
+
+        container.addEventListener('submit', (e) => {
+            const form = e.target;
+            if (form.id !== 'illustration-form') return;
+
+            const editorEl = form.querySelector('.quill-editor');
+            const quill = Quill.find(editorEl);
+            if (quill) {
+                let hidden = form.querySelector('#content-hidden');
+                if (!hidden) {
+                    hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = 'content';
+                    hidden.id = 'content-hidden';
+                    form.appendChild(hidden);
+                }
+                hidden.value = quill.root.innerHTML;
+            }
+        });
+
+        // Docking
+        document.getElementById('dock-selected-btn')?.addEventListener('click', async () => {
+            const checked = Array.from(document.querySelectorAll('.dock-checkbox:checked')).map(cb => parseInt(cb.value));
+            if (checked.length === 0) return alert('No illustrations selected to dock');
+
+            const resp = await fetch('/pastoral/illustrations/dock', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({illustration_ids: checked})
+            });
+            const data = await resp.json();
+            alert(`Docked ${data.count} illustrations for next sermon`);
+            location.reload();
+        });
+
+        document.getElementById('clear-dock-btn')?.addEventListener('click', async () => {
+            await fetch('/pastoral/illustrations/clear_dock', {method: 'POST'});
+            alert('Dock cleared');
+            location.reload();
+        });
+
+        if (editData) {
+            generateCard({
+                id: editData.id,
+                title: editData.title,
+                tags_input: editData.tags_input,
+                source: editData.source,
+                notes: editData.notes || '',
+                content: editData.content,
+                visibility: editData.user_id === null ? 'pastoral_group' : 'private'
+            }, true);
+        }
+    });
+</script>
 {% endblock %}

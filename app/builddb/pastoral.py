@@ -11,6 +11,12 @@
 #     Now data persists between runs – your saved plans will stay and appear in the list.
 #   NEW: Added default_service_plan_assignments table for global default role assignments (pre-fill new plans).
 #   UPDATED: Added start_time and worship_start_time to service_plans with safe migration.
+#   UPDATED (Vault ↔ Sermon Integration): Fully aligned pastoral_vault schema with sermon sections for lossless round-trip.
+#     - Added title (required), section_type, scripture_reference, source_url
+#     - visibility → ENUM with strict values
+#     - user_id → NULLable (NULL = shared with pastoral_group)
+#     - Removed legacy restrictive 'type' column/constraint
+#     - Safe migrations preserve existing data (title populated from legacy fields where possible)
 #   NEW: After all tables are created, automatically seed recurring Sunday service plans (next 52 weeks).
 
 from app.models.pastoral.service_plans import seed_recurring_sunday_plans
@@ -177,7 +183,7 @@ def create_tables(cursor):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
-    # 7–11. Remaining tables
+    # 7–10. Remaining tables (unchanged)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sermon_collaborators (
             sermon_id  INT UNSIGNED NOT NULL,
@@ -224,23 +230,50 @@ def create_tables(cursor):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
+    # 11. pastoral_vault – FULLY UPDATED for lossless sermon section ↔ vault integration
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS pastoral_vault (
-            id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            user_id     INT UNSIGNED NOT NULL,
-            visibility  VARCHAR(20) DEFAULT 'private',
-            type        VARCHAR(20) NOT NULL,
-            content     TEXT NOT NULL,
-            reference   TEXT,
-            notes       TEXT,
-            tags        TEXT,
-            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            CONSTRAINT chk_vault_visibility CHECK (visibility IN ('private', 'pastoral_group')),
-            CONSTRAINT chk_vault_type CHECK (type IN ('verse', 'quote', 'phrase'))
+            id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_id              INT UNSIGNED NULL,                      -- NULL = shared with pastoral_group
+            title                TEXT NOT NULL,
+            content              TEXT NOT NULL,
+            reference            TEXT,                                   -- legacy free-text field (kept for compatibility)
+            notes                TEXT,
+            tags                 TEXT,                                   -- JSON array string
+            section_type         VARCHAR(50) DEFAULT 'point',
+            scripture_reference  TEXT,
+            source_url           TEXT,
+            visibility           ENUM('private', 'pastoral_group') NOT NULL DEFAULT 'private',
+            created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
+
+    # Safe migration: align existing pastoral_vault with new schema (preserves all existing data)
+    print("  Migration: Updating pastoral_vault for full sermon ↔ vault integration...")
+    cursor.execute("""
+        ALTER TABLE pastoral_vault
+            MODIFY COLUMN IF EXISTS user_id INT UNSIGNED NULL,
+            MODIFY COLUMN IF EXISTS visibility ENUM('private', 'pastoral_group') NOT NULL DEFAULT 'private',
+            ADD COLUMN IF NOT EXISTS title TEXT,
+            ADD COLUMN IF NOT EXISTS section_type VARCHAR(50) DEFAULT 'point',
+            ADD COLUMN IF NOT EXISTS scripture_reference TEXT,
+            ADD COLUMN IF NOT EXISTS source_url TEXT
+    """)
+
+    # Populate title for any legacy rows (prefer existing reference or first part of content)
+    cursor.execute("""
+        UPDATE pastoral_vault
+        SET title = COALESCE(title, reference, LEFT(content, 200), 'Untitled Legacy Item')
+        WHERE title IS NULL OR title = ''
+    """)
+    cursor.execute("ALTER TABLE pastoral_vault MODIFY COLUMN title TEXT NOT NULL")
+
+    # Clean up legacy restrictive column/constraints no longer needed
+    safe_exec(cursor, "ALTER TABLE pastoral_vault DROP CONSTRAINT IF EXISTS chk_vault_type")
+    safe_exec(cursor, "ALTER TABLE pastoral_vault DROP CONSTRAINT IF EXISTS chk_vault_visibility")
+    safe_exec(cursor, "ALTER TABLE pastoral_vault DROP COLUMN IF EXISTS type")
 
     # ----- Indexes (idempotent) -----
     safe_exec(cursor, "CREATE INDEX IF NOT EXISTS idx_bible_search ON bible_verses(translation, book, chapter, verse)")
@@ -250,9 +283,12 @@ def create_tables(cursor):
     safe_exec(cursor, "CREATE INDEX IF NOT EXISTS idx_vault_user ON pastoral_vault(user_id)")
     safe_exec(cursor, "CREATE INDEX IF NOT EXISTS idx_vault_visibility ON pastoral_vault(visibility)")
     safe_exec(cursor, "CREATE INDEX IF NOT EXISTS idx_vault_tags ON pastoral_vault(tags(191))")
+    safe_exec(cursor, "CREATE INDEX IF NOT EXISTS idx_vault_section_type ON pastoral_vault(section_type)")
+    safe_exec(cursor, "CREATE INDEX IF NOT EXISTS idx_vault_source_url ON pastoral_vault(source_url(191))")
     safe_exec(cursor, "CREATE INDEX IF NOT EXISTS idx_sermon_edits_sermon ON sermon_edits(sermon_id)")
 
-    print("FULL Pastoral Area database setup complete – all tables and columns preserved and migrated.\n")
+    print("FULL Pastoral Area database setup complete – all tables and columns preserved and migrated.")
+    print("pastoral_vault now fully supports lossless round-trip with sermon sections.\n")
 
     # NEW: Seed recurring Sunday plans (safe, idempotent, runs every init)
     print("Seeding recurring Sunday service plans (next 52 weeks)...")

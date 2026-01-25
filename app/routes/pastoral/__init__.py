@@ -10,6 +10,7 @@
 #   - Core sub-modules fail loud if missing; optional ones fail silently
 #   - All pastoral routes protected by @pastoral_required
 #   UPDATED: Dashboard route now fetches and passes upcoming_service to template (fixes UndefinedError)
+#   UPDATED: Added registration for vault_integration blueprint (seamless sermon ↔ vault quick-save & search)
 
 from flask import Blueprint, flash, redirect, render_template, session, url_for
 from typing import Callable, Optional
@@ -144,6 +145,13 @@ try:
     pastoral_bp.register_blueprint(vault_bp)
 except (ImportError, AttributeError) as e:
     raise ImportError(f"Critical: Failed to load vault sub-module: {e}")
+
+# NEW: Vault ↔ Sermon integration endpoints (quick-save & search)
+try:
+    from .vault_integration import vault_integration_bp
+    pastoral_bp.register_blueprint(vault_integration_bp)
+except (ImportError, AttributeError):
+    pass  # Optional – graceful if file not yet created
 
 # Optional / newer modules (silent fail if not yet implemented)
 try:
