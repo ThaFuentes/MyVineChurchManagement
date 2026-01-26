@@ -6,18 +6,20 @@
 #   • List visible sermons
 #   • Create new sermon
 #   • Full editor with metadata, visibility, collaborators
-#   • Main save, autosave, delete
+#   • Main save (full form submit), autosave (sections only), delete
 #   • Unified censorship check across all fields and sections
 #   • Audit logging for all actions
 #   • Consistent with other pastoral sub-blueprints (illustrations, planning, podium)
 #   FULL REBUILD: Complete, production-ready version.
 #   • Passes all service plans (including permanent seeded Sundays) to editor for dropdown
 #   • Auto-pre-selects next upcoming Sunday for new sermons
-#   • Save fully functional with inline JS in template (no external dependency)
+#   • Save fully functional with inline JS in template
 #   • All existing logic preserved exactly
-#   • UPDATED: source_url renamed to source (free text – books, conversations, etc., NO URL REQUIRED)
+#   • source_url renamed to source (free text – books, conversations, etc., NO URL REQUIRED)
 #   • Private notes per section (personal, matches illustrations)
-#   • Vault integration ready (save to vault uses section content, source, notes – title separate for sermon structure)
+#   • Vault integration ready
+#   • AUTO-SAVE: Sections only every 30s (no reload, status update)
+#   • FULL REPLACE in save_sermon_sections → no extra/blank sections ever
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
 from datetime import datetime, timedelta
@@ -68,7 +70,7 @@ def collect_all_text(sermon_data: dict, sections: list) -> str:
         texts.extend([
             sec.get('title', ''),
             sec.get('content', ''),
-            sec.get('source', ''),  # Updated from source_url
+            sec.get('source', ''),          # renamed field
             sec.get('notes', ''),
             sec.get('scripture_reference', '')
         ])
@@ -106,13 +108,7 @@ def new():
                                    sermon=None, sections=[], collaborators=[], pastoral_users=pastoral_users,
                                    service_plans=service_plans, next_upcoming_date=next_upcoming_date)
 
-        if contains_censored_word(title):
-            flash('Title contains prohibited content.', 'error')
-            return render_template('pastoral/sermon_editor.html',
-                                   sermon=None, sections=[], collaborators=[], pastoral_users=pastoral_users,
-                                   service_plans=service_plans, next_upcoming_date=next_upcoming_date)
-
-        data = {
+        sermon_data = {
             'title': title,
             'preacher_id': request.form.get('preacher_id') or None,
             'primary_passage': request.form.get('primary_passage', '').strip() or None,
@@ -131,10 +127,10 @@ def new():
         except json.JSONDecodeError:
             sections_list = []
 
-        if contains_censored_word(collect_all_text(data, sections_list)):
+        if contains_censored_word(collect_all_text(sermon_data, sections_list)):
             flash('Prohibited content detected in sermon.', 'error')
         else:
-            sermon_id = create_sermon(data, user_id)
+            sermon_id = create_sermon(sermon_data, user_id)
             save_sermon_sections(sermon_id, sections_list)
             log_change(user_id, 'create', sermon_id, title, 'Created new sermon')
             flash('Sermon created successfully.', 'success')
@@ -204,6 +200,7 @@ def edit(sermon_id: int):
                 log_change(user_id, 'update', sermon_id, sermon_data['title'], 'Saved sermon')
                 flash('Sermon saved successfully.', 'success')
 
+        # Refresh data after POST
         sermon = get_sermon_by_id(sermon_id, user_id)
         sections = get_sermon_sections(sermon_id)
         collaborators = get_collaborators(sermon_id)
@@ -222,15 +219,19 @@ def autosave(sermon_id: int):
         return jsonify({'status': 'error', 'message': 'Access denied'}), 403
 
     payload = request.get_json(silent=True) or {}
-    sermon_data = payload.get('sermon', {})
     sections_list = payload.get('sections', [])
 
-    if contains_censored_word(collect_all_text(sermon_data, sections_list)):
+    # Censorship check on sections only (auto-save doesn't update main sermon fields)
+    all_text = ' '.join([
+        sec.get('title', '') + sec.get('content', '') + sec.get('source', '') +
+        sec.get('notes', '') + sec.get('scripture_reference', '')
+        for sec in sections_list
+    ])
+    if contains_censored_word(all_text):
         return jsonify({'status': 'error', 'message': 'Prohibited content'}), 400
 
-    update_sermon(sermon_id, sermon_data, user_id)
     save_sermon_sections(sermon_id, sections_list)
-    log_change(user_id, 'autosave', sermon_id, sermon_data.get('title', sermon['title']), 'Autosaved sermon')
+    log_change(user_id, 'autosave', sermon_id, sermon['title'], 'Autosaved sermon sections')
 
     return jsonify({'status': 'success', 'saved_at': datetime.utcnow().isoformat()})
 

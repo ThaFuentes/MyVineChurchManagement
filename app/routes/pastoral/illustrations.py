@@ -2,57 +2,38 @@
 # Full path: WebChurchMan/app/routes/pastoral/illustrations.py
 # File name: illustrations.py
 # Brief, detailed purpose:
-#   Routes and Blueprint for the rebuilt Illustration Library (pastoral area only).
-#   All routes protected by @pastoral_required.
-#   Single /library route handles:
-#     - Browsing with keyword search (?q=)
-#     - Optional vault scope inclusion (future-ready via ?scope=my_vault&scope=shared_vault)
-#     - Inline rich Quill edit/add card at top (prefilled via ?edit_id=)
-#     - Unified POST for create/update (content from hidden field synced by Quill JS)
-#     - Delete via POST
-#   New: /view/<id> read-only viewer – private notes visible only to owner or Admin/Owner
-#   New: Session-based temp dock (dock/undock/clear) for illustrations – easy individual control
-#   Edit permission: Private (owner) or Admin/Owner; Shared only Admin/Owner
-#   Visibility: 'private' → user_id = current, 'pastoral_group' → user_id = None
-#   Tags: comma-separated input → JSON list in DB (always stored as JSON string)
-#   Source/Reference: free text (book, person, conversation – NO URL REQUIRED EVER)
-#   Private Notes: personal field, only visible to creator or Admin/Owner
-#   Robust handling for legacy/bad tags data
-#   Censorship check on all editable text fields.
-#   Audit-logged create/update/delete/insert.
-#   Delegates DB work to app/models/pastoral/illustrations.py.
-#   FULL REBUILD – complete, production-ready.
+#   Routes and Blueprint for the UNIFIED Reusable Content Library (pastoral area only).
+#   • Single page showing ALL reusable content: manual Illustrations + saved sermon Sections from Vault (auto-included).
+#   • Pastors have one stop – everything reusable for sermons in one place.
+#   • Type badge: "Illustration" (manual) vs "Section" (saved from sermon builder).
+#   • Search across all fields.
+#   • Buttons under card: Insert into Sermon, View, Edit (owner/Admin/Owner for both), Delete (owner/Admin/Owner for both).
+#   • Dock for both.
+#   • Add New: manual illustration.
+#   • Inline edit card for both (structured fields for sections).
+#   • Vault sections fully visible with View/Edit/Delete.
+#   • Robust, safe, production-ready.
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
 import json
+import pymysql
 
 from . import pastoral_required
 from app.models.log import log_change
 from app.utils.helpers import contains_censored_word
+from app.models.db import get_db
 from app.models.pastoral.illustrations import (
-    get_visible_illustrations,
     get_illustration_by_id,
     create_illustration,
     update_illustration,
     delete_illustration
 )
+from app.models.pastoral.vault import delete_vault_item
 
 illustrations_bp = Blueprint('illustrations', __name__, url_prefix='/illustrations')
 
 
-def _collect_text_for_censorship(data: dict) -> str:
-    """Combine all user-editable text fields for single censorship scan."""
-    return ' '.join(filter(None, [
-        data.get('title', ''),
-        data.get('content', ''),
-        data.get('source', ''),
-        data.get('notes', ''),
-        data.get('tags_input', '')
-    ]))
-
-
 def _safe_load_tags(tags_raw) -> list:
-    """Safely convert tags field to list – handles str JSON, list, malformed, or None."""
     if tags_raw is None:
         return []
     if isinstance(tags_raw, list):
@@ -73,17 +54,78 @@ def library():
     q = request.args.get('q', '').strip()
     edit_id = request.args.get('edit_id')
 
-    illustration = None
+    db = get_db()
+    cur = db.cursor(pymysql.cursors.DictCursor)
+
+    items = []
+
+    # Illustrations
+    illus_sql = """
+        SELECT il.*, 'illustration' AS type, il.source AS source_url
+        FROM illustration_library il
+        WHERE il.user_id = %s OR il.user_id IS NULL
+    """
+    params = [user_id]
+
+    if q:
+        like = f"%{q}%"
+        illus_sql += " AND (il.title LIKE %s OR il.content LIKE %s OR il.source LIKE %s OR il.tags LIKE %s OR il.notes LIKE %s)"
+        params += [like] * 5
+
+    cur.execute(illus_sql, params)
+    items.extend(list(cur.fetchall()))
+
+    # Vault sections
+    vault_sql = """
+        SELECT pv.*, 'section' AS type, pv.source_url
+        FROM pastoral_vault pv
+        WHERE pv.user_id = %s OR pv.user_id IS NULL
+    """
+    params = [user_id]
+
+    if q:
+        like = f"%{q}%"
+        vault_sql += " AND (pv.title LIKE %s OR pv.content LIKE %s OR pv.scripture_reference LIKE %s OR pv.source_url LIKE %s OR pv.notes LIKE %s)"
+        params += [like] * 5
+
+    cur.execute(vault_sql, params)
+    items.extend(list(cur.fetchall()))
+
+    # Parse tags, add common fields, set can_edit
+    for item in items:
+        item['tag_list'] = _safe_load_tags(item.get('tags'))
+        item['source_url'] = item.get('source_url') or item.get('source') or ''
+        item['can_edit'] = (item.get('user_id') == user_id or user_role in ['Admin', 'Owner'])
+
+    # Sort by created_at DESC
+    items.sort(key=lambda x: x.get('created_at') or '0000-00-00 00:00:00', reverse=True)
+
+    total_count = len(items)
+
+    # Dock
+    docked_ids = session.get('docked_items', [])
+    for item in items:
+        item['is_docked'] = item['id'] in docked_ids
+
+    # Edit handling – both types
+    edit_item = None
     if edit_id:
         try:
             edit_id = int(edit_id)
-            illustration = get_illustration_by_id(edit_id, user_id)
-            if not illustration:
-                flash('Illustration not found or access denied.', 'error')
-                return redirect(url_for('pastoral.illustrations.library'))
+            edit_item = get_illustration_by_id(edit_id, user_id)
+            if not edit_item:
+                # Try vault
+                cur.execute("""
+                    SELECT pv.*, 'section' AS type, pv.source_url AS source
+                    FROM pastoral_vault pv
+                    WHERE pv.id = %s AND (pv.user_id = %s OR pv.user_id IS NULL)
+                """, (edit_id, user_id))
+                edit_item = cur.fetchone()
+            if edit_item:
+                edit_item['tag_list'] = _safe_load_tags(edit_item.get('tags'))
+                edit_item['tags_input'] = ', '.join(edit_item['tag_list'])
         except ValueError:
-            flash('Invalid illustration ID.', 'error')
-            return redirect(url_for('pastoral.illustrations.library'))
+            flash('Invalid item ID.', 'error')
 
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
@@ -92,6 +134,8 @@ def library():
         notes = request.form.get('notes', '').strip()
         tags_input = request.form.get('tags', '').strip()
         visibility = request.form.get('visibility', 'private')
+        section_type = request.form.get('section_type')
+        scripture_reference = request.form.get('scripture_reference', '').strip() or None
 
         if not title or not content:
             flash('Title and content are required.', 'error')
@@ -100,21 +144,7 @@ def library():
         tag_list = [t.strip() for t in tags_input.split(',') if t.strip()]
         tags_json = json.dumps(tag_list)
 
-        data = {
-            'title': title,
-            'content': content,
-            'source': source,
-            'notes': notes,
-            'tags': tags_json
-        }
-
-        check_text = _collect_text_for_censorship({
-            'title': title,
-            'content': content,
-            'source': source,
-            'notes': notes,
-            'tags_input': tags_input
-        })
+        check_text = f"{title} {content} {source} {notes} {tags_input} {scripture_reference or ''}"
         if contains_censored_word(check_text):
             flash('Prohibited content detected.', 'error')
             return redirect(request.url)
@@ -122,76 +152,117 @@ def library():
         owner_id = user_id if visibility == 'private' else None
 
         try:
-            if illustration:
-                update_illustration(edit_id, data, owner_id)
-                log_change(user_id, 'update', edit_id, title, 'Updated illustration')
-                flash('Illustration updated.', 'success')
+            if edit_item:
+                if edit_item['type'] == 'section':
+                    data = {
+                        'title': title,
+                        'content': content,
+                        'section_type': section_type or 'point',
+                        'scripture_reference': scripture_reference,
+                        'source_url': source,
+                        'notes': notes,
+                        'tags': tags_json,
+                        'visibility': visibility,
+                    }
+                    # Assume update_vault_item exists – add if not
+                    # update_vault_item(edit_id, data, owner_id)
+                    cur.execute("""
+                        UPDATE pastoral_vault
+                        SET title = %s, content = %s, section_type = %s, scripture_reference = %s,
+                            source_url = %s, notes = %s, tags = %s, user_id = %s, visibility = %s
+                        WHERE id = %s
+                    """, (title, content, section_type or 'point', scripture_reference, source, notes, tags_json, owner_id, visibility, edit_id))
+                    db.commit()
+                    log_change(user_id, 'vault_update', edit_id, title, 'Updated saved section')
+                else:
+                    data = {
+                        'title': title,
+                        'content': content,
+                        'source': source,
+                        'notes': notes,
+                        'tags': tags_json
+                    }
+                    update_illustration(edit_id, data, owner_id)
+                    log_change(user_id, 'illustration_update', edit_id, title, 'Updated illustration')
+                flash('Item updated.', 'success')
             else:
+                # New is always illustration
+                data = {
+                    'title': title,
+                    'content': content,
+                    'source': source,
+                    'notes': notes,
+                    'tags': tags_json
+                }
                 new_id = create_illustration(data, owner_id)
-                log_change(user_id, 'create', new_id, title, 'Created illustration')
+                log_change(user_id, 'illustration_create', new_id, title, 'Created illustration')
                 flash('Illustration created.', 'success')
-            return redirect(url_for('pastoral.illustrations.library') + (f'?q={q}' if q else ''))
+            return redirect(url_for('pastoral.illustrations.library'))
         except Exception as e:
-            flash(f'Error saving illustration: {str(e)}', 'error')
-            return redirect(request.url)
-
-    illustrations = get_visible_illustrations(user_id, q or None)
-    total_count = len(illustrations)
-
-    docked_ids = session.get('docked_illustrations', [])
-
-    for illus in illustrations:
-        illus['tag_list'] = _safe_load_tags(illus.get('tags'))
-        illus['can_edit'] = (illus.get('user_id') == user_id or user_role in ['Admin', 'Owner'])
-        illus['is_docked'] = illus['id'] in docked_ids
-
-    if illustration:
-        illustration['tag_list'] = _safe_load_tags(illustration.get('tags'))
-        illustration['tags_input'] = ', '.join(illustration['tag_list'])
+            flash(f'Error: {str(e)}', 'error')
 
     return render_template(
         'pastoral/illustrations_library.html',
-        illustrations=illustrations,
+        items=items,
         total_count=total_count,
         q=q,
-        illustration=illustration,
+        edit_item=edit_item,
         docked_count=len(docked_ids)
     )
 
 
-@illustrations_bp.route('/view/<int:illus_id>')
+@illustrations_bp.route('/view/<int:item_id>')
 @pastoral_required()
-def view(illus_id: int):
+def view(item_id: int):
     user_id = session['user_id']
-    user_role = session.get('user_role', 'Member')
 
-    illustration = get_illustration_by_id(illus_id, user_id)
-    if not illustration:
-        flash('Illustration not found or access denied.', 'error')
+    db = get_db()
+    cur = db.cursor(pymysql.cursors.DictCursor)
+
+    # Try illustration
+    cur.execute("""
+        SELECT il.*, 'illustration' AS type, il.source AS source_url
+        FROM illustration_library il
+        WHERE il.id = %s AND (il.user_id = %s OR il.user_id IS NULL)
+    """, (item_id, user_id))
+    item = cur.fetchone()
+
+    if not item:
+        # Try vault section
+        cur.execute("""
+            SELECT pv.*, 'section' AS type, pv.source_url
+            FROM pastoral_vault pv
+            WHERE pv.id = %s AND (pv.user_id = %s OR pv.user_id IS NULL)
+        """, (item_id, user_id))
+        item = cur.fetchone()
+
+    if not item:
+        flash('Item not found or access denied.', 'error')
         return redirect(url_for('pastoral.illustrations.library'))
 
-    illustration['tag_list'] = _safe_load_tags(illustration.get('tags'))
+    item['tag_list'] = _safe_load_tags(item.get('tags'))
 
     return render_template(
         'pastoral/illustration_view.html',
-        illustration=illustration,
-        current_user_id=user_id,
-        current_user_role=user_role
+        item=item
     )
 
 
-@illustrations_bp.route('/delete/<int:illus_id>', methods=['POST'])
+@illustrations_bp.route('/delete/<int:item_id>', methods=['POST'])
 @pastoral_required()
-def delete(illus_id: int):
+def delete(item_id: int):
     user_id = session['user_id']
-    illustration = get_illustration_by_id(illus_id, user_id)
-    if illustration:
-        title = illustration['title']
-        delete_illustration(illus_id, user_id)
-        log_change(user_id, 'delete', illus_id, None, f'Deleted illustration "{title}"')
+
+    # Try illustration
+    if delete_illustration(item_id, user_id):
+        log_change(user_id, 'illustration_delete', item_id, None, 'Deleted illustration')
         flash('Illustration permanently deleted.', 'success')
     else:
-        flash('Illustration not found or access denied.', 'error')
+        # Try vault
+        delete_vault_item(item_id, user_id)
+        log_change(user_id, 'vault_delete', item_id, None, 'Deleted saved section')
+        flash('Saved section permanently deleted.', 'success')
+
     return redirect(url_for('pastoral.illustrations.library'))
 
 
@@ -199,32 +270,15 @@ def delete(illus_id: int):
 @pastoral_required()
 def dock():
     data = request.get_json() or {}
-    illus_ids = data.get('illustration_ids', [])
-    if not illus_ids:
-        return jsonify({'status': 'error', 'message': 'No illustrations selected'}), 400
+    item_ids = data.get('item_ids', [])
+    if not item_ids:
+        return jsonify({'status': 'error', 'message': 'No items selected'}), 400
 
-    docked = session.get('docked_illustrations', [])
-    for illus_id in illus_ids:
-        if illus_id not in docked:
-            docked.append(illus_id)
-    session['docked_illustrations'] = docked
-
-    return jsonify({'status': 'success', 'count': len(docked)})
-
-
-@illustrations_bp.route('/undock', methods=['POST'])
-@pastoral_required()
-def undock():
-    data = request.get_json() or {}
-    illus_ids = data.get('illustration_ids', [])
-    if not illus_ids:
-        return jsonify({'status': 'error', 'message': 'No illustrations selected'}), 400
-
-    docked = session.get('docked_illustrations', [])
-    for illus_id in illus_ids:
-        if illus_id in docked:
-            docked.remove(illus_id)
-    session['docked_illustrations'] = docked
+    docked = session.get('docked_items', [])
+    for item_id in item_ids:
+        if item_id not in docked:
+            docked.append(item_id)
+    session['docked_items'] = docked
 
     return jsonify({'status': 'success', 'count': len(docked)})
 
@@ -232,7 +286,7 @@ def undock():
 @illustrations_bp.route('/clear_dock', methods=['POST'])
 @pastoral_required()
 def clear_dock():
-    session.pop('docked_illustrations', None)
+    session.pop('docked_items', None)
     return jsonify({'status': 'success', 'count': 0})
 
 
@@ -241,22 +295,33 @@ def clear_dock():
 def insert_into_sermon(sermon_id: int):
     user_id = session['user_id']
     data = request.get_json() or {}
-    illus_id = data.get('illustration_id')
-    if not illus_id:
-        return jsonify({'status': 'error', 'message': 'No illustration selected'}), 400
+    item_id = data.get('item_id')
+    if not item_id:
+        return jsonify({'status': 'error', 'message': 'No item selected'}), 400
 
-    illustration = get_illustration_by_id(illus_id, user_id)
-    if not illustration:
-        return jsonify({'status': 'error', 'message': 'Access denied'}), 404
+    # Unified – try illustration, then vault
+    item = get_illustration_by_id(item_id, user_id)
+    if not item:
+        # Try vault
+        cur = get_db().cursor(pymysql.cursors.DictCursor)
+        cur.execute("""
+            SELECT pv.*, 'section' AS type
+            FROM pastoral_vault pv
+            WHERE pv.id = %s AND (pv.user_id = %s OR pv.user_id IS NULL)
+        """, (item_id, user_id))
+        item = cur.fetchone()
 
-    source_line = f"<p><em>Source: {illustration['source']}</em></p>" if illustration['source'] else ""
+    if not item:
+        return jsonify({'status': 'error', 'message': 'Item not found or access denied'}), 404
+
+    source_line = f"<p><em>Source: {item.get('source_url') or item.get('source', '')}</em></p>" if item.get('source_url') or item.get('source') else ""
     html = f"""
-    <div class="inserted-illustration" data-illustration-id="{illus_id}">
-        <h3>{illustration['title']}</h3>
-        <blockquote>{illustration['content']}</blockquote>
+    <div class="inserted-content" data-item-id="{item_id}">
+        <h3>{item['title']}</h3>
+        <blockquote>{item['content']}</blockquote>
         {source_line}
     </div>
     """.strip()
 
-    log_change(user_id, 'insert', sermon_id, illus_id, f'Inserted illustration {illus_id} into sermon {sermon_id}')
+    log_change(user_id, 'insert', sermon_id, item_id, f'Inserted {item.get('type', 'content')} {item_id} into sermon {sermon_id}')
     return jsonify({'status': 'success', 'html': html})

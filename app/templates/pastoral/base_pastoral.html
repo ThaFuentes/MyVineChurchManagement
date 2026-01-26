@@ -1,16 +1,21 @@
 {# app/templates/pastoral/base_pastoral.html #}
 {# Full path: WebChurchMan/app/templates/pastoral/base_pastoral.html #}
 {# File name: base_pastoral.html #}
-{# Brief, detailed purpose: Standalone wrapper for all Pastoral Area pages.
-   • Fixed header with glowing "Pastoral Command Center" title
-   • Compact, responsive navigation with key quick-links:
-     - Pastoral Dashboard
-     - Planning
-     - Sermon Library (list for selection/editing)
-     - Podium Mode → sermon selection list (today's linked sermon highlighted)
-     - Main Dashboard (back to public/private main)
-   • Keeps dark/cyan theme consistent
-   • Child pages retain full control over content below header #}
+{# Brief, detailed purpose: Standalone master layout for ALL Pastoral Area pages.
+#   • Fixed dark header with glowing "Pastoral Command Center" title
+#   • Compact, responsive navigation with key quick-links:
+#     - Pastoral Dashboard
+#     - Planning
+#     - Sermon Library (list for selection/editing)
+#     - Podium Mode → sermon selection list (today's linked sermon highlighted)
+#     - Main Dashboard (back to public/private main)
+#   • Maintains consistent dark/cyan theme (#00FFFF accents)
+#   • Child pages control content below header via {% block pastoral_content %}
+#   • FIXED: Removed outdated Font Awesome integrity hash (prevents "Failed to find valid digest" error)
+#   • UPDATED: Font Awesome 6.6.0 (latest stable as of Jan 2026)
+#   • All inline styles extracted to static/css/global/pastoral/base_pastoral.css
+#   • Bootstrap 5.3.3 JS bundle included (required for modals, toasts, dropdowns)
+#}
 
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
@@ -19,46 +24,54 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Pastoral Command Center{% endblock %} – MyVineChurch.Online OS</title>
 
-  <!-- Bootstrap 5 + Font Awesome -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <!-- Bootstrap 5.3.3 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+  <!-- Font Awesome 6.6.0 – no integrity (avoids hash mismatch errors) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+
+  <!-- Pastoral global styles – all inline styles extracted here -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/pastoral/base_pastoral.css') }}">
 
   {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-black text-white">
+<body>
 
   <!-- Fixed Header with Title + Navigation -->
-  <header class="position-fixed top-0 start-0 end-0 bg-black border-bottom border-3 border-cyan d-flex align-items-center px-4"
-          style="height:90px; z-index:1000; box-shadow:0 10px 40px rgba(0,170,170,0.2);">
+  <header class="pastoral-header">
     <!-- Title (left) -->
-    <h1 class="m-0 me-auto" style="font-size:2.4rem; font-weight:300; letter-spacing:0.12em; color:#00aaaa; text-shadow:0 0 20px #00aaaa;">
-      Pastoral Command Center
-    </h1>
+    <h1 class="pastoral-title">Pastoral Command Center</h1>
 
     <!-- Navigation Links (right) – compact, responsive, cyan theme -->
-    <nav class="d-flex align-items-center gap-3 flex-wrap">
-      <a href="{{ url_for('pastoral.dashboard_pastoral') }}" class="btn btn-outline-cyan btn-sm rounded-pill px-4">
+    <nav class="pastoral-nav" aria-label="Pastoral navigation">
+      <a href="{{ url_for('pastoral.dashboard_pastoral') }}" class="btn btn-outline-cyan btn-sm rounded-pill" aria-label="Pastoral Dashboard">
         <i class="fas fa-tachometer-alt me-1"></i> Dashboard
       </a>
-      <a href="{{ url_for('pastoral.planning.index') }}" class="btn btn-outline-cyan btn-sm rounded-pill px-4">
+      <a href="{{ url_for('pastoral.planning.index') }}" class="btn btn-outline-cyan btn-sm rounded-pill" aria-label="Service Planning">
         <i class="fas fa-calendar-alt me-1"></i> Planning
       </a>
-      <a href="{{ url_for('pastoral.sermons.list') }}" class="btn btn-outline-cyan btn-sm rounded-pill px-4">
+      <a href="{{ url_for('pastoral.sermons.list') }}" class="btn btn-outline-cyan btn-sm rounded-pill" aria-label="Sermon Library">
         <i class="fas fa-book-open me-1"></i> Sermons
       </a>
-      <a href="{{ url_for('pastoral.podium.index') }}" class="btn btn-cyan btn-sm rounded-pill px-4">
+      <a href="{{ url_for('pastoral.podium.index') }}" class="btn btn-cyan btn-sm rounded-pill" aria-label="Podium Mode">
         <i class="fas fa-microphone-alt me-1"></i> Podium Mode
       </a>
-      <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-outline-secondary btn-sm rounded-pill px-4">
+      <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-outline-secondary btn-sm rounded-pill" aria-label="Main Dashboard">
         <i class="fas fa-home me-1"></i> Main Dashboard
       </a>
     </nav>
   </header>
 
-  <!-- Content area – child templates control everything below header -->
-  <div style="padding-top:90px; min-height:100vh;">
+  <!-- Main Content Area – child templates fill this -->
+  <main class="pastoral-main">
     {% block pastoral_content %}{% endblock %}
-  </div>
+  </main>
 
+  <!-- Bootstrap 5.3.3 JS Bundle (includes Popper) – required for modals, toasts, dropdowns -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+  {% block extra_js %}{% endblock %}
 </body>
 </html>

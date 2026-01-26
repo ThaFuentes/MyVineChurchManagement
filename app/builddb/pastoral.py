@@ -11,6 +11,7 @@
 #     Now data persists between runs – your saved plans will stay and appear in the list.
 #   NEW: Added default_service_plan_assignments table for global default role assignments (pre-fill new plans).
 #   UPDATED: Added start_time and worship_start_time to service_plans with safe migration.
+#   UPDATED: Added source TEXT column to sermon_sections (free-text reference – books, conversations, etc.).
 #   UPDATED (Vault ↔ Sermon Integration): Fully aligned pastoral_vault schema with sermon sections for lossless round-trip.
 #     - Added title (required), section_type, scripture_reference, source_url
 #     - visibility → ENUM with strict values
@@ -114,7 +115,7 @@ def create_tables(cursor):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
-    # 4. Sermon sections
+    # 4. Sermon sections – WITH source TEXT column
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sermon_sections (
             id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -124,12 +125,19 @@ def create_tables(cursor):
             title                TEXT,
             content              TEXT,
             scripture_reference  TEXT,
+            source               TEXT,                           -- free-text reference (books, conversations, etc.)
             illustration_id      INT UNSIGNED,
             notes                TEXT,
             FOREIGN KEY (sermon_id) REFERENCES pastoral_sermons(id) ON DELETE CASCADE,
             FOREIGN KEY (illustration_id) REFERENCES illustration_library(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
+
+    # Safe migration: Add source column if missing
+    cursor.execute("SHOW COLUMNS FROM sermon_sections LIKE 'source'")
+    if not cursor.fetchone():
+        print("  Migration: Adding column 'source' (TEXT) to sermon_sections")
+        safe_exec(cursor, "ALTER TABLE sermon_sections ADD COLUMN source TEXT AFTER scripture_reference")
 
     # 5. Service plans – with start_time and worship_start_time
     cursor.execute("""
@@ -288,7 +296,8 @@ def create_tables(cursor):
     safe_exec(cursor, "CREATE INDEX IF NOT EXISTS idx_sermon_edits_sermon ON sermon_edits(sermon_id)")
 
     print("FULL Pastoral Area database setup complete – all tables and columns preserved and migrated.")
-    print("pastoral_vault now fully supports lossless round-trip with sermon sections.\n")
+    print("sermon_sections now includes 'source' TEXT column for free-text references.")
+    print("pastoral_vault remains fully aligned for lossless round-trip with sermon sections.\n")
 
     # NEW: Seed recurring Sunday plans (safe, idempotent, runs every init)
     print("Seeding recurring Sunday service plans (next 52 weeks)...")

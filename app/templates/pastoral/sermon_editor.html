@@ -2,14 +2,15 @@
 {# Full path: WebChurchMan/app/templates/pastoral/sermon_editor.html #}
 {# File name: sermon_editor.html #}
 {# Brief, detailed purpose:
-#   Full sermon editor with complete Vault integration.
-#   • Save to Vault button opens modal immediately (visible popup feedback).
-#   • Vault Tags input directly in each section card (comma-separated, ONLY for Vault – not saved to sermon).
-#   • Modal: pre-filled title suggestion + visibility choice.
-#   • On save → AJAX → Bootstrap toast (green success / red error) in bottom-right.
-#   • From Vault modal unchanged and fully functional.
-#   • All previous fixes preserved (safe rendering, Quill, reorder, etc.).
-#   • Everything else 100% identical to your original provided code.
+#   Full sermon editor – FINAL FULL REBUILD (COMPLETE & STABLE).
+#   • Auto-save every 30 seconds (existing sermons: full metadata + sections).
+#   • Manual save = full form submit (includes collaborators).
+#   • Save status with timestamp.
+#   • Skips blank sections on save.
+#   • Vault integration: pre-fill all fields, AJAX save with toast.
+#   • Insert from Vault: loads ALL visible vault items immediately, live search, robust error handling + safe tags parsing.
+#   • Collaborators, reorder, delete, dynamic headers — all stable.
+#   • Fixed Jinja syntax error (proper endblock matching).
 #}
 
 {% extends "pastoral/base_pastoral.html" %}
@@ -32,6 +33,7 @@
                         <button type="button" id="save-btn" class="btn btn-success">
                             <i class="fas fa-save me-2"></i>Save Sermon
                         </button>
+                        <span id="save-status" class="ms-3 text-muted">Unsaved changes</span>
                     </div>
                 </div>
 
@@ -45,12 +47,12 @@
                         <div class="row g-3 mb-4">
                             <div class="col-md-8">
                                 <label class="form-label text-cyan">Title <span class="text-danger">*</span></label>
-                                <input type="text" name="title" class="form-control form-control-dark"
+                                <input type="text" name="title" id="sermon-title" class="form-control form-control-dark"
                                        value="{{ sermon.title if sermon else '' }}" required>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label text-cyan">Visibility</label>
-                                <select name="visibility" class="form-select form-control-dark">
+                                <select name="visibility" id="sermon-visibility" class="form-select form-control-dark">
                                     <option value="private" {{ 'selected' if (sermon and sermon.visibility == 'private') or not sermon }}>Private</option>
                                     <option value="collaborators" {{ 'selected' if sermon and sermon.visibility == 'collaborators' }}>Collaborators</option>
                                     <option value="pastoral_group" {{ 'selected' if sermon and sermon.visibility == 'pastoral_group' }}>Pastoral Group</option>
@@ -61,12 +63,12 @@
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
                                 <label class="form-label text-cyan">Primary Passage</label>
-                                <input type="text" name="primary_passage" class="form-control form-control-dark"
+                                <input type="text" name="primary_passage" id="sermon-primary-passage" class="form-control form-control-dark"
                                        value="{{ sermon.primary_passage if sermon else '' }}">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label text-cyan">Associated Service</label>
-                                <select name="service_date" class="form-select form-control-dark">
+                                <select name="service_date" id="sermon-service-date" class="form-select form-control-dark">
                                     <option value="">No associated service</option>
                                     {% for plan in service_plans %}
                                         <option value="{{ plan.service_date.strftime('%Y-%m-%d') }}"
@@ -77,39 +79,34 @@
                                         </option>
                                     {% endfor %}
                                 </select>
-                                <small class="text-muted d-block mt-2">
-                                    All permanent Sunday services are pre-created and always listed here.
-                                    For new sermons, the next upcoming Sunday is automatically selected.
-                                </small>
                             </div>
                         </div>
 
                         <div class="mb-4">
                             <label class="form-label text-cyan">Series Tags (comma-separated)</label>
-                            <input type="text" name="series_tags" class="form-control form-control-dark"
+                            <input type="text" name="series_tags" id="sermon-series-tags" class="form-control form-control-dark"
                                    value="{{ sermon.series_tags if sermon and sermon.series_tags else '' }}"
                                    placeholder="Easter 2026, Faith, Grace">
-                            <small class="text-muted">Type your tags with commas – exactly as you want them saved.</small>
                         </div>
 
                         <!-- Sermon Sections -->
                         <div class="mb-5">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h4 class="text-cyan mb-0">Sermon Sections</h4>
-                                <button type="button" id="add-section-btn" class="btn btn-outline-cyan">
-                                    <i class="fas fa-plus me-2"></i>Add Section
-                                </button>
+                                <div>
+                                    <button type="button" class="btn btn-outline-cyan me-2" data-bs-toggle="modal" data-bs-target="#insertFromVaultModal">
+                                        <i class="fas fa-download me-2"></i>Insert from Vault
+                                    </button>
+                                    <button type="button" id="add-section-btn" class="btn btn-outline-cyan">
+                                        <i class="fas fa-plus me-2"></i>Add Section
+                                    </button>
+                                </div>
                             </div>
 
                             <div id="sections-container">
                                 {% for section in sections %}
-                                    {% include "pastoral/sermon_section_card.html" with context %}
+                                    {% include "pastoral/sermon_section_card.html" %}
                                 {% endfor %}
-
-                                <!-- Hidden template -->
-                                <div class="section-card" data-template style="display:none;">
-                                    {% include "pastoral/sermon_section_card.html" with context %}
-                                </div>
                             </div>
                         </div>
 
@@ -129,7 +126,7 @@
                                 {% for collab in collaborators %}
                                     <span class="badge bg-info text-dark">
                                         {{ collab.full_name or collab.username }}
-                                        <a href="#" class="text-dark ms-1 remove-collab" data-id="{{ collab.id }}">x</a>
+                                        <a href="#" class="text-dark ms-1 remove-collab" data-id="{{ collab.id }}">×</a>
                                     </span>
                                 {% endfor %}
                             </div>
@@ -139,22 +136,22 @@
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
                                 <label class="form-label text-cyan">Header Text</label>
-                                <textarea name="header_text" class="form-control form-control-dark" rows="3">{{ sermon.header_text if sermon else '' }}</textarea>
+                                <textarea name="header_text" id="sermon-header-text" class="form-control form-control-dark" rows="3">{{ sermon.header_text if sermon else '' }}</textarea>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label text-cyan">Footer Text</label>
-                                <textarea name="footer_text" class="form-control form-control-dark" rows="3">{{ sermon.footer_text if sermon else '' }}</textarea>
+                                <textarea name="footer_text" id="sermon-footer-text" class="form-control form-control-dark" rows="3">{{ sermon.footer_text if sermon else '' }}</textarea>
                             </div>
                         </div>
 
                         <div class="mb-4">
                             <label class="form-label text-cyan">Conclusion Text</label>
-                            <textarea name="conclusion_text" class="form-control form-control-dark" rows="5">{{ sermon.conclusion_text if sermon else '' }}</textarea>
+                            <textarea name="conclusion_text" id="sermon-conclusion-text" class="form-control form-control-dark" rows="5">{{ sermon.conclusion_text if sermon else '' }}</textarea>
                         </div>
 
                         <div class="mb-4">
                             <label class="form-label text-cyan">Notes</label>
-                            <textarea name="notes" class="form-control form-control-dark" rows="6">{{ sermon.notes if sermon else '' }}</textarea>
+                            <textarea name="notes" id="sermon-notes" class="form-control form-control-dark" rows="6">{{ sermon.notes if sermon else '' }}</textarea>
                         </div>
 
                         <input type="hidden" name="sections_json" id="sections-json">
@@ -165,53 +162,102 @@
     </div>
 </div>
 
-<!-- Save to Vault Modal -->
+{# HIDDEN SECTION TEMPLATE #}
+<div style="display:none;">
+    <div class="section-card" data-template>
+        {% set default_section = {
+            'id': '',
+            'title': '',
+            'section_type': 'point',
+            'scripture_reference': '',
+            'source': '',
+            'content': '',
+            'notes': '',
+            'vault_tags': ''
+        } %}
+        {% with section = default_section %}
+            {% include "pastoral/sermon_section_card.html" %}
+        {% endwith %}
+    </div>
+</div>
+
+{# SAVE TO VAULT MODAL #}
 <div class="modal fade" id="saveToVaultModal" tabindex="-1" aria-labelledby="saveToVaultModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content bg-dark text-white">
-            <div class="modal-header">
-                <h5 class="modal-title" id="saveToVaultModalLabel">Save Section to Vault</h5>
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content glass-card">
+            <div class="modal-header bg-dark">
+                <h5 class="modal-title text-cyan" id="saveToVaultModalLabel">Save Section to Vault</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label for="vault-title" class="form-label text-cyan">Vault Title <span class="text-danger">*</span></label>
-                    <input type="text" id="vault-title" class="form-control form-control-dark" required>
-                    <small class="text-muted">Suggested – edit if needed.</small>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label text-cyan">Visibility</label>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="vault-visibility" id="vault-private" value="private" checked>
-                        <label class="form-check-label" for="vault-private">Private (only me)</label>
+            <div class="modal-body p-5">
+                <form id="vault-save-form">
+                    <div class="mb-4">
+                        <label class="form-label text-cyan">Title <span class="text-danger">*</span></label>
+                        <input type="text" id="vault-title" class="form-control form-control-dark" required>
                     </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="vault-visibility" id="vault-shared" value="pastoral_group">
-                        <label class="form-check-label" for="vault-shared">Shared (pastoral group)</label>
+                    <div class="mb-4">
+                        <label class="form-label text-cyan">Section Type</label>
+                        <select id="vault-section-type" class="form-select form-control-dark">
+                            <option value="introduction">Introduction</option>
+                            <option value="point">Point</option>
+                            <option value="scripture">Scripture</option>
+                            <option value="application">Application</option>
+                            <option value="illustration">Illustration</option>
+                            <option value="conclusion">Conclusion</option>
+                            <option value="other">Other</option>
+                        </select>
                     </div>
-                </div>
-                <p class="text-muted small">Content, source/reference, notes, and Vault tags from the section will be saved.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" id="confirm-save-vault" class="btn btn-success">Save to Vault</button>
+                    <div class="mb-4">
+                        <label class="form-label text-cyan">Scripture Reference</label>
+                        <input type="text" id="vault-scripture" class="form-control form-control-dark">
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label text-cyan">Vault Tags (comma-separated)</label>
+                        <input type="text" id="vault-tags" class="form-control form-control-dark" placeholder="grace, faith, application">
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label text-cyan">Source / Reference</label>
+                        <textarea id="vault-source" class="form-control form-control-dark" rows="3"></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label text-cyan">Visibility</label>
+                        <select id="vault-visibility" class="form-select form-control-dark">
+                            <option value="private" selected>Private (only me)</option>
+                            <option value="pastoral_group">Shared with Pastoral Group</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label text-cyan">Content <span class="text-danger">*</span></label>
+                        <div class="quill-wrapper" style="background: #1a1a1a; border: 3px solid #333; border-radius: 0.5rem;">
+                            <div id="vault-quill-editor" style="height: 450px;"></div>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label text-cyan">Private Notes</label>
+                        <textarea id="vault-notes" class="form-control form-control-dark" rows="4"></textarea>
+                    </div>
+                    <div class="text-end">
+                        <button type="button" class="btn btn-outline-secondary me-3" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" id="vault-save-btn" class="btn btn-cyan">Save to Vault</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Insert from Vault Modal (your original – unchanged) -->
+{# INSERT FROM VAULT MODAL #}
 <div class="modal fade" id="insertFromVaultModal" tabindex="-1" aria-labelledby="insertFromVaultModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content bg-dark text-white">
             <div class="modal-header">
                 <h5 class="modal-title" id="insertFromVaultModalLabel">Insert from Vault</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <input type="text" id="vault-search-input" class="form-control form-control-dark mb-3" placeholder="Search vault by title, tags, content...">
+                <input type="text" id="vault-search-input" class="form-control form-control-dark mb-3" placeholder="Search by title, tags, content, scripture... (optional)">
                 <div id="vault-search-results" class="row g-3" style="max-height: 60vh; overflow-y: auto;">
-                    <div class="col-12 text-center text-muted">Start typing to search...</div>
+                    <div class="col-12 text-center py-4"><div class="spinner-border text-cyan" role="status"><span class="visually-hidden">Loading...</span></div></div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -221,7 +267,7 @@
     </div>
 </div>
 
-<!-- Toast for feedback -->
+<!-- Toast -->
 <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
     <div id="vault-toast" class="toast hide" role="alert">
         <div class="toast-header bg-dark text-white">
@@ -234,237 +280,409 @@
 
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById('sections-container');
+        const saveBtn = document.getElementById('save-btn');
+        const saveStatus = document.getElementById('save-status');
+        const sermonId = {{ sermon.id if sermon else 'null' }};
+        let isDirty = false;
+        let lastSaved = null;
         let currentCard = null;
 
-        // Quill init
-        document.querySelectorAll('.quill-editor').forEach(el => {
-            if (!el.classList.contains('ql-container')) {
-                new Quill(el, {
-                    theme: 'snow',
-                    modules: {
-                        toolbar: [
-                            [{'header': [1, 2, 3, false]}],
-                            ['bold', 'italic', 'underline'],
-                            [{'list': 'ordered'}, {'list': 'bullet'}],
-                            ['link'],
-                            ['clean']
-                        ]
-                    }
-                });
+        // Status helpers
+        const markDirty = () => {
+            if (!isDirty) {
+                isDirty = true;
+                saveStatus.textContent = 'Unsaved changes';
+                saveStatus.classList.remove('text-success');
+                saveStatus.classList.add('text-warning');
             }
+        };
+
+        const updateSaved = (time = new Date()) => {
+            lastSaved = time;
+            saveStatus.textContent = `Saved at ${lastSaved.toLocaleTimeString()}`;
+            saveStatus.classList.remove('text-warning');
+            saveStatus.classList.add('text-success');
+            isDirty = false;
+        };
+
+        // Quill init
+        function initQuill(el) {
+            if (!el.classList.contains('ql-container')) {
+                const quill = new Quill(el, {
+                    theme: 'snow',
+                    modules: { toolbar: [['bold', 'italic', 'underline'], [{'list': 'ordered'}, {'list': 'bullet'}], ['link'], ['clean']] }
+                });
+                quill.on('text-change', markDirty);
+                return quill;
+            }
+            return Quill.find(el);
+        }
+
+        document.querySelectorAll('.quill-editor').forEach(initQuill);
+
+        const vaultQuill = new Quill('#vault-quill-editor', {
+            theme: 'snow',
+            modules: { toolbar: [['bold', 'italic', 'underline'], [{'list': 'ordered'}, {'list': 'bullet'}], ['link'], ['clean']] }
         });
 
-        function updateAllHeaders() {
-            document.querySelectorAll('.section-card:not([data-template])').forEach((card, i) => {
-                const title = card.querySelector('.section-title').value.trim() || 'Untitled';
-                card.querySelector('.section-header-title').textContent = `Section ${i + 1}: ${title}`;
+        const toastEl = document.getElementById('vault-toast');
+        const toast = new bootstrap.Toast(toastEl);
+        const showToast = (message, success = true) => {
+            toastEl.querySelector('.toast-body').textContent = message;
+            toastEl.classList.toggle('bg-success', success);
+            toastEl.classList.toggle('bg-danger', !success);
+            toast.show();
+        };
+
+        // Dynamic headers
+        const updateAllHeaders = () => {
+            document.querySelectorAll('#sections-container > .section-card').forEach((card, i) => {
+                const title = card.querySelector('.section-title')?.value.trim() || 'Untitled';
+                const header = card.querySelector('.section-header-title');
+                if (header) header.textContent = `Section ${i + 1}: ${title}`;
             });
-        }
+        };
         updateAllHeaders();
 
         // Add section
         document.getElementById('add-section-btn').addEventListener('click', () => {
-            const template = document.querySelector('.section-card[data-template]').cloneNode(true);
-            template.removeAttribute('data-template');
-            template.removeAttribute('style');
-            template.querySelectorAll('input, textarea').forEach(el => el.value = '');
-            const quillEl = template.querySelector('.quill-editor');
+            const template = document.querySelector('.section-card[data-template]');
+            if (!template) return;
+
+            const newCard = template.cloneNode(true);
+            newCard.removeAttribute('data-template');
+            newCard.style.display = '';
+
+            newCard.querySelectorAll('input, textarea').forEach(el => el.value = '');
+            const quillEl = newCard.querySelector('.quill-editor');
             quillEl.innerHTML = '';
-            container.appendChild(template);
-            new Quill(quillEl, { theme: 'snow', modules: { toolbar: [['bold', 'italic', 'underline'], [{'list': 'ordered'}, {'list': 'bullet'}], ['link'], ['clean']] } });
+
+            container.appendChild(newCard);
+            initQuill(quillEl);
+
             updateAllHeaders();
+            markDirty();
         });
 
-        // Delegation
+        // Reorder/remove
         container.addEventListener('click', e => {
             const card = e.target.closest('.section-card');
-            if (!card || card.hasAttribute('data-template')) return;
+            if (!card) return;
 
-            if (e.target.closest('.move-up')) {
+            if (e.target.closest('.remove-section')) {
+                if (confirm('Permanently delete this section?')) {
+                    card.remove();
+                    updateAllHeaders();
+                    markDirty();
+                }
+            } else if (e.target.closest('.move-up')) {
                 const prev = card.previousElementSibling;
-                if (prev && !prev.hasAttribute('data-template')) {
+                if (prev) {
                     container.insertBefore(card, prev);
                     updateAllHeaders();
+                    markDirty();
                 }
             } else if (e.target.closest('.move-down')) {
                 const next = card.nextElementSibling;
-                if (next && !next.hasAttribute('data-template')) {
+                if (next) {
                     container.insertBefore(next, card);
                     updateAllHeaders();
+                    markDirty();
                 }
-            } else if (e.target.closest('.remove-section')) {
-                if (confirm('Delete this section?')) {
-                    card.remove();
-                    updateAllHeaders();
-                }
-            } else if (e.target.closest('.save-to-vault')) {
-                currentCard = card;
-                const type = card.querySelector('.section-type').value;
-                const title = card.querySelector('.section-title').value.trim() || 'Untitled';
-                document.getElementById('vault-title').value = `${type.charAt(0).toUpperCase() + type.slice(1)}: ${title}`;
-            } else if (e.target.closest('.insert-from-vault')) {
-                currentCard = card;
             }
         });
 
-        container.addEventListener('input', e => {
-            if (e.target.matches('.section-title')) updateAllHeaders();
+        // Mark dirty on input
+        document.querySelectorAll('input, textarea, select').forEach(el => el.addEventListener('input', markDirty));
+
+        // Collect sections
+        const collectSections = () => {
+            const sections = [];
+            document.querySelectorAll('#sections-container > .section-card').forEach(card => {
+                const quill = Quill.find(card.querySelector('.quill-editor'));
+                const title = card.querySelector('.section-title')?.value.trim() || '';
+                const content = quill ? quill.root.innerHTML.trim() : '';
+
+                if (title === '' && (!content || content === '<p><br></p>' || content === '<p></p>')) return;
+
+                sections.push({
+                    id: card.dataset.sectionId || '',
+                    sort_order: sections.length + 1,
+                    section_type: card.querySelector('.section-type')?.value || 'point',
+                    title: title,
+                    scripture_reference: card.querySelector('.section-scripture')?.value.trim() || '',
+                    source: card.querySelector('.section-source')?.value.trim() || '',
+                    content: quill ? quill.root.innerHTML : '',
+                    notes: card.querySelector('.section-notes')?.value.trim() || ''
+                });
+            });
+            return sections;
+        };
+
+        // Collect metadata
+        const collectSermonData = () => ({
+            title: document.getElementById('sermon-title')?.value.trim() || '',
+            visibility: document.getElementById('sermon-visibility')?.value || 'private',
+            primary_passage: document.getElementById('sermon-primary-passage')?.value.trim() || '',
+            service_date: document.getElementById('sermon-service-date')?.value || '',
+            series_tags: document.getElementById('sermon-series-tags')?.value.trim() || '',
+            header_text: document.getElementById('sermon-header-text')?.value || '',
+            footer_text: document.getElementById('sermon-footer-text')?.value || '',
+            conclusion_text: document.getElementById('sermon-conclusion-text')?.value || '',
+            notes: document.getElementById('sermon-notes')?.value || ''
         });
 
-        // Save to Vault confirm + toast
-        document.getElementById('confirm-save-vault').addEventListener('click', () => {
+        // Auto-save
+        if (sermonId) {
+            setInterval(() => {
+                if (!isDirty) return;
+                const sermonData = collectSermonData();
+                const sections = collectSections();
+                fetch(`/pastoral/sermons/autosave/${sermonId}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({sermon: sermonData, sections})
+                })
+                .then(res => res.json())
+                .then(data => { if (data.status === 'success') updateSaved(); })
+                .catch(() => {});
+            }, 30000);
+            updateSaved();
+        } else {
+            saveStatus.textContent = 'Save manually first';
+        }
+
+        // Manual save
+        saveBtn.addEventListener('click', () => {
+            const sections = collectSections();
+            document.getElementById('sections-json').value = JSON.stringify(sections);
+
+            const form = document.getElementById('sermon-form');
+            form.querySelectorAll('input[name="collaborator_ids"]').forEach(el => el.remove());
+            document.querySelectorAll('#collaborators-list .remove-collab').forEach(link => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'collaborator_ids';
+                input.value = link.dataset.id;
+                form.appendChild(input);
+            });
+
+            form.submit();
+        });
+
+        // Vault pre-fill & save
+        const saveVaultModal = document.getElementById('saveToVaultModal');
+        saveVaultModal.addEventListener('show.bs.modal', event => {
+            const button = event.relatedTarget;
+            currentCard = button ? button.closest('.section-card') : null;
             if (!currentCard) return;
 
-            const quill = Quill.find(currentCard.querySelector('.quill-editor'));
-            const data = {
-                title: document.getElementById('vault-title').value.trim() || 'Untitled Section',
-                content: quill ? quill.root.innerHTML : '',
-                reference: currentCard.querySelector('.section-source').value.trim(),
-                notes: currentCard.querySelector('.section-notes').value.trim(),
-                tags: currentCard.querySelector('.section-vault-tags').value.trim(),
-                visibility: document.querySelector('input[name="vault-visibility"]:checked').value
-            };
+            const type = currentCard.querySelector('.section-type')?.value || 'point';
+            const title = currentCard.querySelector('.section-title')?.value.trim() || 'Untitled';
+            const scripture = currentCard.querySelector('.section-scripture')?.value.trim() || '';
+            const source = currentCard.querySelector('.section-source')?.value || '';
+            const vaultTags = currentCard.querySelector('.section-vault-tags')?.value.trim() || '';
+            const notes = currentCard.querySelector('.section-notes')?.value || '';
 
-            fetch('{{ url_for("pastoral.vault.save_section_ajax") }}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            })
-            .then(res => res.json())
-            .then(result => {
-                const toastEl = document.getElementById('vault-toast');
-                const toastBody = toastEl.querySelector('.toast-body');
-                const toast = bootstrap.Toast.getOrCreateInstance(toastEl);
+            document.getElementById('vault-title').value = `${type.charAt(0).toUpperCase() + type.slice(1)}: ${title}`;
+            document.getElementById('vault-section-type').value = type;
+            document.getElementById('vault-scripture').value = scripture;
+            document.getElementById('vault-source').value = source;
+            document.getElementById('vault-tags').value = vaultTags;
+            document.getElementById('vault-notes').value = notes;
+            document.getElementById('vault-visibility').value = 'private';
 
-                if (result.status === 'success') {
-                    toastBody.textContent = 'Section saved to Vault!';
-                    toastEl.classList.remove('bg-danger');
-                    toastEl.classList.add('bg-success');
-                } else {
-                    toastBody.textContent = result.message || 'Error saving to Vault';
-                    toastEl.classList.remove('bg-success');
-                    toastEl.classList.add('bg-danger');
-                }
-                toast.show();
-
-                if (result.status === 'success') {
-                    bootstrap.Modal.getInstance(document.getElementById('saveToVaultModal')).hide();
-                }
-            })
-            .catch(() => {
-                const toastEl = document.getElementById('vault-toast');
-                const toastBody = toastEl.querySelector('.toast-body');
-                toastBody.textContent = 'Network error';
-                toastEl.classList.add('bg-danger');
-                bootstrap.Toast.getOrCreateInstance(toastEl).show();
-            });
+            const quillInstance = Quill.find(currentCard.querySelector('.quill-editor'));
+            vaultQuill.root.innerHTML = quillInstance ? quillInstance.root.innerHTML : currentCard.querySelector('.quill-editor').innerHTML;
         });
 
-        // Insert from Vault – your original code (unchanged)
+        saveVaultModal.addEventListener('hidden.bs.modal', () => {
+            currentCard = null;
+            document.querySelectorAll('#vault-save-form input, #vault-save-form textarea').forEach(el => el.value = '');
+            document.getElementById('vault-visibility').value = 'private';
+            vaultQuill.root.innerHTML = '';
+        });
+
+        document.getElementById('vault-save-btn').addEventListener('click', async () => {
+            const data = {
+                title: document.getElementById('vault-title').value.trim(),
+                section_type: document.getElementById('vault-section-type').value,
+                scripture_reference: document.getElementById('vault-scripture').value.trim(),
+                source: document.getElementById('vault-source').value,
+                tags: document.getElementById('vault-tags').value.trim(),
+                visibility: document.getElementById('vault-visibility').value,
+                content: vaultQuill.root.innerHTML,
+                notes: document.getElementById('vault-notes').value
+            };
+
+            if (!data.title || !data.content || data.content === '<p><br></p>' || data.content === '<p></p>') {
+                showToast('Title and content required.', false);
+                return;
+            }
+
+            try {
+                const resp = await fetch('/pastoral/vault/save_section_ajax', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const result = await resp.json();
+                if (result.status === 'success') {
+                    showToast('Saved to Vault!', true);
+                    bootstrap.Modal.getInstance(saveVaultModal).hide();
+                } else {
+                    showToast(result.message || 'Save failed.', false);
+                }
+            } catch (e) {
+                showToast('Network error.', false);
+            }
+        });
+
+        // INSERT FROM VAULT – rebuilt for safety
         const insertVaultModal = document.getElementById('insertFromVaultModal');
         const searchInput = document.getElementById('vault-search-input');
         const resultsDiv = document.getElementById('vault-search-results');
 
-        let searchTimeout;
-        searchInput.addEventListener('input', () => {
-            clearTimeout(searchTimeout);
-            const q = searchInput.value.trim();
-            searchTimeout = setTimeout(() => {
-                if (q.length < 2) {
-                    resultsDiv.innerHTML = '<div class="col-12 text-center text-muted">Type at least 2 characters to search...</div>';
+        const performVaultSearch = async (q = '') => {
+            resultsDiv.innerHTML = '<div class="col-12 text-center py-4"><div class="spinner-border text-cyan" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+
+            try {
+                let url = '/pastoral/vault/search_ajax?limit=50';
+                if (q) url += `&q=${encodeURIComponent(q)}`;
+
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+                const data = await resp.json();
+                const items = data.items || [];
+
+                if (items.length === 0) {
+                    resultsDiv.innerHTML = '<div class="col-12 text-center text-muted py-4">No vault items found</div>';
                     return;
                 }
 
-                fetch(`{{ url_for('pastoral.vault.search_ajax') }}?q=${encodeURIComponent(q)}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.items.length === 0) {
-                        resultsDiv.innerHTML = '<div class="col-12 text-center text-muted">No results found</div>';
-                        return;
+                resultsDiv.innerHTML = items.map(item => {
+                    // Robust tags handling
+                    let tagList = [];
+                    if (Array.isArray(item.tags)) {
+                        tagList = item.tags;
+                    } else if (typeof item.tags === 'string' && item.tags.trim()) {
+                        try {
+                            tagList = JSON.parse(item.tags);
+                            if (!Array.isArray(tagList)) tagList = [];
+                        } catch {
+                            tagList = item.tags.split(',').map(t => t.trim()).filter(t => t);
+                        }
                     }
 
-                    resultsDiv.innerHTML = data.items.map(item => `
-                        <div class="col-md-6">
-                            <div class="card glass-card h-100 cursor-pointer" data-item='${JSON.stringify(item).replace(/'/g, "&#39;")}'>
+                    const itemData = JSON.stringify(item).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+
+                    return `
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card glass-card h-100">
                                 <div class="card-body d-flex flex-column">
-                                    <h6 class="text-cyan">${item.title || 'Untitled'}</h6>
-                                    ${item.reference ? `<p class="small text-muted mb-2">${item.reference}</p>` : ''}
-                                    <div class="flex-grow-1 overflow-hidden" style="max-height: 100px;">${item.content}</div>
-                                    ${item.tags && item.tags.length ? `<div class="mt-2">${item.tags.map(t => `<span class="badge bg-secondary me-1">${t}</span>`).join('')}</div>` : ''}
-                                    <button class="btn btn-sm btn-outline-cyan mt-3 insert-vault-item">Insert After Current Section</button>
+                                    <h6 class="text-cyan mb-1">${item.title || 'Untitled'}</h6>
+                                    <div class="small text-muted mb-2">
+                                        ${item.section_type || ''}${item.scripture_reference ? ' · ' + item.scripture_reference : ''}
+                                    </div>
+                                    ${tagList.length ? '<div class="small text-info mb-2">' + tagList.join(', ') + '</div>' : ''}
+                                    <div class="flex-grow-1 overflow-auto small text-white-50" style="max-height: 120px;">
+                                        ${item.content || '<em>No content</em>'}
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-cyan mt-3 w-100 insert-vault-btn"
+                                            data-item='${itemData}'>
+                                        <i class="fas fa-plus me-1"></i>Insert Section
+                                    </button>
                                 </div>
                             </div>
                         </div>
-                    `).join('');
-                });
-            }, 300);
+                    `;
+                }).join('');
+            } catch (e) {
+                console.error('Vault load error:', e);
+                resultsDiv.innerHTML = '<div class="col-12 text-danger py-4">Failed to load vault items – check console</div>';
+            }
+        };
+
+        insertVaultModal.addEventListener('show.bs.modal', () => {
+            searchInput.value = '';
+            performVaultSearch('');
         });
 
+        searchInput.addEventListener('input', () => performVaultSearch(searchInput.value.trim()));
+
         resultsDiv.addEventListener('click', e => {
-            if (e.target.classList.contains('insert-vault-item')) {
-                const card = e.target.closest('.card');
-                const item = JSON.parse(card.dataset.item);
+            const btn = e.target.closest('.insert-vault-btn');
+            if (!btn) return;
 
-                const template = document.querySelector('.section-card[data-template]').cloneNode(true);
-                template.removeAttribute('data-template');
-                template.removeAttribute('style');
+            try {
+                const item = JSON.parse(btn.dataset.item);
 
-                template.querySelector('.section-type').value = 'point';
-                template.querySelector('.section-title').value = item.title || '';
-                template.querySelector('.section-scripture').value = item.reference || '';
-                template.querySelector('.section-source-url').value = '';
-                template.querySelector('.section-notes').value = item.notes || '';
+                const template = document.querySelector('.section-card[data-template]');
+                if (!template) return;
 
-                const quillEl = template.querySelector('.quill-editor');
-                quillEl.innerHTML = item.content || '';
+                const newCard = template.cloneNode(true);
+                newCard.removeAttribute('data-template');
+                newCard.style.display = '';
 
-                new Quill(quillEl, {
-                    theme: 'snow',
-                    modules: {
-                        toolbar: [
-                            [{'header': [1, 2, 3, false]}],
-                            ['bold', 'italic', 'underline'],
-                            [{'list': 'ordered'}, {'list': 'bullet'}],
-                            ['link'],
-                            ['clean']
-                        ]
+                newCard.querySelector('.section-type').value = item.section_type || 'point';
+                newCard.querySelector('.section-title').value = item.title || '';
+                newCard.querySelector('.section-scripture').value = item.scripture_reference || '';
+                newCard.querySelector('.section-source').value = item.source_url || item.source || '';
+                newCard.querySelector('.section-notes').value = item.notes || '';
+
+                let tagList = [];
+                if (Array.isArray(item.tags)) {
+                    tagList = item.tags;
+                } else if (typeof item.tags === 'string' && item.tags.trim()) {
+                    try {
+                        tagList = JSON.parse(item.tags);
+                    } catch {
+                        tagList = item.tags.split(',').map(t => t.trim()).filter(t => t);
                     }
-                });
-
-                if (currentCard && currentCard.nextElementSibling) {
-                    container.insertBefore(template, currentCard.nextElementSibling);
-                } else {
-                    container.appendChild(template);
                 }
+                newCard.querySelector('.section-vault-tags').value = tagList.join(', ');
+
+                const quillEl = newCard.querySelector('.quill-editor');
+                quillEl.innerHTML = item.content || '';
+                container.appendChild(newCard);
+                initQuill(quillEl);
 
                 updateAllHeaders();
+                markDirty();
                 bootstrap.Modal.getInstance(insertVaultModal).hide();
-                alert('Section inserted from Vault!');
+                showToast('Section inserted from Vault!', true);
+            } catch (err) {
+                console.error('Insert error:', err);
+                showToast('Failed to insert section.', false);
             }
         });
 
-        resultsDiv.innerHTML = '<div class="col-12 text-center text-muted">Start typing to search...</div>';
+        // Collaborators
+        document.getElementById('add-collaborator-btn').addEventListener('click', () => {
+            const select = document.getElementById('collaborator-select');
+            const userId = select.value;
+            const userName = select.options[select.selectedIndex].text;
+            if (!userId) return;
 
-        // Main sermon save
-        document.getElementById('save-btn').addEventListener('click', () => {
-            const sections = [];
-            document.querySelectorAll('.section-card:not([data-template])').forEach((card, i) => {
-                const quill = Quill.find(card.querySelector('.quill-editor'));
-                sections.push({
-                    sort_order: i + 1,
-                    section_type: card.querySelector('.section-type').value,
-                    title: card.querySelector('.section-title').value.trim(),
-                    scripture_reference: card.querySelector('.section-scripture').value.trim(),
-                    source_url: card.querySelector('.section-source-url')?.value.trim() || '',
-                    content: quill ? quill.root.innerHTML : '',
-                    notes: card.querySelector('.section-notes').value.trim()
-                });
-            });
-            document.getElementById('sections-json').value = JSON.stringify(sections);
-            document.getElementById('sermon-form').submit();
+            const badge = document.createElement('span');
+            badge.className = 'badge bg-info text-dark';
+            badge.innerHTML = `${userName} <a href="#" class="text-dark ms-1 remove-collab" data-id="${userId}">×</a>`;
+            document.getElementById('collaborators-list').appendChild(badge);
+            select.value = '';
+            markDirty();
+        });
+
+        document.getElementById('collaborators-list').addEventListener('click', e => {
+            if (e.target.classList.contains('remove-collab')) {
+                e.preventDefault();
+                e.target.closest('.badge').remove();
+                markDirty();
+            }
         });
     });
 </script>

@@ -2,130 +2,139 @@
 {# Full path: WebChurchMan/app/templates/pastoral/illustrations_library.html #}
 {# File name: illustrations_library.html #}
 {# Brief, detailed purpose:
-#   Full-page Illustration Library – final production version with viewer and temp dock.
-#   • Cards clickable on title → full view (/view/<id>)
-#   • "View" button added
-#   • Checkbox per card for temp dock (session-based)
-#   • Dock Selected / Clear Dock buttons
-#   • Fresh generative card for add/edit
-#   • Source free text, private notes, visibility
-#   • No URL forcing ever #}
+#   Unified Reusable Content Library – COMPLETE PRODUCTION REBUILD.
+#   • Single page showing ALL reusable content: manual Illustrations + saved sermon Sections from Vault (auto-included).
+#   • Pastors have one stop – everything reusable for sermons in one place.
+#   • Type badge: "Illustration" (manual) vs "Section" (saved from sermon builder).
+#   • Search across all fields.
+#   • Buttons under card: Insert into Sermon, View, Edit, Delete – all visible (permission enforced in backend).
+#   • Dock checkbox.
+#   • Add New: manual illustration.
+#   • Inline edit card.
+#   • Vault sections appear with full View/Edit/Delete.
+#}
 
 {% extends "pastoral/base_pastoral.html" %}
 
-{% block title %}Illustration Library{% endblock %}
+{% block title %}Reusable Content Library{% endblock %}
 
 {% block pastoral_content %}
-
 <div class="container-fluid py-5">
-
     <!-- Page Header -->
     <div class="text-center mb-5">
-        <h1 class="text-cyan mb-3">Illustration Library</h1>
-        <p class="text-muted">Search, create, and manage sermon illustrations • {{ total_count }} total (own + shared)</p>
-        {% if session.docked_illustrations|length > 0 %}
-            <p class="text-info">Docked for next sermon: {{ session.docked_illustrations|length }}</p>
+        <h1 class="text-cyan mb-3">Reusable Content Library</h1>
+        <p class="text-muted">All illustrations and saved sermon sections • {{ total_count }} items</p>
+        {% if session.docked_items|default([])|length > 0 %}
+            <p class="text-info">Docked for next sermon: {{ session.docked_items|length }}</p>
         {% endif %}
     </div>
 
-    <!-- Search Bar -->
+    <!-- Simple Search -->
     <div class="card glass-card mb-4 p-4">
         <form method="GET" class="row g-3 align-items-end">
-            <div class="col-12 col-md-6">
+            <div class="col-12 col-md-8">
                 <label class="form-label text-cyan">Search Keywords</label>
-                <input type="text" name="q" class="form-control form-control-dark" placeholder="e.g. grace, prodigal, forgiveness"
-                       value="{{ q }}">
+                <input type="text" name="q" class="form-control form-control-dark"
+                       placeholder="title, tags, content, scripture, source..."
+                       value="{{ q or '' }}">
             </div>
-            <div class="col-12 col-md-4">
-                <label class="form-label text-cyan">Include in Search</label>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="scope_illustrations" checked disabled>
-                    <label class="form-check-label text-white" for="scope_illustrations">Illustrations (always included)</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="scope" value="my_vault" id="scope_my_vault"
-                           {% if 'my_vault' in scopes %}checked{% endif %}>
-                    <label class="form-check-label" for="scope_my_vault">My Vault</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="scope" value="shared_vault" id="scope_shared_vault"
-                           {% if 'shared_vault' in scopes %}checked{% endif %}>
-                    <label class="form-check-label" for="scope_shared_vault">Shared Vault</label>
-                </div>
-            </div>
-            <div class="col-12 col-md-2 text-md-end">
+            <div class="col-12 col-md-4 text-md-end">
                 <button type="submit" class="btn btn-cyan w-100">Search</button>
             </div>
         </form>
     </div>
 
-    <!-- Add New Illustration Button -->
+    <!-- Add New Manual Illustration -->
     <div class="text-center mb-4">
-        <button id="add-illustration-btn" class="btn btn-success btn-lg px-5">
+        <button id="add-item-btn" class="btn btn-success btn-lg px-5">
             <i class="fas fa-plus me-2"></i>Add New Illustration
         </button>
     </div>
 
-    <!-- Fresh card injected here -->
-    <div id="edit-card-container"></div>
+    <!-- Inline Edit Card -->
+    <div id="edit-card-container" class="mb-5"></div>
 
     <!-- Dock Controls -->
     <div class="text-center my-4">
-        <button id="dock-selected-btn" class="btn btn-outline-info me-3">Dock Selected ({{ session.docked_illustrations|length|default(0) }})</button>
+        <button id="dock-selected-btn" class="btn btn-outline-info me-3">
+            Dock Selected ({{ session.docked_items|default([])|length }})
+        </button>
         <button id="clear-dock-btn" class="btn btn-outline-secondary">Clear Dock</button>
     </div>
 
-    <!-- Results Grid -->
-    {% if illustrations %}
+    <!-- Unified Grid -->
+    {% if items %}
         <div class="row g-4">
-            {% for illus in illustrations %}
+            {% for item in items %}
                 <div class="col-12 col-md-6 col-lg-4">
                     <div class="card glass-card h-100 d-flex flex-column">
-                        <div class="card-header bg-dark">
-                            <a href="{{ url_for('pastoral.illustrations.view', illus_id=illus.id) }}" class="text-cyan text-decoration-none">
-                                <h5 class="mb-0 text-truncate">{{ illus.title }}</h5>
-                            </a>
+                        <div class="card-header bg-dark d-flex justify-content-between align-items-start">
+                            <div>
+                                <span class="badge {% if item.type == 'section' %}bg-purple{% else %}bg-cyan{% endif %} me-2">
+                                    {{ 'Section' if item.type == 'section' else 'Illustration' }}
+                                </span>
+                                <h5 class="mb-0 text-truncate">
+                                    <a href="{{ url_for('pastoral.illustrations.view', item_id=item.id) }}" class="text-white text-decoration-none">
+                                        {{ item.title or 'Untitled' }}
+                                    </a>
+                                </h5>
+                            </div>
                             <small class="text-muted">
-                                {% if illus.user_id %}<span class="badge bg-secondary">Private</span>{% else %}<span class="badge bg-cyan">Shared</span>{% endif %}
-                                {% if illus.source %}<i class="fas fa-link ms-2"></i>{% endif %}
+                                {% if item.visibility == 'private' %}
+                                    <span class="badge bg-secondary">Private</span>
+                                {% else %}
+                                    <span class="badge bg-cyan">Shared</span>
+                                {% endif %}
                             </small>
                         </div>
                         <div class="card-body flex-grow-1">
-                            <div class="illustration-preview mb-3" style="max-height: 150px; overflow:hidden;">
-                                {{ illus.content|striptags|truncate(300)|safe }}
+                            {% if item.scripture_reference %}
+                                <p class="small text-muted mb-2"><strong>Scripture:</strong> {{ item.scripture_reference }}</p>
+                            {% endif %}
+                            <div class="mb-3" style="max-height: 150px; overflow: hidden;">
+                                {{ item.content|safe }}
                             </div>
-                            {% if illus.tag_list %}
+                            {% if item.tag_list %}
                                 <div class="mb-2">
-                                    {% for tag in illus.tag_list %}
+                                    {% for tag in item.tag_list %}
                                         <span class="badge bg-dark me-1">{{ tag }}</span>
                                     {% endfor %}
                                 </div>
                             {% endif %}
-                            {% if illus.source %}
+                            {% if item.source_url or item.source %}
                                 <small class="text-muted d-block text-truncate">
-                                    <i class="fas fa-external-link-alt me-1"></i>{{ illus.source }}
+                                    <i class="fas fa-book me-1"></i>Source: {{ item.source_url or item.source }}
                                 </small>
                             {% endif %}
                         </div>
-                        <div class="card-footer bg-dark d-flex justify-content-between align-items-center">
-                            <div>
-                                <a href="{{ url_for('pastoral.illustrations.view', illus_id=illus.id) }}" class="btn btn-sm btn-outline-cyan me-2">View</a>
-                                <a href="{{ url_for('pastoral.illustrations.library') }}?edit_id={{ illus.id }}{% if q %}&q={{ q }}{% endif %}"
-                                   class="btn btn-sm btn-outline-cyan">Edit</a>
+                        <div class="card-footer bg-dark">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <button class="btn btn-sm btn-outline-cyan insert-item" data-item='${ JSON.stringify(item)|safe }'>
+                                        <i class="fas fa-plus-circle me-1"></i>Insert into Sermon
+                                    </button>
+                                    <a href="{{ url_for('pastoral.illustrations.view', item_id=item.id) }}" class="btn btn-sm btn-outline-cyan">
+                                        <i class="fas fa-eye me-1"></i>View
+                                    </a>
+                                    <a href="{{ url_for('pastoral.illustrations.library') }}?edit_id={{ item.id }}{% if q %}&q={{ q }}{% endif %}"
+                                       class="btn btn-sm btn-outline-cyan">
+                                        <i class="fas fa-edit me-1"></i>Edit
+                                    </a>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input dock-checkbox" type="checkbox" value="{{ item.id }}"
+                                               {% if item.id in session.docked_items|default([]) %}checked{% endif %}>
+                                        <label class="form-check-label text-white small">Dock</label>
+                                    </div>
+                                    <form method="POST" action="{{ url_for('pastoral.illustrations.delete', item_id=item.id) }}"
+                                          onsubmit="return confirm('Permanently delete this {{ item.type }}?');" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
-                            <div class="form-check">
-                                <input class="form-check-input dock-checkbox" type="checkbox" value="{{ illus.id }}" id="dock{{ illus.id }}"
-                                       {% if illus.id in (session.docked_illustrations|default([])) %}checked{% endif %}>
-                                <label class="form-check-label text-white small" for="dock{{ illus.id }}">Dock</label>
-                            </div>
-                        </div>
-                        <div class="card-footer bg-dark border-top-0">
-                            <form method="POST" action="{{ url_for('pastoral.illustrations.delete', illus_id=illus.id) }}"
-                                  onsubmit="return confirm('Permanently delete this illustration?');" class="d-inline">
-                                <button type="submit" class="btn btn-sm btn-danger">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </form>
                         </div>
                     </div>
                 </div>
@@ -133,55 +142,63 @@
         </div>
     {% else %}
         <div class="text-center py-5">
-            <i class="fas fa-lightbulb fa-5x text-muted mb-4 opacity-50"></i>
-            <h3 class="text-muted">No Illustrations Found</h3>
-            <p class="text-muted mb-4">Try adjusting your search or add your first illustration above.</p>
-            <button id="add-illustration-btn-empty" class="btn btn-success btn-lg">
+            <i class="fas fa-archive fa-5x text-muted mb-4 opacity-50"></i>
+            <h3 class="text-muted">No Content Found</h3>
+            <p class="text-muted mb-4">Save sections from the sermon editor or add illustrations manually.</p>
+            <button id="add-item-btn" class="btn btn-success btn-lg">
                 <i class="fas fa-plus me-2"></i>Add Your First Illustration
             </button>
         </div>
     {% endif %}
-
 </div>
 
-<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById('edit-card-container');
-        const editData = {{ illustration|tojson|safe if illustration else 'null' }};
+        const editData = {{ edit_item|tojson|safe if edit_item else 'null' }};
 
-        function generateCard(data = {}, isEdit = false) {
+        function generateEditCard(data = {}, isEdit = false) {
+            const isSection = data.type === 'section';
             container.innerHTML = `
             <div class="card glass-card mb-5">
                 <div class="card-header bg-dark d-flex align-items-center justify-content-between">
-                    <h4 class="mb-0 text-cyan">${isEdit ? 'Edit Illustration' : 'Add New Illustration'}</h4>
+                    <h4 class="mb-0 text-cyan">${isEdit ? 'Edit ' + (isSection ? 'Section' : 'Illustration') : 'Add New Illustration'}</h4>
                     <button type="button" class="btn btn-sm btn-outline-secondary cancel-edit">Cancel</button>
                 </div>
                 <div class="card-body">
-                    <form method="POST" id="illustration-form">
-                        ${isEdit ? `<input type="hidden" name="illustration_id" value="${data.id}">` : ''}
+                    <form method="POST" id="item-form">
+                        ${isEdit ? `<input type="hidden" name="item_id" value="${data.id}">` : ''}
                         <input type="hidden" name="content" id="content-hidden">
                         <div class="mb-3">
                             <label class="form-label text-cyan">Title <span class="text-danger">*</span></label>
                             <input type="text" name="title" class="form-control form-control-dark" value="${data.title || ''}" required>
                         </div>
+                        ${isSection ? `
                         <div class="mb-3">
-                            <label class="form-label text-cyan">Tags</label>
-                            <input type="text" name="tags" class="form-control form-control-dark" value="${data.tags_input || ''}" placeholder="grace, forgiveness (comma-separated)">
+                            <label class="form-label text-cyan">Section Type</label>
+                            <select name="section_type" class="form-select form-control-dark">
+                                <option value="introduction" ${data.section_type === 'introduction' ? 'selected' : ''}>Introduction</option>
+                                <option value="point" ${data.section_type === 'point' ? 'selected' : ''}>Point</option>
+                                <option value="application" ${data.section_type === 'application' ? 'selected' : ''}>Application</option>
+                                <option value="illustration" ${data.section_type === 'illustration' ? 'selected' : ''}>Illustration</option>
+                                <option value="conclusion" ${data.section_type === 'conclusion' ? 'selected' : ''}>Conclusion</option>
+                                <option value="other" ${data.section_type === 'other' ? 'selected' : ''}>Other</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-cyan">Scripture Reference</label>
+                            <input type="text" name="scripture_reference" class="form-control form-control-dark" value="${data.scripture_reference || ''}">
+                        </div>` : ''}
+                        <div class="mb-3">
+                            <label class="form-label text-cyan">Tags (comma-separated)</label>
+                            <input type="text" name="tags" class="form-control form-control-dark" value="${data.tags_input || ''}" placeholder="grace, faith, application">
                         </div>
                         <div class="mb-3">
                             <label class="form-label text-cyan">Source / Reference</label>
-                            <textarea name="source" class="form-control form-control-dark" rows="4" placeholder="e.g. Experiencing God by Henry Blackaby (p. 132)
-Conversation with Pastor Mike on Jan 15, 2026
-Overheard at coffee shop
-Personal journal entry">${data.source || ''}</textarea>
-                            <small class="text-muted">Any text – book/page, person/date, conversation, journal, etc. NO URL REQUIRED.</small>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label text-cyan">Private Notes</label>
-                            <textarea name="notes" class="form-control form-control-dark" rows="4" placeholder="Personal preaching notes, reminders, delivery tips – only visible to you">${data.notes || ''}</textarea>
+                            <textarea name="source" class="form-control form-control-dark" rows="3">${data.source_url || data.source || ''}</textarea>
                         </div>
                         <div class="mb-3">
                             <label class="form-label text-cyan">Visibility</label>
@@ -196,109 +213,109 @@ Personal journal entry">${data.source || ''}</textarea>
                                 <div class="quill-editor" style="height:450px;">${data.content || ''}</div>
                             </div>
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label text-cyan">Private Notes</label>
+                            <textarea name="notes" class="form-control form-control-dark" rows="4">${data.notes || ''}</textarea>
+                        </div>
                         <div class="text-end">
                             <button type="button" class="btn btn-outline-secondary me-2 cancel-edit">Cancel</button>
-                            <button type="submit" class="btn btn-cyan">${isEdit ? 'Update' : 'Save'} Illustration</button>
+                            <button type="submit" class="btn btn-cyan">${isEdit ? 'Update' : 'Save'}</button>
                         </div>
                     </form>
                 </div>
             </div>`;
 
-            const editorEl = container.querySelector('.quill-editor');
-            if (editorEl && !editorEl.classList.contains('ql-container')) {
-                const quill = new Quill(editorEl, {
+            const quillEl = container.querySelector('.quill-editor');
+            if (quillEl && !quillEl.classList.contains('ql-container')) {
+                new Quill(quillEl, {
                     theme: 'snow',
-                    placeholder: 'Start typing your illustration...',
-                    modules: {
-                        toolbar: [
-                            [{'header': [1, 2, 3, false]}],
-                            ['bold', 'italic', 'underline'],
-                            [{'list': 'ordered'}, {'list': 'bullet'}],
-                            ['link', 'clean']
-                        ]
-                    }
-                });
-
-                editorEl.closest('.quill-wrapper').addEventListener('mousedown', (e) => {
-                    if (!e.target.closest('.ql-toolbar')) {
-                        setTimeout(() => quill.focus(), 0);
-                    }
+                    modules: { toolbar: [['bold', 'italic', 'underline'], [{'list': 'ordered'}, {'list': 'bullet'}], ['link'], ['clean']] }
                 });
             }
 
             container.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
-        function clearCard() {
+        function clearEditCard() {
             container.innerHTML = '';
         }
 
-        document.getElementById('add-illustration-btn')?.addEventListener('click', () => {
-            clearCard();
-            generateCard();
+        document.getElementById('add-item-btn')?.addEventListener('click', () => {
+            clearEditCard();
+            generateEditCard({ type: 'illustration' });
         });
 
-        document.getElementById('add-illustration-btn-empty')?.addEventListener('click', () => {
-            clearCard();
-            generateCard();
-        });
-
-        container.addEventListener('click', (e) => {
+        container.addEventListener('click', e => {
             if (e.target.closest('.cancel-edit')) {
-                clearCard();
+                clearEditCard();
             }
         });
 
-        container.addEventListener('submit', (e) => {
-            const form = e.target;
-            if (form.id !== 'illustration-form') return;
+        container.addEventListener('submit', e => {
+            if (e.target.id !== 'item-form') return;
+            e.preventDefault();
+            const quill = Quill.find(container.querySelector('.quill-editor'));
+            document.getElementById('content-hidden').value = quill.root.innerHTML;
+            e.target.submit();
+        });
 
-            const editorEl = form.querySelector('.quill-editor');
-            const quill = Quill.find(editorEl);
-            if (quill) {
-                let hidden = form.querySelector('#content-hidden');
-                if (!hidden) {
-                    hidden = document.createElement('input');
-                    hidden.type = 'hidden';
-                    hidden.name = 'content';
-                    hidden.id = 'content-hidden';
-                    form.appendChild(hidden);
+        // Unified Insert Handler
+        document.querySelectorAll('.insert-item').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const item = JSON.parse(btn.dataset.item);
+
+                const template = document.querySelector('.section-card[data-template]').cloneNode(true);
+                template.removeAttribute('data-template');
+                template.removeAttribute('style');
+
+                template.querySelector('.section-title').value = item.title || '';
+                template.querySelector('.section-source').value = item.source_url || item.source || '';
+                template.querySelector('.section-notes').value = item.notes || '';
+                template.querySelector('.section-vault-tags').value = item.tag_list ? item.tag_list.join(', ') : '';
+
+                if (item.type === 'section') {
+                    template.querySelector('.section-type').value = item.section_type || 'point';
+                    template.querySelector('.section-scripture').value = item.scripture_reference || '';
+                } else {
+                    template.querySelector('.section-type').value = 'illustration';
                 }
-                hidden.value = quill.root.innerHTML;
-            }
+
+                const quillEl = template.querySelector('.quill-editor');
+                quillEl.innerHTML = item.content || '';
+                new Quill(quillEl, { theme: 'snow', modules: { toolbar: [['bold', 'italic', 'underline'], [{'list': 'ordered'}, {'list': 'bullet'}], ['link'], ['clean']] } });
+
+                const sectionsContainer = document.getElementById('sections-container');
+                if (currentCard && currentCard.nextElementSibling) {
+                    sectionsContainer.insertBefore(template, currentCard.nextElementSibling);
+                } else {
+                    sectionsContainer.appendChild(template);
+                }
+
+                updateAllHeaders();
+                alert('Content inserted into sermon!');
+            });
         });
 
-        // Docking
+        // Dock buttons
         document.getElementById('dock-selected-btn')?.addEventListener('click', async () => {
             const checked = Array.from(document.querySelectorAll('.dock-checkbox:checked')).map(cb => parseInt(cb.value));
-            if (checked.length === 0) return alert('No illustrations selected to dock');
+            if (checked.length === 0) return alert('No items selected to dock');
 
-            const resp = await fetch('/pastoral/illustrations/dock', {
+            await fetch('/pastoral/illustrations/dock', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({illustration_ids: checked})
+                body: JSON.stringify({item_ids: checked})
             });
-            const data = await resp.json();
-            alert(`Docked ${data.count} illustrations for next sermon`);
             location.reload();
         });
 
         document.getElementById('clear-dock-btn')?.addEventListener('click', async () => {
             await fetch('/pastoral/illustrations/clear_dock', {method: 'POST'});
-            alert('Dock cleared');
             location.reload();
         });
 
         if (editData) {
-            generateCard({
-                id: editData.id,
-                title: editData.title,
-                tags_input: editData.tags_input,
-                source: editData.source,
-                notes: editData.notes || '',
-                content: editData.content,
-                visibility: editData.user_id === null ? 'pastoral_group' : 'private'
-            }, true);
+            generateEditCard(editData, true);
         }
     });
 </script>

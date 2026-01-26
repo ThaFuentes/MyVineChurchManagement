@@ -6,8 +6,11 @@
 #   Displays all sermons visible to the current user (own + collaborators + pastoral_group).
 #   Responsive card grid with key details, visibility badges, and quick actions.
 #   Prominent "New Sermon" button, server-aware search/filter bar, and empty state handling.
-#   Delete uses POST form with JS confirmation.
-#   Fully rebuilt for consistency, smoothness, and correct endpoint usage. #}
+#   Delete button now works reliably: button wrapper uses position-relative + z-index:2 to sit above stretched-link layer.
+#   onclick="event.stopPropagation();" prevents fallback to edit on button clicks.
+#   Title remains clickable for edit.
+#   Fully rebuilt for consistency, smoothness, and correct endpoint usage.
+#}
 
 {% extends "pastoral/base_pastoral.html" %}
 
@@ -58,7 +61,7 @@
         <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
             {% for sermon in sermons %}
                 <div class="col">
-                    <div class="card glass-card h-100 shadow hover-lift transition">
+                    <div class="card glass-card h-100 shadow hover-lift transition position-relative">
                         <div class="card-body d-flex flex-column">
                             <!-- Visibility Badge -->
                             <div class="text-end mb-2">
@@ -71,7 +74,7 @@
                                 {% endif %}
                             </div>
 
-                            <!-- Title -->
+                            <!-- Title – clickable to edit -->
                             <h5 class="card-title mb-3">
                                 <a href="{{ url_for('pastoral.sermons.edit', sermon_id=sermon.id) }}"
                                    class="text-decoration-none text-white stretched-link">
@@ -93,28 +96,30 @@
                             <!-- Tags -->
                             {% if sermon.series_tags %}
                                 <div class="mb-3">
-                                    {% set tags = sermon.series_tags if sermon.series_tags is iterable and sermon.series_tags is not string else sermon.series_tags.split(',') %}
+                                    {% set tags = sermon.series_tags.split(',') if sermon.series_tags else [] %}
                                     {% for tag in tags %}
                                         <span class="badge bg-cyan text-dark me-1">{{ tag.strip() }}</span>
                                     {% endfor %}
                                 </div>
                             {% endif %}
 
-                            <!-- Action Buttons -->
-                            <div class="mt-auto d-grid gap-2 d-md-flex">
+                            <!-- Action Buttons – lifted above stretched-link -->
+                            <div class="mt-auto d-grid gap-2 d-md-flex justify-content-between position-relative"
+                                 style="z-index: 2;"
+                                 onclick="event.stopPropagation();">
                                 <a href="{{ url_for('pastoral.sermons.edit', sermon_id=sermon.id) }}"
-                                   class="btn btn-sm btn-outline-cyan flex-fill">Edit</a>
+                                   class="btn btn-sm btn-outline-cyan">Edit</a>
                                 <a href="{{ url_for('pastoral.podium.view', sermon_id=sermon.id) }}"
-                                   class="btn btn-sm btn-outline-cyan flex-fill" target="_blank">Podium</a>
+                                   class="btn btn-sm btn-outline-cyan" target="_blank">Podium</a>
                                 <a href="{{ url_for('pastoral.sermons_export.single', sermon_id=sermon.id) }}"
-                                   class="btn btn-sm btn-outline-cyan flex-fill">Export DOCX</a>
+                                   class="btn btn-sm btn-outline-cyan">Export DOCX</a>
 
                                 {% if sermon.created_by == session.user_id %}
                                     <form method="POST" action="{{ url_for('pastoral.sermons.delete', sermon_id=sermon.id) }}"
                                           class="d-inline"
                                           onsubmit="return confirm('Permanently delete «{{ sermon.title }}»? This cannot be undone.');">
                                         <button type="submit" class="btn btn-sm btn-danger">
-                                            <i class="fas fa-trash"></i>
+                                            <i class="fas fa-trash me-1"></i>Delete
                                         </button>
                                     </form>
                                 {% endif %}
@@ -140,12 +145,12 @@
 
 {% block extra_js %}
 <script>
-    // Client-side live search fallback (in case server-side filtering is not yet active)
+    // Client-side live search fallback
     const searchInput = document.querySelector('input[name="q"]');
     if (searchInput) {
         searchInput.addEventListener('input', function () {
             const term = this.value.toLowerCase();
-            document.querySelectorAll('.sermon-card, .card.glass-card').forEach(card => {
+            document.querySelectorAll('.card.glass-card').forEach(card => {
                 const text = card.textContent.toLowerCase();
                 const col = card.closest('.col');
                 if (col) col.style.display = text.includes(term) ? '' : 'none';

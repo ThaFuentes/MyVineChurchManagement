@@ -6,14 +6,16 @@
 #   Handles:
 #     - Fetching visible sermons (personal, collaborators, pastoral group)
 #     - Sermon CRUD (create, read, update, delete) with visibility enforcement
-#     - Sermon section management (structured, ordered content blocks) – now safely assigns sort_order if missing
+#     - Sermon section management (structured, ordered content blocks)
+#       • FULL REPLACE PATTERN: Delete all old sections → insert new ones (prevents accumulation of blanks/extras)
+#       • Safe sequential sort_order assignment if missing
+#       • All current fields preserved: title, section_type, scripture_reference, source (free text reference), content, notes
 #     - Collaborator management (add/remove users who can edit)
-#   Visibility is strictly enforced at query level.
-#   Routes handle audit logging (log_change) and censorship checks separately.
+#   Visibility strictly enforced at query level.
+#   Routes handle audit logging and censorship checks separately.
 #   Uses DictCursor for consistent dict results.
 #   Parameterized queries for MariaDB / PyMySQL safety.
-#   FULL REBUILD: Complete, production-ready version.
-#   FIXED: save_sermon_sections assigns sequential sort_order if not provided (prevents IntegrityError when JS misses it).
+#   PRODUCTION-READY: Complete, stable version with permanent fix for extra sections and source field.
 
 import pymysql
 from app.models.db import get_db
@@ -134,7 +136,7 @@ def create_sermon(data, user_id):
         data.get('title'),
         data.get('preacher_id'),
         data.get('primary_passage'),
-        data.get('service_date'),
+        data.get('service_date') or None,
         data.get('visibility', 'private'),
         data.get('header_text'),
         data.get('footer_text'),
@@ -172,7 +174,10 @@ def update_sermon(sermon_id, data, user_id):
             sql += f"{field} = %s, "
             params.append(data[field])
 
-    sql += "updated_at = CURRENT_TIMESTAMP WHERE id = %s AND created_by = %s"
+    if not params:
+        return  # Nothing to update
+
+    sql = sql.rstrip(', ') + " WHERE id = %s AND created_by = %s"
     params.extend([sermon_id, user_id])
 
     cur.execute(sql, params)
@@ -181,7 +186,7 @@ def update_sermon(sermon_id, data, user_id):
 
 def delete_sermon(sermon_id):
     """
-    Permanently delete a sermon (and cascade-dependent sections/collaborators via DB constraints).
+    Permanently delete a sermon (cascades to sections/collaborators via DB constraints).
 
     Args:
         sermon_id (int): ID of sermon to delete
@@ -194,7 +199,7 @@ def delete_sermon(sermon_id):
 
 
 # ----------------------------------------------------------------------
-# Sermon Sections – FIXED: Assigns sort_order if missing
+# Sermon Sections – FULL REPLACE + source field
 # ----------------------------------------------------------------------
 def get_sermon_sections(sermon_id):
     """
@@ -210,7 +215,9 @@ def get_sermon_sections(sermon_id):
     cur = db.cursor(pymysql.cursors.DictCursor)
 
     cur.execute("""
-        SELECT * FROM sermon_sections
+        SELECT id, sort_order, section_type, title, content,
+               scripture_reference, source, notes
+        FROM sermon_sections
         WHERE sermon_id = %s
         ORDER BY sort_order
     """, (sermon_id,))
@@ -220,36 +227,39 @@ def get_sermon_sections(sermon_id):
 
 def save_sermon_sections(sermon_id, sections_list):
     """
-    Replace all existing sections for a sermon with a new ordered list.
-    Assigns sequential sort_order if not provided (prevents null error).
+    FULL REPLACE: Delete all existing sections → insert new ones.
+    Prevents accumulation of blank/extra sections forever.
+    Assigns sequential sort_order if missing.
+    Includes source field (free text reference – books, conversations, etc.).
 
     Args:
         sermon_id (int): Sermon to update
-        sections_list (list[dict]): Each dict may have sort_order, section_type, title, content, etc.
+        sections_list (list[dict]): New sections from frontend
     """
     db = get_db()
     cur = db.cursor()
 
-    # Clear existing sections
+    # CRITICAL: Delete ALL old sections first – fixes extra blanks permanently
     cur.execute("DELETE FROM sermon_sections WHERE sermon_id = %s", (sermon_id,))
 
-    # Insert new ones with safe sort_order
+    # Insert new sections
     for i, sec in enumerate(sections_list):
-        sort_order = sec.get('sort_order') or (i + 1)  # Use provided or assign sequential
+        sort_order = sec.get('sort_order') or (i + 1)  # Safe sequential fallback
+
         cur.execute("""
             INSERT INTO sermon_sections (
                 sermon_id, sort_order, section_type, title, content,
-                scripture_reference, illustration_id, notes
+                scripture_reference, source, notes
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             sermon_id,
             sort_order,
             sec.get('section_type', 'point'),
-            sec.get('title'),
-            sec.get('content'),
-            sec.get('scripture_reference'),
-            sec.get('illustration_id'),
-            sec.get('notes')
+            sec.get('title', ''),
+            sec.get('content', ''),
+            sec.get('scripture_reference', ''),
+            sec.get('source', ''),      # Free text source/reference – saved correctly
+            sec.get('notes', '')
         ))
 
     db.commit()
@@ -266,13 +276,14 @@ def get_collaborators(sermon_id):
         sermon_id (int): Sermon ID
 
     Returns:
-        list[dict]: Collaborator user details (id, username, first_name, last_name)
+        list[dict]: Collaborator user details
     """
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
 
     cur.execute("""
-        SELECT sc.user_id, u.username, u.first_name, u.last_name
+        SELECT sc.user_id AS id, u.username, u.first_name, u.last_name,
+               CONCAT(u.first_name, ' ', u.last_name) AS full_name
         FROM sermon_collaborators sc
         JOIN users u ON sc.user_id = u.id
         WHERE sc.sermon_id = %s
@@ -283,12 +294,12 @@ def get_collaborators(sermon_id):
 
 def add_collaborator(sermon_id, user_id, added_by):
     """
-    Add a user as a collaborator on a sermon (idempotent via IGNORE).
+    Add a user as collaborator (idempotent).
 
     Args:
-        sermon_id (int): Sermon to share
-        user_id (int): User to add as collaborator
-        added_by (int): Who performed the action (for audit)
+        sermon_id (int): Sermon ID
+        user_id (int): User to add
+        added_by (int): Who added them (audit)
     """
     db = get_db()
     cur = db.cursor()
@@ -303,11 +314,11 @@ def add_collaborator(sermon_id, user_id, added_by):
 
 def remove_collaborator(sermon_id, user_id):
     """
-    Remove a collaborator from a sermon.
+    Remove a collaborator.
 
     Args:
         sermon_id (int): Sermon ID
-        user_id (int): Collaborator to remove
+        user_id (int): User to remove
     """
     db = get_db()
     cur = db.cursor()
