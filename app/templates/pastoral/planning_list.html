@@ -2,65 +2,95 @@
 {# Full path: WebChurchMan/app/templates/pastoral/planning_list.html #}
 {# File name: planning_list.html #}
 {# Brief, detailed purpose:
-#   Service Planning overview – clean, responsive list of all service plans.
-#   NOW: Full clickable calendar (current + next 11 months) where ANY date can be clicked to create/edit a plan.
-#   Prominent "Create Plan for Any Date" date picker at top for quick custom dates (e.g., 4th of July, mid-week Bible study).
-#   No longer Sunday-only – any day of any month is supported.
-#   Table with date & time, title, linked sermon, creator, edit, delete.
-#   Empty state encouragement.
-#   Fully rebuilt for flexibility, smoothness, and dark/cyan theme. #}
+#   Service Planning overview – clean, responsive list of upcoming effective services (template fallback + overrides).
+#   • Prominent links to manage Global Default Role Assignments and Recurring Templates console.
+#   • Date picker + full clickable calendar strip (current + next 11 months).
+#   • Table shows upcoming effective plans (next year) — master changes visible immediately for plain weeks.
+#   • Source badge: Template (blue) or Override (green).
+#   • Calendar marks overrides (green badge).
+#   • Clear explanations: master templates control plain weeks.
+#   • Empty state if no templates/overrides.
+#   • FULL REBUILD: Matches new route with upcoming_plans — master changes show instantly.
+#   • Refresh button in templates list cleans legacy identical overrides. #}
 
 {% extends "pastoral/base_pastoral.html" %}
 
-{% block title %}Service Planning{% endblock %}
+{% block title %}Upcoming Services{% endblock %}
 
 {% block pastoral_content %}
 <div class="container-fluid py-5">
-    <!-- Create Plan for Any Date – Prominent at top -->
-    <div class="card glass-card mb-5 p-4">
-        <h4 class="text-cyan mb-4">Create or Edit Plan for Any Date</h4>
+
+    <!-- System Overview Card -->
+    <div class="card glass-card mb-5 p-4 shadow-sm">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h4 class="text-cyan mb-3">Recurring System – Master Templates</h4>
+                <p class="text-muted mb-0">
+                    Regular weekly services are managed centrally in <strong>Recurring Templates</strong>.<br>
+                    Edit a template once → instantly affects every future plain week.<br>
+                    Dated overrides are for special events only.
+                </p>
+            </div>
+            <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+                <a href="{{ url_for('pastoral.planning.templates_list') }}" class="btn btn-success btn-lg shadow me-3">
+                    <i class="fas fa-calendar-week me-2"></i>Manage Templates
+                </a>
+                <a href="{{ url_for('pastoral.planning.defaults') }}" class="btn btn-cyan btn-lg shadow">
+                    <i class="fas fa-cog me-2"></i>Global Defaults
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Access -->
+    <div class="card glass-card mb-5 p-4 shadow-sm">
+        <h4 class="text-cyan mb-4">Quick Access – Go to Any Date</h4>
         <div class="row g-3 align-items-end">
             <div class="col-md-4">
-                <label class="form-label">Select Date</label>
+                <label for="custom-date-picker" class="form-label text-light">Select Date</label>
                 <input type="date" class="form-control form-control-dark" id="custom-date-picker" value="{{ today.strftime('%Y-%m-%d') }}">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <button type="button" class="btn btn-success w-100" onclick="let d=document.getElementById('custom-date-picker').value; if(d) window.location='/pastoral/planning/edit/'+d;">
-                    <i class="fas fa-plus me-2"></i>Go to Date / Create Plan
+                    <i class="fas fa-edit me-2"></i>Edit / Create Plan
                 </button>
             </div>
-            <div class="col-md-5">
+            <div class="col-md-4">
                 <small class="text-muted">
-                    Pick any date – perfect for special events (4th of July), mid-week services (Wednesday Bible study), Friday youth nights, Saturday outreach, etc.<br>
-                    If a plan already exists for that date, it will open for editing.
+                    Switch to any date for special events or overrides.
                 </small>
             </div>
         </div>
     </div>
 
-    <!-- Full Clickable Calendar Strip (current month + next 11 for full year coverage) -->
-    <div class="card glass-card mb-5">
+    <!-- Clickable Calendar Strip -->
+    <div class="card glass-card mb-5 shadow-sm">
         <div class="card-body p-4">
-            <h5 class="text-cyan mb-4">Click Any Date to Create/Edit Plan</h5>
-            <div class="d-flex overflow-x-auto gap-4 pb-2">
+            <h5 class="text-cyan mb-4">Clickable Calendar – Jump to Any Date</h5>
+            <div class="d-flex overflow-x-auto gap-4 pb-3">
                 {% for month in calendar_months %}
-                    <div class="mini-calendar text-center flex-shrink-0">
+                    <div class="mini-calendar text-center flex-shrink-0 border border-secondary rounded p-3 bg-dark">
                         <h6 class="mb-3 text-cyan">{{ month.name }} {{ month.year }}</h6>
-                        <div class="d-grid" style="grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 0.9rem;">
-                            {# Weekday headers #}
-                            <div class="text-muted small">Sun</div><div class="text-muted small">Mon</div><div class="text-muted small">Tue</div>
-                            <div class="text-muted small">Wed</div><div class="text-muted small">Thu</div><div class="text-muted small">Fri</div><div class="text-muted small">Sat</div>
+                        <div class="d-grid" style="grid-template-columns: repeat(7, 1fr); gap: 6px; font-size: 0.9rem;">
+                            <div class="text-muted small fw-bold">S</div>
+                            <div class="text-muted small fw-bold">M</div>
+                            <div class="text-muted small fw-bold">T</div>
+                            <div class="text-muted small fw-bold">W</div>
+                            <div class="text-muted small fw-bold">T</div>
+                            <div class="text-muted small fw-bold">F</div>
+                            <div class="text-muted small fw-bold">S</div>
+
                             {% for day in month.days %}
                                 {% if day.date %}
                                     {% set date_str = day.date.strftime('%Y-%m-%d') %}
                                     <a href="{{ url_for('pastoral.planning.edit', date_str=date_str) }}" class="text-decoration-none">
-                                        <div class="p-2 rounded {{ 'bg-cyan text-dark fw-bold' if date_str in planned_dates else 'bg-dark border border-secondary' }} position-relative" style="min-height: 50px;">
-                                            <div>{{ day.day }}</div>
-                                            {% if date_str in planned_dates %}
-                                                <span class="position-absolute bottom-0 end-0 badge bg-success rounded-pill small">●</span>
+                                        <div class="p-2 rounded position-relative {{ 'bg-cyan text-dark fw-bold shadow-sm' if day.has_override else 'bg-secondary' }} border" style="min-height: 60px;">
+                                            <div class="fw-bold">{{ day.day }}</div>
+                                            {% if day.has_override %}
+                                                <small class="position-absolute bottom-0 start-50 translate-middle-x badge bg-success rounded-pill">Override</small>
                                             {% endif %}
                                             {% if day.date == today %}
-                                                <small class="d-block text-warning">Today</small>
+                                                <small class="d-block text-warning mt-1">Today</small>
                                             {% endif %}
                                         </div>
                                     </a>
@@ -72,67 +102,73 @@
                     </div>
                 {% endfor %}
             </div>
-            <small class="text-muted d-block mt-3">Scroll horizontally for more months • Click any date (past/future) to create or edit a plan</small>
+            <small class="text-muted d-block mt-3">
+                Scroll horizontally • Dates with overrides show green badge • Plain weeks use latest master template.
+            </small>
         </div>
     </div>
 
-    <!-- Existing Plans Table -->
-    {% if plans %}
-        <div class="card glass-card">
-            <div class="card-body">
-                <h4 class="text-cyan mb-4">{{ plans|length }} Planned Service{{ 's' if plans|length != 1 else '' }}</h4>
-                <table class="table table-dark table-hover">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Start Time</th>
-                            <th>Title</th>
-                            <th>Linked Sermon</th>
-                            <th>Creator</th>
-                            <th class="text-end">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for plan in plans %}
+    <!-- Upcoming Effective Services Table -->
+    <div class="card glass-card shadow-sm">
+        <div class="card-body">
+            <h4 class="text-cyan mb-4">Upcoming Services (Next Year)</h4>
+
+            {% if upcoming_plans %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0">
+                        <thead>
                             <tr>
-                                <td>{{ plan.service_date.strftime('%a, %b %d, %Y') }}</td>
-                                <td>{{ plan.start_time.strftime('%H:%M') if plan.start_time else '—' }}</td>
-                                <td>{{ plan.title or '<em class="text-muted">Untitled Plan</em>'|safe }}</td>
-                                <td>
-                                    {% if plan.linked_sermon_title %}
-                                        <a href="{{ url_for('pastoral.sermons.edit', sermon_id=plan.pastoral_sermon_id) }}" class="text-cyan">
-                                            {{ plan.linked_sermon_title }}
-                                        </a>
-                                    {% else %}
-                                        <em class="text-muted">None</em>
-                                    {% endif %}
-                                </td>
-                                <td>{{ plan.creator_name }}</td>
-                                <td class="text-end">
-                                    <a href="{{ url_for('pastoral.planning.edit', date_str=plan.service_date.strftime('%Y-%m-%d')) }}"
-                                       class="btn btn-sm btn-outline-cyan me-2">
-                                        <i class="fas fa-edit me-1"></i>Edit
-                                    </a>
-                                    <form method="POST" action="{{ url_for('pastoral.planning.delete', date_str=plan.service_date.strftime('%Y-%m-%d')) }}"
-                                          class="d-inline" onsubmit="return confirm('Permanently delete plan for {{ plan.service_date.strftime('%B %d, %Y') }}?');">
-                                        <button type="submit" class="btn btn-sm btn-danger">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </form>
-                                </td>
+                                <th>Date</th>
+                                <th>Source</th>
+                                <th>Title</th>
+                                <th>Start Time</th>
+                                <th>Linked Sermon</th>
+                                <th class="text-end">Actions</th>
                             </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                            {% for plan in upcoming_plans %}
+                                <tr>
+                                    <td>{{ plan.service_date.strftime('%A, %B %d, %Y') }}</td>
+                                    <td>
+                                        <span class="badge {{ plan.source_class }}">{{ plan.source_badge }}</span>
+                                    </td>
+                                    <td>{{ plan.title or '<em class="text-muted">Untitled</em>'|safe }}</td>
+                                    <td>{{ plan.start_time.strftime('%I:%M %p')|lower if plan.start_time else '—' }}</td>
+                                    <td>
+                                        {% if plan.linked_sermon_title %}
+                                            <a href="{{ url_for('pastoral.sermons.edit', sermon_id=plan.pastoral_sermon_id) }}" class="text-cyan text-decoration-underline">
+                                                {{ plan.linked_sermon_title }}
+                                            </a>
+                                        {% else %}
+                                            —
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="{{ url_for('pastoral.planning.edit', date_str=plan.service_date.strftime('%Y-%m-%d')) }}"
+                                           class="btn btn-sm btn-outline-cyan">
+                                            <i class="fas fa-edit me-1"></i>Edit / View
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-calendar-times fa-5x text-muted mb-4 opacity-50"></i>
+                    <h3 class="text-muted">No Upcoming Services</h3>
+                    <p class="text-muted mb-4">
+                        Create recurring templates to see upcoming services here.
+                    </p>
+                    <a href="{{ url_for('pastoral.planning.templates_list') }}" class="btn btn-success btn-lg">
+                        <i class="fas fa-calendar-week me-2"></i>Manage Templates
+                    </a>
+                </div>
+            {% endif %}
         </div>
-    {% else %}
-        <!-- Empty State -->
-        <div class="text-center py-5">
-            <i class="fas fa-calendar-alt fa-5x text-muted mb-4 opacity-50"></i>
-            <h3 class="text-muted">No Service Plans Yet</h3>
-            <p class="text-muted mb-4">Use the date picker or calendar above to create your first plan on any date.</p>
-        </div>
-    {% endif %}
+    </div>
+
 </div>
 {% endblock %}

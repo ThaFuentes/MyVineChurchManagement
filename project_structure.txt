@@ -17,7 +17,7 @@ app/builddb/inventory.py: 51 lines (dynamically loaded by builddb.py)
 app/builddb/kiosk_sessions.py: 33 lines (dynamically loaded by builddb.py)
 app/builddb/member_roles.py: 26 lines (dynamically loaded by builddb.py)
 app/builddb/online_donation_options.py: 15 lines (dynamically loaded by builddb.py)
-app/builddb/pastoral.py: 118 lines (imported 2 times)
+app/builddb/pastoral.py: 124 lines (imported 2 times)
 app/builddb/prayers.py: 62 lines (dynamically loaded by builddb.py)
 app/builddb/prophecies.py: 36 lines (dynamically loaded by builddb.py)
 app/builddb/recurring_bills.py: 59 lines (dynamically loaded by builddb.py)
@@ -39,7 +39,7 @@ app/models/pastoral/bible.py: 42 lines (imported 3 times)
 app/models/pastoral/care.py: 64 lines (imported 2 times)
 app/models/pastoral/illustrations.py: 31 lines (imported 3 times)
 app/models/pastoral/sermons.py: 74 lines (imported 6 times)
-app/models/pastoral/service_plans.py: 108 lines (imported 6 times)
+app/models/pastoral/service_plans.py: 109 lines (imported 6 times)
 app/models/pastoral/shared.py: 14 lines (imported 5 times)
 app/models/pastoral/vault.py: 49 lines (imported 4 times)
 app/models/settings.py: 29 lines (imported 4 times)
@@ -62,7 +62,7 @@ app/routes/pastoral/ai_assistant.py: 122 lines (imported 1 time, defines routes)
 app/routes/pastoral/bible.py: 74 lines (imported 3 times, defines routes, defines blueprint)
 app/routes/pastoral/care.py: 127 lines (imported 2 times, defines routes, defines blueprint)
 app/routes/pastoral/illustrations.py: 167 lines (imported 3 times, defines routes, defines blueprint)
-app/routes/pastoral/planning.py: 28 lines (imported 1 time, defines routes, defines blueprint)
+app/routes/pastoral/planning.py: 30 lines (imported 1 time, defines routes, defines blueprint)
 app/routes/pastoral/podium.py: 28 lines (imported 1 time, defines routes, defines blueprint)
 app/routes/pastoral/sermons_core.py: 25 lines (imported 1 time, defines routes, defines blueprint)
 app/routes/pastoral/sermons_export.py: 114 lines (imported 1 time, defines routes, defines blueprint)
@@ -91,7 +91,7 @@ app/utils/permissions.py: 18 lines (possibly unused)
 app/utils/time_utils.py: 35 lines (imported 10 times)
 main.py: 9 lines (entry point)
 
-TOTAL EXECUTABLE PYTHON LINES: 7036
+TOTAL EXECUTABLE PYTHON LINES: 7045
 
 
 USAGE ANALYSIS
@@ -105,7 +105,7 @@ Possibly unused Python files:
  - app/models/pastoral/__init__.py
  - app/utils/permissions.py
 
-TEMPLATES (in app/templates): 97/122 appear referenced
+TEMPLATES (in app/templates): 98/122 appear referenced
 
 Possibly unused templates:
  - app/templates/announcements/edit_annoucement.html
@@ -127,14 +127,13 @@ Possibly unused templates:
  - app/templates/log/delete_record.html
  - app/templates/members/members_dashboard.html
  - app/templates/pastoral/illustration_edit_card.html
- - app/templates/pastoral/planning_defaults.html
  - app/templates/pastoral/sermon_section_partial.html
  - app/templates/prayers/add_prayer.html
  - app/templates/prayers/prayers.html
  - app/templates/prayers/prayers_dashboard.html
  - app/templates/sermons/sermons.html
 
-STATIC FILES (in static): 21/58 appear referenced
+STATIC FILES (in static): 21/64 appear referenced
 
 Possibly unused static files:
  - static/css/global/components.css
@@ -146,6 +145,7 @@ Possibly unused static files:
  - static/css/old/events/events_forms.css
  - static/css/old/events/events_pages.css
  - static/css/old/settings/general.css
+ - static/images/Gemini_Generated_Image_spfe7xspfe7xspfe.png
  - static/images/Login.png
  - static/images/Login2.png
  - static/images/announcements.png
@@ -158,15 +158,20 @@ Possibly unused static files:
  - static/images/dreams.png
  - static/images/event.png
  - static/images/event2.png
+ - static/images/illustrations1.png
  - static/images/img.png
  - static/images/img_1.png
  - static/images/members_directory.png
  - static/images/members_directory1.png
  - static/images/members_directory2.png
  - static/images/members_directory3.png
+ - static/images/podium1.png
  - static/images/prayer.png
  - static/images/profile_background.png
  - static/images/prophecies.png
+ - static/images/serivice_plans.png
+ - static/images/serivice_plans22.png
+ - static/images/sermons1.png
  - static/images/settings_background.png
  - static/images/setup.png
  - static/js/global/pastoral/bible.js
@@ -502,7 +507,9 @@ Root: myvinechurchonline/
 │   │   ├── event.png
 │   │   ├── event2.png
 │   │   ├── export.png
+│   │   ├── Gemini_Generated_Image_spfe7xspfe7xspfe.png
 │   │   ├── illustrations.png
+│   │   ├── illustrations1.png
 │   │   ├── img.png
 │   │   ├── img_1.png
 │   │   ├── Login.png
@@ -513,10 +520,14 @@ Root: myvinechurchonline/
 │   │   ├── members_directory3.png
 │   │   ├── planning.png
 │   │   ├── podium.png
+│   │   ├── podium1.png
 │   │   ├── prayer.png
 │   │   ├── profile_background.png
 │   │   ├── prophecies.png
+│   │   ├── serivice_plans.png
+│   │   ├── serivice_plans22.png
 │   │   ├── sermons.png
+│   │   ├── sermons1.png
 │   │   ├── settings_background.png
 │   │   └── setup.png
 │   ├── js/
@@ -635,7 +646,7 @@ Purpose: Creates the online_donation_options table. Stores multiple configurable
 ===========================================================
 File: app/builddb/pastoral.py
 Path: myvinechurchonline/app/builddb/pastoral.py
-Purpose: Creates and safely migrates ALL database tables for the Pastoral Area module (full comprehensive rebuild). Includes every table and column that has ever been part of the Pastoral Area design. Nothing is removed – this is the longest, most complete version that preserves every historical and planned field. Matches exact style of existing builddb modules: explicit CREATE TABLE IF NOT EXISTS, safe column additions for migrations, idempotent constraints/indexes via safe_exec. ALL IDs/FKs use INT UNSIGNED to match typical users.id (unsigned for larger positive range). REMOVED: Drop tables block – this was wiping all your saved plans on every app restart! Now data persists between runs – your saved plans will stay and appear in the list. NEW: Added default_service_plan_assignments table for global default role assignments (pre-fill new plans). UPDATED: Added start_time and worship_start_time to service_plans with safe migration. UPDATED: Added source TEXT column to sermon_sections (free-text reference – books, conversations, etc.). UPDATED (Vault ↔ Sermon Integration): Fully aligned pastoral_vault schema with sermon sections for lossless round-trip. - Added title (required), section_type, scripture_reference, source_url - visibility → ENUM with strict values - user_id → NULLable (NULL = shared with pastoral_group) - Removed legacy restrictive 'type' column/constraint - Safe migrations preserve existing data (title populated from legacy fields where possible) NEW: After all tables are created, automatically seed recurring Sunday service plans (next 52 weeks).
+Purpose: Creates and safely migrates ALL database tables for the Pastoral Area module (full comprehensive rebuild). Includes every table and column that has ever been part of the Pastoral Area design. Nothing is removed – this is the longest, most complete version that preserves every historical and planned field. Matches exact style of existing builddb modules: explicit CREATE TABLE IF NOT EXISTS, safe column additions for migrations, idempotent constraints/indexes via safe_exec. ALL IDs/FKs use INT UNSIGNED to match typical users.id (unsigned for larger positive range). REMOVED: Drop tables block – this was wiping all your saved plans on every app restart! Now data persists between runs – your saved plans will stay and appear in the list. NEW: Added service_templates and service_template_assignments tables for central permanent recurring masters. • One row per recurring service type (Sunday Morning, etc.) • Change once → instantly affects all future matching weekdays • service_plans preserved for dated overrides/special events NEW: Global default role assignments (pre-fill new templates & overrides) UPDATED: start_time and worship_start_time on both tables REMOVED: Old 52-week row generation – replaced with single default Sunday template seed if none exists All previous tables/columns preserved exactly.
 
 ===========================================================
 File: app/builddb/prayers.py
@@ -745,7 +756,7 @@ Purpose: All database operations related to the Sermon Builder module. Handles: 
 ===========================================================
 File: app/models/pastoral/service_plans.py
 Path: myvinechurchonline/app/models/pastoral/service_plans.py
-Purpose: All database operations related to Service Planning module. Handles: - Listing all service plans with creator and linked sermon info – UPCOMING FIRST (next closest at top) - Fetching a single plan by exact date - Creating or updating a plan (true upsert: UPDATE if exists, INSERT if new) - Managing role assignments for a plan (full replace pattern: delete then insert) - Returning the next upcoming service (real plan or fallback recurring Sunday with defaults) - Seeding recurring Sunday plans for the next 52 weeks (idempotent, fully editable/deletable rows) Now fully supports start_time and worship_start_time columns with sensible defaults (10:00 / 10:15). UPDATED: Normalizes start_time / worship_start_time if PyMySQL returns timedelta (rare edge case for TIME columns) NEW: Global default role assignments – pre-fill new plans, overridable per week No visibility enforcement needed (pastoral group only via routes/decorator). Routes handle audit logging (log_change) and input validation/censorship separately. Uses DictCursor for consistent dict results. Parameterized queries for MariaDB / PyMySQL safety.
+Purpose: All database operations related to Service Planning module – FULL REBUILD for permanent recurring templates. NEW SIMPLE & CLEAN STRUCTURE: • service_templates: Central permanent recurring masters (Sunday Morning, Wednesday Night, etc.) - One row per recurring service type - No service_date – applies to all matching weekdays unless overridden - Title, notes, times, linked sermon, role assignments all stored here - Change once → instantly affects every future display of that weekday • service_plans: Individual dated overrides/special events only (much fewer rows) • get_plan_for_date(date_str): Returns dated override if exists, ELSE matching template • Templates matched by weekday (0-6) only – simple, no complex recurrence rules • Global defaults still exist – pre-fill when creating new templates or dated overrides • Removed old 52-week seeding – now seeds one default Sunday template if none exists • get_upcoming_service(): Safe wrapper using get_plan_for_date for next date (plan or template) This gives true "central place – change once, updates all" for recurring services. Overrides still possible via dated plans. Delete template anytime. Uses DictCursor for consistent dict results. Parameterized queries for MariaDB / PyMySQL safety.
 
 ===========================================================
 File: app/models/pastoral/shared.py
@@ -885,7 +896,7 @@ Purpose: Routes and Blueprint for the UNIFIED Reusable Content Library (pastoral
 ===========================================================
 File: app/routes/pastoral/planning.py
 Path: myvinechurchonline/app/routes/pastoral/planning.py
-Purpose: Blueprint for Service Planning within the Pastoral Area. Provides: - /planning/ → list all service plans (upcoming first – next closest at top) - /planning/edit/<date_str> → view/edit/create a plan by date (upsert behavior) - /planning/assignments/<int:plan_id> → AJAX endpoint to get/save role assignments - /planning/delete/<date_str> → POST delete a service plan (with assignment cleanup) All routes require @pastoral_required() Delegates all DB work to app/models/pastoral/service_plans.py Passes next_sunday_str, service_date (date object), today, assignable_users (Pastoral Group members), linkable_sermons (visible sermons for dropdown), and assignments (existing role assignments) Now fully supports start_time and worship_start_time editing with defaults (10:00 / 10:15) RECURRENCE LOGIC: - count > 0: create exactly that many future plans (limited series) - count = 0: ongoing main service mode – always maintain 70 future instances (~1.3 years weekly) ahead from TODAY On every save with count=0, it checks from today and adds missing plans to reach 70 This keeps main services always ~1.3 years ahead with no extra work – pastor just saves when updating (e.g., roles) No cron needed – buffer topped up on normal saves FUTURE COUNT DISPLAY: Shows how many future weekly plans exist and last date (for main weekly series) Everything preserved from original code – no features lost, only enhanced for busy pastors Endpoints: pastoral.planning.index, pastoral.planning.edit, pastoral.planning.delete Fully rebuilt for consistency, correctness, and smoothness.
+Purpose: Blueprint for Service Planning within the Pastoral Area. Provides: - /planning/ → list all service plans (upcoming first – next closest at top) - /planning/edit/<date_str> → view/edit/create a plan by date (upsert behavior) - /planning/defaults → global default role assignments management (pre-fill every new plan) - /planning/assignments/<int:plan_id> → AJAX endpoint to get/save role assignments - /planning/delete/<date_str> → POST delete a service plan (with assignment cleanup) All routes require @pastoral_required() Delegates all DB work to app/models/pastoral/service_plans.py NEW: Integrates global default role assignments – new plans (including manually created and recurring seeded) automatically pre-fill with defaults (e.g., Preacher = Tim/user_id=1) RECURRENCE LOGIC preserved and enhanced: ongoing weekly buffer (count=0) maintains ~1.3 years ahead from today Fully rebuilt for consistency, correctness, and smoothness.
 
 ===========================================================
 File: app/routes/pastoral/podium.py

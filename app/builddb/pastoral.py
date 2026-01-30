@@ -9,25 +9,25 @@
 #   ALL IDs/FKs use INT UNSIGNED to match typical users.id (unsigned for larger positive range).
 #   REMOVED: Drop tables block – this was wiping all your saved plans on every app restart!
 #     Now data persists between runs – your saved plans will stay and appear in the list.
-#   NEW: Added default_service_plan_assignments table for global default role assignments (pre-fill new plans).
-#   UPDATED: Added start_time and worship_start_time to service_plans with safe migration.
-#   UPDATED: Added source TEXT column to sermon_sections (free-text reference – books, conversations, etc.).
-#   UPDATED (Vault ↔ Sermon Integration): Fully aligned pastoral_vault schema with sermon sections for lossless round-trip.
-#     - Added title (required), section_type, scripture_reference, source_url
-#     - visibility → ENUM with strict values
-#     - user_id → NULLable (NULL = shared with pastoral_group)
-#     - Removed legacy restrictive 'type' column/constraint
-#     - Safe migrations preserve existing data (title populated from legacy fields where possible)
-#   NEW: After all tables are created, automatically seed recurring Sunday service plans (next 52 weeks).
+#   NEW: Added service_templates and service_template_assignments tables for central permanent recurring masters.
+#        • One row per recurring service type (Sunday Morning, etc.)
+#        • Change once → instantly affects all future matching weekdays
+#   • service_plans preserved for dated overrides/special events
+#   NEW: Global default role assignments (pre-fill new templates & overrides)
+#   UPDATED: start_time and worship_start_time on both tables
+#   NEW: Added forced_notes TEXT to service_templates – critical lines that must appear in every plan.
+#   REMOVED: Old 52-week row generation – replaced with single default Sunday template seed if none exists
+#   All previous tables/columns preserved exactly.
 
-from app.models.pastoral.service_plans import seed_recurring_sunday_plans
+from app.models.pastoral.service_plans import seed_default_sunday_template
+
 
 def create_tables(cursor):
     """
     Creates/updates all Pastoral Area tables (full rebuild – preserves every column and table).
     Safe for both fresh DB creation and migration of existing databases.
     Tables are created in dependency order to avoid FK constraint errors (errno 150).
-    At the very end, seeds recurring Sunday plans so they are always present.
+    At the very end, seeds default Sunday template if none exists.
     """
 
     print("Starting FULL Pastoral Area database setup (comprehensive rebuild – nothing removed)...")
@@ -68,7 +68,7 @@ def create_tables(cursor):
             header_text      TEXT,
             footer_text      TEXT,
             conclusion_text  TEXT,
-            series_tags      TEXT,                          -- JSON string
+            series_tags      TEXT,
             notes            TEXT,
             created_by       INT UNSIGNED NOT NULL,
             created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -109,7 +109,7 @@ def create_tables(cursor):
             title      TEXT NOT NULL,
             content    TEXT NOT NULL,
             source     TEXT,
-            tags       TEXT,                                -- JSON string
+            tags       TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -125,7 +125,7 @@ def create_tables(cursor):
             title                TEXT,
             content              TEXT,
             scripture_reference  TEXT,
-            source               TEXT,                           -- free-text reference (books, conversations, etc.)
+            source               TEXT,
             illustration_id      INT UNSIGNED,
             notes                TEXT,
             FOREIGN KEY (sermon_id) REFERENCES pastoral_sermons(id) ON DELETE CASCADE,
@@ -139,7 +139,44 @@ def create_tables(cursor):
         print("  Migration: Adding column 'source' (TEXT) to sermon_sections")
         safe_exec(cursor, "ALTER TABLE sermon_sections ADD COLUMN source TEXT AFTER scripture_reference")
 
-    # 5. Service plans – with start_time and worship_start_time
+    # NEW: Permanent recurring service templates (central "main plan")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS service_templates (
+            id                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            title               TEXT NOT NULL,
+            notes               TEXT,
+            forced_notes        TEXT,
+            start_time          TIME,
+            worship_start_time  TIME,
+            pastoral_sermon_id  INT UNSIGNED,
+            weekday             TINYINT UNSIGNED NOT NULL,
+            created_by          INT UNSIGNED NOT NULL,
+            created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (pastoral_sermon_id) REFERENCES pastoral_sermons(id) ON DELETE SET NULL,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    # Safe migration: Add forced_notes if missing
+    cursor.execute("SHOW COLUMNS FROM service_templates LIKE 'forced_notes'")
+    if not cursor.fetchone():
+        print("  Migration: Adding column 'forced_notes' (TEXT) to service_templates")
+        safe_exec(cursor, "ALTER TABLE service_templates ADD COLUMN forced_notes TEXT AFTER notes")
+
+    # NEW: Template assignments
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS service_template_assignments (
+            id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            template_id     INT UNSIGNED NOT NULL,
+            role_name       TEXT NOT NULL,
+            user_id         INT UNSIGNED,
+            FOREIGN KEY (template_id) REFERENCES service_templates(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    # 5. Dated service plans – overrides/special events only
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS service_plans (
             id                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -157,7 +194,7 @@ def create_tables(cursor):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
-    # Safe migration for new time columns
+    # Safe migration for time columns on service_plans
     cursor.execute("SHOW COLUMNS FROM service_plans LIKE 'start_time'")
     if not cursor.fetchone():
         print("  Migration: Adding column 'start_time' to service_plans")
@@ -168,7 +205,7 @@ def create_tables(cursor):
         print("  Migration: Adding column 'worship_start_time' to service_plans")
         safe_exec(cursor, "ALTER TABLE service_plans ADD COLUMN worship_start_time TIME AFTER start_time")
 
-    # 6. Service plan assignments
+    # 6. Dated plan assignments
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS service_plan_assignments (
             id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -181,7 +218,7 @@ def create_tables(cursor):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
-    # NEW: Global default role assignments (pre-fill new plans)
+    # NEW: Global default role assignments (pre-fill new templates & dated overrides)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS default_service_plan_assignments (
             id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -191,7 +228,20 @@ def create_tables(cursor):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
-    # 7–10. Remaining tables (unchanged)
+    # Seed default Preacher if table empty
+    cursor.execute("SELECT COUNT(*) FROM default_service_plan_assignments")
+    row = cursor.fetchone()
+    if row and row[0] == 0:
+        print("  Seeding default Preacher (user_id=1)")
+        try:
+            cursor.execute("""
+                INSERT INTO default_service_plan_assignments (role_name, user_id)
+                VALUES ('Preacher', 1)
+            """)
+        except Exception as e:
+            print(f"    Warning: Could not seed default Preacher: {e}")
+
+    # 7–11. Remaining tables (unchanged)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sermon_collaborators (
             sermon_id  INT UNSIGNED NOT NULL,
@@ -242,12 +292,12 @@ def create_tables(cursor):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS pastoral_vault (
             id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            user_id              INT UNSIGNED NULL,                      -- NULL = shared with pastoral_group
+            user_id              INT UNSIGNED NULL,
             title                TEXT NOT NULL,
             content              TEXT NOT NULL,
-            reference            TEXT,                                   -- legacy free-text field (kept for compatibility)
+            reference            TEXT,
             notes                TEXT,
-            tags                 TEXT,                                   -- JSON array string
+            tags                 TEXT,
             section_type         VARCHAR(50) DEFAULT 'point',
             scripture_reference  TEXT,
             source_url           TEXT,
@@ -258,8 +308,8 @@ def create_tables(cursor):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
-    # Safe migration: align existing pastoral_vault with new schema (preserves all existing data)
-    print("  Migration: Updating pastoral_vault for full sermon ↔ vault integration...")
+    # Safe migration for pastoral_vault
+    print("  Migration: Updating pastoral_vault schema...")
     cursor.execute("""
         ALTER TABLE pastoral_vault
             MODIFY COLUMN IF EXISTS user_id INT UNSIGNED NULL,
@@ -270,7 +320,6 @@ def create_tables(cursor):
             ADD COLUMN IF NOT EXISTS source_url TEXT
     """)
 
-    # Populate title for any legacy rows (prefer existing reference or first part of content)
     cursor.execute("""
         UPDATE pastoral_vault
         SET title = COALESCE(title, reference, LEFT(content, 200), 'Untitled Legacy Item')
@@ -278,7 +327,6 @@ def create_tables(cursor):
     """)
     cursor.execute("ALTER TABLE pastoral_vault MODIFY COLUMN title TEXT NOT NULL")
 
-    # Clean up legacy restrictive column/constraints no longer needed
     safe_exec(cursor, "ALTER TABLE pastoral_vault DROP CONSTRAINT IF EXISTS chk_vault_type")
     safe_exec(cursor, "ALTER TABLE pastoral_vault DROP CONSTRAINT IF EXISTS chk_vault_visibility")
     safe_exec(cursor, "ALTER TABLE pastoral_vault DROP COLUMN IF EXISTS type")
@@ -296,12 +344,14 @@ def create_tables(cursor):
     safe_exec(cursor, "CREATE INDEX IF NOT EXISTS idx_sermon_edits_sermon ON sermon_edits(sermon_id)")
 
     print("FULL Pastoral Area database setup complete – all tables and columns preserved and migrated.")
-    print("sermon_sections now includes 'source' TEXT column for free-text references.")
-    print("pastoral_vault remains fully aligned for lossless round-trip with sermon sections.\n")
+    print("Added service_templates + service_template_assignments for central recurring masters.")
+    print("Added forced_notes TEXT to service_templates for critical forced lines.")
+    print("service_plans preserved for dated overrides.")
+    print("Old 52-week seeding removed – now seeds one default Sunday template if none exist.\n")
 
-    # NEW: Seed recurring Sunday plans (safe, idempotent, runs every init)
-    print("Seeding recurring Sunday service plans (next 52 weeks)...")
-    seed_recurring_sunday_plans(weeks_ahead=52)
+    # NEW: Seed default Sunday template if none exist
+    print("Seeding default Sunday template (if needed)...")
+    seed_default_sunday_template()
 
 
 # Helper – silently ignore duplicate/already-exists errors
