@@ -4,7 +4,7 @@
 <!-- Brief, detailed purpose: Common base template for ALL Events module pages (dashboard, add, edit, view).
    Exact mirror of base_donations.html / base_announcements.html / base_dreams.html → identical glassmorphism wrapper, menu, flash handling.
    NO module-specific CSS – uses only global classes.
-   Menu: Events Dashboard (always) + Add Event (only with manage_events permission). -->
+   Menu: Events Dashboard (always) + Add Event (only for Staff/Admin/Owner). -->
 
 {% extends "base.html" %}
 
@@ -33,7 +33,7 @@
             <a {% if request.endpoint == 'events.events' %}class="active"{% endif %}
                href="{{ url_for('events.events') }}">Events Dashboard</a>
 
-            {% if user_has_permission('manage_events') %}
+            {% if session.user_role in ['Staff', 'Admin', 'Owner'] %}
                 <a {% if request.endpoint in ['events.add_event', 'events.edit_event'] %}class="active"{% endif %}
                    href="{{ url_for('events.add_event') }}">Add Event</a>
             {% endif %}

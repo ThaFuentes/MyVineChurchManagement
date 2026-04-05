@@ -1,10 +1,12 @@
 <!-- app/templates/donations/add_donation.html -->
 <!-- Full path: WebChurchMan/app/templates/donations/add_donation.html -->
 <!-- File name: add_donation.html -->
-<!-- Brief, detailed purpose: Rebuilt Add Donation form – now extends base_donations.html for perfect consistency with Events/Announcements.
-   Uses ONLY global classes (.styled-form, .form-group, .btn-primary, etc.) – no module-specific CSS.
-   Preserves all original functionality: live member search (auto-fill name/phone), business toggle + EIN, quid pro quo, compliance info.
-   Clean spacing, high readability, dark/cyan theme. -->
+<!-- Brief, detailed purpose: Rebuilt Add Donation form – extends base_donations.html for consistency.
+   ONLY global classes.
+   Member search auto-fills name + phone.
+   Business EIN toggle, quid pro quo, compliance info.
+   Full repopulation on error/validation/censorship.
+   Route-protected (Staff+) – no permission conditional needed. -->
 
 {% extends "donations/base_donations.html" %}
 
@@ -12,12 +14,11 @@
 
 {% block page_description %}
 Record a new donation. Use member search for existing members (auto-fills name & phone).<br>
-Manual entry allowed for guests, organizations, or businesses (optional Company EIN available).
+Manual entry for guests/organizations (optional Company EIN).
 {% endblock %}
 
 {% block donations_content %}
 
-{% if user_has_permission('manage_donations') %}
 <section class="content-section">
     <h2 class="section-title">Record Donation</h2>
 
@@ -29,50 +30,53 @@ Manual entry allowed for guests, organizations, or businesses (optional Company 
             <div id="member-results" class="table-wrapper" style="margin-top:0.5rem;"></div>
             <p class="help-text">
                 Click input to show all • Type to filter • Click result to auto-fill Name & Phone.<br>
-                For guests/businesses, leave blank and enter manually below.
+                For guests/businesses, leave blank and enter manually.
             </p>
         </div>
 
         <!-- Donor Name -->
         <div class="form-group">
             <label for="name" class="control-label">Donor Name <span class="required">*</span></label>
-            <input type="text" id="name" name="name" class="form-input" required placeholder="Exact member name or company/guest name">
-            <p class="help-text">Exact member name enables phone/address on receipts.</p>
+            <input type="text" id="name" name="name" class="form-input" required
+                   value="{{ request.form.get('name', '') }}" placeholder="Member name or company/guest">
+            <p class="help-text">Exact member name enables accurate receipts.</p>
         </div>
 
-        <!-- Donor Phone -->
+        <!-- Donor Phone (readonly, filled by search) -->
         <div class="form-group">
             <label for="donor_phone" class="control-label">Donor / Contact Phone (optional)</label>
-            <input type="tel" id="donor_phone" name="donor_phone" class="form-input" placeholder="(555) 123-4567">
+            <input type="tel" id="donor_phone" class="form-input" readonly
+                   value="{{ request.form.get('donor_phone', '') }}" placeholder="(555) 123-4567">
             <p class="help-text">Auto-filled for members • Useful for follow-up.</p>
         </div>
 
-        <!-- Business Toggle -->
+        <!-- Business Toggle + EIN -->
         <div class="form-group">
             <label>
-                <input type="checkbox" id="is_business" name="is_business">
+                <input type="checkbox" id="is_business" name="is_business" {% if request.form.get('is_business') %}checked{% endif %}>
                 This is a business/corporate donation
             </label>
-            <p class="help-text">Check to show Company EIN field.</p>
         </div>
 
-        <!-- Company EIN -->
-        <div id="business-fields" class="form-group" style="display:none;">
+        <div id="business-fields" class="form-group" style="display:{% if request.form.get('is_business') %}block{% else %}none{% endif %};">
             <label for="company_ein" class="control-label">Company EIN / Tax ID (optional)</label>
-            <input type="text" id="company_ein" name="company_ein" class="form-input" placeholder="e.g., 12-3456789">
-            <p class="help-text">For corporate receipts – copy to Notes if needed for permanent record.</p>
+            <input type="text" id="company_ein" name="company_ein" class="form-input"
+                   value="{{ request.form.get('company_ein', '') }}" placeholder="e.g., 12-3456789">
+            <p class="help-text">Appended to notes for permanent record.</p>
         </div>
 
         <!-- Amount -->
         <div class="form-group">
             <label for="amount" class="control-label">Amount <span class="required">*</span></label>
-            <input type="number" id="amount" name="amount" class="form-input" step="0.01" min="0.01" required placeholder="0.00">
+            <input type="number" id="amount" name="amount" class="form-input" step="0.01" min="0.01" required
+                   value="{{ request.form.get('amount', '') }}" placeholder="0.00">
         </div>
 
         <!-- Date -->
         <div class="form-group">
             <label for="date" class="control-label">Date <span class="required">*</span></label>
-            <input type="date" id="date" name="date" class="form-input" required value="{{ today }}">
+            <input type="date" id="date" name="date" class="form-input" required
+                   value="{{ request.form.get('date', today) }}">
         </div>
 
         <!-- Method -->
@@ -80,38 +84,38 @@ Manual entry allowed for guests, organizations, or businesses (optional Company 
             <label for="method" class="control-label">Method <span class="required">*</span></label>
             <select id="method" name="method" class="form-input" required>
                 <option value="">-- Select Method --</option>
-                <option value="Cash">Cash</option>
-                <option value="Check">Check</option>
-                <option value="Online">Online</option>
-                <option value="Bank Transfer">Bank Transfer</option>
-                <option value="Other">Other</option>
+                <option value="Cash" {% if request.form.get('method') == 'Cash' %}selected{% endif %}>Cash</option>
+                <option value="Check" {% if request.form.get('method') == 'Check' %}selected{% endif %}>Check</option>
+                <option value="Online" {% if request.form.get('method') == 'Online' %}selected{% endif %}>Online</option>
+                <option value="Bank Transfer" {% if request.form.get('method') == 'Bank Transfer' %}selected{% endif %}>Bank Transfer</option>
+                <option value="Other" {% if request.form.get('method') == 'Other' %}selected{% endif %}>Other</option>
             </select>
         </div>
 
         <!-- Confirmation Number -->
         <div class="form-group">
             <label for="confirmation_number" class="control-label">Confirmation / Check # (optional)</label>
-            <input type="text" id="confirmation_number" name="confirmation_number" class="form-input" placeholder="e.g., Check #1234 or Transaction ID">
-            <p class="help-text">Appears on contribution receipts.</p>
+            <input type="text" id="confirmation_number" name="confirmation_number" class="form-input"
+                   value="{{ request.form.get('confirmation_number', '') }}" placeholder="e.g., Check #1234">
         </div>
 
         <!-- Notes -->
         <div class="form-group">
             <label for="notes" class="control-label">Notes (optional)</label>
-            <textarea id="notes" name="notes" rows="5" placeholder="Dedication, memo, or additional details (e.g., Company EIN)..."></textarea>
+            <textarea id="notes" name="notes" rows="5" class="form-input">{{ request.form.get('notes', '') }}</textarea>
         </div>
 
         <!-- Quid Pro Quo -->
         <div class="form-group">
             <label>
-                <input type="checkbox" name="goods_services_provided" value="1">
+                <input type="checkbox" name="goods_services_provided" value="1" {% if request.form.get('goods_services_provided') %}checked{% endif %}>
                 Goods or services were provided in exchange
             </label>
-            <p class="help-text">Check only for quid pro quo → adjusts IRS statement on receipt.</p>
+            <p class="help-text">Adjusts IRS statement on receipt.</p>
         </div>
 
         <!-- Compliance Info -->
-        <div class="content-section compliance-info" style="background:var(--bg-card-glass); padding:2rem; border-radius:var(--radius-medium); margin-top:2rem;">
+        <div class="content-section compliance-info glass" style="margin-top:2rem;">
             <h3 class="section-title">Receipt Compliance Information</h3>
             <p><strong>{{ church_info.church_name or 'MyVineChurch.Online' }}</strong></p>
             {% if church_info.address %}
@@ -125,10 +129,10 @@ Manual entry allowed for guests, organizations, or businesses (optional Company 
             {% endif %}
 
             <p class="statement">
-                <strong>Standard IRS Statement (on receipts):</strong><br>
+                <strong>Standard IRS Statement:</strong><br>
                 "No goods or services were provided in exchange for your contribution, other than intangible religious benefits."
             </p>
-            <p><em>If goods/services checked, statement adjusts accordingly.</em></p>
+            <p><em>If goods/services checked, statement adjusts.</em></p>
         </div>
 
         <!-- Actions -->
@@ -149,12 +153,12 @@ Manual entry allowed for guests, organizations, or businesses (optional Company 
   const businessCheckbox = document.getElementById('is_business');
   const businessFields = document.getElementById('business-fields');
 
-  // Business toggle
+  // Business toggle + persistence
   businessCheckbox.addEventListener('change', () => {
     businessFields.style.display = businessCheckbox.checked ? 'block' : 'none';
   });
 
-  // Member search results
+  // Member search – now fills phone too
   function showResults(filtered) {
     resultsDiv.innerHTML = '';
     if (filtered.length === 0) {
@@ -204,9 +208,4 @@ Manual entry allowed for guests, organizations, or businesses (optional Company 
   });
 </script>
 
-{% else %}
-<div class="flash info">
-    You do not have permission to add donation records.
-</div>
-{% endif %}
 {% endblock %}

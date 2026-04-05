@@ -1,57 +1,63 @@
 <!-- app/templates/donations/export_donations.html -->
 <!-- Full path: WebChurchMan/app/templates/donations/export_donations.html -->
 <!-- File name: export_donations.html -->
-<!-- Brief, detailed purpose: Export Donations page – extends base_donations.html for full consistency with other Donations pages.
-   Provides clean, spacious form to select year and export type, then generate/download.
-   Uses ONLY global classes (.styled-form, .form-group, .btn-primary, etc.) – no module-specific CSS.
-   Permission-gated, centered layout matching add_donation.html style. -->
+<!-- Brief, detailed purpose: Export Donations page – extends base_donations.html.
+   Select year and generate individual receipts (DOCX per member) or yearly summary (single DOCX).
+   ONLY global classes. Route-protected (Admin/Owner). -->
 
 {% extends "donations/base_donations.html" %}
 
 {% block page_title %}Export Donations{% endblock %}
 
 {% block page_description %}
-Generate and download donation reports or statements (yearly tax receipts, full CSV, summary PDF).<br>
-Select year and export type below, then click Generate & Download.
+Generate individual contribution receipts or yearly summary for tax purposes.<br>
+Select year below and click Generate.
 {% endblock %}
 
 {% block donations_content %}
 
-{% if user_has_permission('view_donations') or user_has_permission('manage_donations') %}
 <section class="content-section">
     <h2 class="section-title">Export Options</h2>
 
-    <form method="GET" action="{{ url_for('donations.export_page') }}" class="styled-form" style="max-width:800px; margin:0 auto;">
+    <!-- Individual Receipts -->
+    <form method="POST" action="{{ url_for('donations.export_individual') }}" class="styled-form" style="max-width:900px; margin:2rem auto;">
+        <h3 class="section-subtitle">Individual Contribution Receipts (DOCX per member)</h3>
+        <p class="help-text">Generates separate receipt for each donor with itemized donations.</p>
+
         <div class="form-group">
-            <label for="export-year" class="control-label">Year <span class="required">*</span></label>
-            <select name="year" id="export-year" class="form-input" required>
+            <label for="year-individual" class="control-label">Year <span class="required">*</span></label>
+            <select name="year" id="year-individual" class="form-input" required>
                 <option value="">-- Select Year --</option>
                 {% for y in years %}
                     <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
                 {% endfor %}
             </select>
-            <p class="help-text">Choose the calendar year for the export.</p>
-        </div>
-
-        <div class="form-group">
-            <label for="export-type" class="control-label">Export Type <span class="required">*</span></label>
-            <select name="type" id="export-type" class="form-input" required>
-                <option value="full_csv">Full Donations CSV (all records for year)</option>
-                <option value="yearly_statements">Yearly Member Statements (DOCX)</option>
-                <option value="summary_pdf">Summary Report (PDF)</option>
-            </select>
-            <p class="help-text">Select the desired format and scope.</p>
         </div>
 
         <div class="form-actions">
-            <button type="submit" class="btn-primary">Generate & Download</button>
+            <button type="submit" class="btn-primary">Generate Individual Receipts</button>
+        </div>
+    </form>
+
+    <!-- Yearly Summary -->
+    <form method="POST" action="{{ url_for('donations.export_yearly') }}" class="styled-form" style="max-width:900px; margin:2rem auto;">
+        <h3 class="section-subtitle">Yearly Contribution Summary (single DOCX)</h3>
+        <p class="help-text">Generates one document with all donors and totals for the year.</p>
+
+        <div class="form-group">
+            <label for="year-yearly" class="control-label">Year <span class="required">*</span></label>
+            <select name="year" id="year-yearly" class="form-input" required>
+                <option value="">-- Select Year --</option>
+                {% for y in years %}
+                    <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Generate Yearly Summary</button>
         </div>
     </form>
 </section>
-{% else %}
-<div class="flash info">
-    You do not have permission to export donation records.
-</div>
-{% endif %}
 
 {% endblock %}

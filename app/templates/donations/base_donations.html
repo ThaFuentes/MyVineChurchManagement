@@ -2,11 +2,10 @@
 <!-- Full path: WebChurchMan/app/templates/donations/base_donations.html -->
 <!-- File name: base_donations.html -->
 <!-- Brief, detailed purpose: Common base template for ALL Donations module pages (dashboard, add, view all, reports, export).
-   Exact mirror of base_events.html and base_announcements.html → identical glassmorphism wrapper, flash handling, menu structure.
+   Exact mirror of base_events.html → identical glassmorphism wrapper, flash handling, menu structure.
    NO module-specific CSS – uses only global classes.
-   Menu limited to core Donations links (Dashboard + Add Donation) with permission gating.
-   Additional links (View All, Reports, Export) are kept but shown only with proper permission – consistent conditional pattern.
-   Cross-module links (Members, Church Info) removed to match Events/Announcements simplicity (they belong in global nav if needed). -->
+   Menu: Dashboard (always, route restricted to Staff+) + Add Donation/View All (Staff+) + Reports/Export (Admin/Owner).
+   Active highlighting for all endpoints. -->
 
 {% extends "base.html" %}
 
@@ -35,15 +34,15 @@
             <a {% if request.endpoint == 'donations.donations_dashboard' %}class="active"{% endif %}
                href="{{ url_for('donations.donations_dashboard') }}">Dashboard</a>
 
-            {% if user_has_permission('manage_donations') %}
+            {% if session.user_role in ['Staff', 'Admin', 'Owner'] %}
                 <a {% if request.endpoint == 'donations.add_donation' %}class="active"{% endif %}
                    href="{{ url_for('donations.add_donation') }}">Add Donation</a>
-            {% endif %}
 
-            {% if user_has_permission('view_donations') or user_has_permission('manage_donations') %}
                 <a {% if request.endpoint == 'donations.view_all_donations' %}class="active"{% endif %}
                    href="{{ url_for('donations.view_all_donations') }}">View All</a>
+            {% endif %}
 
+            {% if session.user_role in ['Admin', 'Owner'] %}
                 <a {% if request.endpoint == 'donations.reports' %}class="active"{% endif %}
                    href="{{ url_for('donations.reports') }}">Reports</a>
 

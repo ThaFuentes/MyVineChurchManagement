@@ -3,9 +3,8 @@
 <!-- File name: view_all_donations.html -->
 <!-- Brief, detailed purpose: View All Donations page – extends base_donations.html for full consistency.
    Searchable/filterable list grouped by donor, with expandable detail rows showing individual donations.
-   Delete option (permission-gated) in details. Uses ONLY global classes – glass table, etc.
-   Search/filter always visible (no collapsible) per user preference.
-   Search/filter reloads page via GET params (preserved functionality). -->
+   Delete option (Admin/Owner only) in details. ONLY global classes – glass table, etc.
+   Search/filter always visible. Reloads via GET params. -->
 
 {% extends "donations/base_donations.html" %}
 
@@ -18,7 +17,6 @@ Search by name and filter by year below.
 
 {% block donations_content %}
 
-{% if user_has_permission('view_donations') or user_has_permission('manage_donations') %}
 <!-- Search & Filters – always visible -->
 <section class="content-section">
     <h2 class="section-title">Search and Filter Donations</h2>
@@ -79,13 +77,13 @@ Search by name and filter by year below.
                                     <ul class="donation-details-list">
                                         {% for detail in detailed_donations[donation.name] %}
                                             <li>
-                                                <strong>{{ detail.date[:10] if detail.date else '' }}</strong> —
+                                                <strong>{{ detail.date[:10] if detail.date else 'No date' }}</strong> —
                                                 ${{ "%.2f"|format(detail.amount) }}
                                                 ({{ detail.method }})
                                                 {% if detail.notes %}
                                                     <br><em>{{ detail.notes|nl2br }}</em>
                                                 {% endif %}
-                                                {% if user_has_permission('manage_donations') %}
+                                                {% if session.user_role in ['Admin', 'Owner'] %}
                                                     <form method="POST" action="{{ url_for('donations.delete_donation_route', donation_id=detail.id) }}"
                                                           class="inline-form" style="margin-top:0.5rem;"
                                                           onsubmit="return confirm('Permanently delete this donation record?');">
@@ -108,18 +106,12 @@ Search by name and filter by year below.
         </table>
     </div>
 </section>
-{% else %}
-<div class="flash info">
-    You do not have permission to view donation records.
-</div>
-{% endif %}
 
 <script>
   function toggleDetails(id) {
     const row = document.getElementById(id);
     if (!row) return;
-    const isShown = row.style.display === 'table-row';
-    row.style.display = isShown ? 'none' : 'table-row';
+    row.style.display = row.style.display === 'table-row' ? 'none' : 'table-row';
   }
 
   function refreshDonations() {
@@ -133,4 +125,5 @@ Search by name and filter by year below.
     window.location.href = url;
   }
 </script>
+
 {% endblock %}

@@ -1,10 +1,10 @@
 <!-- app/templates/donations/reports.html -->
 <!-- Full path: WebChurchMan/app/templates/donations/reports.html -->
 <!-- File name: reports.html -->
-<!-- Brief, detailed purpose: Donation Reports page – extends base_donations.html for full consistency.
-   Year/month filter form at top, then (when selected) report title, individual donations table (glass),
+<!-- Brief, detailed purpose: Donation Reports page – extends base_donations.html for consistency.
+   Year/month filter form at top, then report title, individual donations table (glass),
    overall totals as glass summary cards, optional monthly breakdown table (glass), method breakdown table (glass).
-   Uses ONLY global classes – no module-specific CSS. Clean, spacious layout matching other Donations pages. -->
+   ONLY global classes – no module-specific CSS. Clean, spacious layout. -->
 
 {% extends "donations/base_donations.html" %}
 
@@ -19,7 +19,6 @@ All data is read-only — exports available on the Export page.
 
 {% block donations_content %}
 
-{% if user_has_permission('view_donations') or user_has_permission('manage_donations') %}
 <section class="content-section">
     <h2 class="section-title">Select Year and (Optional) Month</h2>
 
@@ -85,7 +84,7 @@ All data is read-only — exports available on the Export page.
                         <tr>
                             <td>{{ d.name }}</td>
                             <td>${{ "%.2f"|format(d.amount) }}</td>
-                            <td>{{ d.date[:10] if d.date else '' }}</td>
+                            <td>{{ d.date[:10] if d.date else 'No date' }}</td>
                             <td>{{ d.method }}</td>
                             <td>{{ d.notes|default('None')|nl2br }}</td>
                         </tr>
@@ -178,12 +177,6 @@ All data is read-only — exports available on the Export page.
         </table>
     </div>
 </section>
-{% endif %}
-
-{% else %}
-<div class="flash info">
-    You do not have permission to view donation reports.
-</div>
 {% endif %}
 
 {% endblock %}

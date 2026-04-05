@@ -5,29 +5,140 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b35f0f99-d881-43e1-b66a-69bdf2888be4" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/app/templates/pastoral/planning_template_edit.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/templates/pastoral/planning_templates_list.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/static/images/Gemini_Generated_Image_spfe7xspfe7xspfe.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/static/images/illustrations1.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/static/images/podium1.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/static/images/serivice_plans.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/static/images/serivice_plans22.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/static/images/sermons1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/prayers.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/models/credentials.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/announcements/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/announcements/forms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/announcements/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/announcements/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/announcements/views.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/attendance/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/attendance/forms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/attendance/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/attendance/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/attendance/views.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/auth/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/auth/forms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/auth/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/auth/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/auth/views.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/bills/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/bills/assign.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/bills/dashboard.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/bills/delete.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/bills/management.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/bills/payment.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/bills/reminder.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/bills/view.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/dashboard/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/dashboard/forms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/dashboard/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/dashboard/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/dashboard/views.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/donations/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/donations/forms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/donations/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/donations/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/donations/views.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/dreams/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/dreams/forms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/dreams/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/dreams/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/dreams/views.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/emailer/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/emailer/forms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/emailer/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/emailer/utlis.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/emailer/view.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/events/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/events/event_contributions.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/events/event_detail.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/events/event_email.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/events/event_management.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/events/events_dashboard.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/groups/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/groups/forms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/groups/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/groups/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/groups/views.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/inventory/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/inventory/forms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/inventory/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/inventory/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/inventory/views.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/members/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/members/forms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/members/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/members/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/members/views.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/prayers/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/prayers/forms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/prayers/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/prayers/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/prayers/views.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/profile/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/profile/forms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/profile/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/profile/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/profile/views.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/prophecies/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/prophecies/forms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/prophecies/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/prophecies/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/prophecies/views.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/public/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/public/forms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/public/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/public/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/public/views.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/sermons/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/sermons/forms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/sermons/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/sermons/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/sermons/views.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/tickets/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/tickets/forms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/tickets/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/tickets/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/routes/tickets/views.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/old_settings.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/analysis_data.json" beforeDir="false" afterPath="$PROJECT_DIR$/analysis_data.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/builddb/pastoral.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/builddb/pastoral.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/models/pastoral/service_plans.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/models/pastoral/service_plans.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/routes/pastoral/planning.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/routes/pastoral/planning.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/templates/pastoral/dashboard_pastoral.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/templates/pastoral/dashboard_pastoral.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/templates/pastoral/planning_assignment_row.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/templates/pastoral/planning_assignment_row.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/builddb/groups.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/builddb/groups.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/models/log.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/models/log.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/announcements.py" beforeDir="false" afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/announcements.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/attendance.py" beforeDir="false" afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/attendance.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/auth.py" beforeDir="false" afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/auth.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/bills.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/dashboard.py" beforeDir="false" afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/dashboard.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/donations.py" beforeDir="false" afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/donations.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/dreams.py" beforeDir="false" afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/dreams.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/emailer.py" beforeDir="false" afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/emailer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/events.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/groups.py" beforeDir="false" afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/groups.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/inventory.py" beforeDir="false" afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/inventory.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/members.py" beforeDir="false" afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/members.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/prayers.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/profile.py" beforeDir="false" afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/profile.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/prophecies.py" beforeDir="false" afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/prophecies.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/public.py" beforeDir="false" afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/public.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/public_dashboard.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/routes/public_dashboard.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/sermons.py" beforeDir="false" afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/sermons.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/routes/tickets.py" beforeDir="false" afterPath="$PROJECT_DIR$/Unrelated_Helper_Tools/old_pys/tickets.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/templates/announcements/edit_annoucement.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/templates/announcements/edit_announcement.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/templates/bills/view_bill.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/templates/bills/view_bill.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/templates/donations/add_donation.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/templates/donations/add_donation.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/templates/donations/base_donations.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/templates/donations/base_donations.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/templates/donations/donations_dashboard.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/templates/donations/donations_dashboard.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/templates/donations/export_donations.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/templates/donations/export_donations.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/templates/donations/reports.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/templates/donations/reports.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/templates/donations/view_all_donations.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/templates/donations/view_all_donations.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/templates/dreams/edit_dream.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/templates/dreams/edit_dream.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/templates/events/base_events.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/templates/events/base_events.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/templates/events/view_event.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/templates/events/view_event.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/templates/pastoral/planning_defaults.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/templates/pastoral/planning_defaults.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/templates/pastoral/planning_edit.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/templates/pastoral/planning_edit.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/templates/pastoral/planning_list.html" beforeDir="false" afterPath="$PROJECT_DIR$/app/templates/pastoral/planning_list.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/project_structure.txt" beforeDir="false" afterPath="$PROJECT_DIR$/project_structure.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/static/images/export.png" beforeDir="false" afterPath="$PROJECT_DIR$/static/images/export.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/static/images/illustrations.png" beforeDir="false" afterPath="$PROJECT_DIR$/static/images/illustrations.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/static/images/podium.png" beforeDir="false" afterPath="$PROJECT_DIR$/static/images/podium.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/static/images/sermons.png" beforeDir="false" afterPath="$PROJECT_DIR$/static/images/sermons.png" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -35,14 +146,14 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="305" />
+    <option name="cachedIndexableFilesCount" value="398" />
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
         <option value="CSS File" />
-        <option value="Python Script" />
         <option value="HTML File" />
+        <option value="Python Script" />
       </list>
     </option>
   </component>
@@ -58,6 +169,11 @@
     </option>
   </component>
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="main" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="McpProjectServerCommands">
@@ -75,62 +191,62 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
-    &quot;Docker.docker-compose.yml: Compose Deployment.executor&quot;: &quot;Run&quot;,
-    &quot;JavaScript Debug.add_prayer.html.executor&quot;: &quot;Run&quot;,
-    &quot;JavaScript Debug.base.html.executor&quot;: &quot;Run&quot;,
-    &quot;JavaScript Debug.base_auth.html.executor&quot;: &quot;Run&quot;,
-    &quot;JavaScript Debug.delete_record.html.executor&quot;: &quot;Run&quot;,
-    &quot;JavaScript Debug.general.html.executor&quot;: &quot;Run&quot;,
-    &quot;JavaScript Debug.prophecies.html.executor&quot;: &quot;Run&quot;,
-    &quot;Python.__init__.executor&quot;: &quot;Run&quot;,
-    &quot;Python.analyze_project.executor&quot;: &quot;Run&quot;,
-    &quot;Python.auth.executor&quot;: &quot;Run&quot;,
-    &quot;Python.dashboard.executor&quot;: &quot;Run&quot;,
-    &quot;Python.donations.executor&quot;: &quot;Run&quot;,
-    &quot;Python.find_flask_in_models.executor&quot;: &quot;Run&quot;,
-    &quot;Python.groups.executor&quot;: &quot;Run&quot;,
-    &quot;Python.illustrations.executor&quot;: &quot;Run&quot;,
-    &quot;Python.inspect_imports.executor&quot;: &quot;Run&quot;,
-    &quot;Python.main.executor&quot;: &quot;Run&quot;,
-    &quot;Python.random_pass_gen.executor&quot;: &quot;Run&quot;,
-    &quot;Python.sermons.executor&quot;: &quot;Run&quot;,
-    &quot;Python.testmariadb.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;ai.playground.ignore.import.keys.banner.in.settings&quot;: &quot;true&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/fuent/Documents/PyCharm/myvinechurchonline/static/images&quot;,
-    &quot;list.type.of.created.stylesheet&quot;: &quot;CSS&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;configurable.group.python.group.settings&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "DefaultHtmlFileTemplate": "HTML File",
+    "Docker.docker-compose.yml: Compose Deployment.executor": "Run",
+    "JavaScript Debug.add_prayer.html.executor": "Run",
+    "JavaScript Debug.base.html.executor": "Run",
+    "JavaScript Debug.base_auth.html.executor": "Run",
+    "JavaScript Debug.delete_record.html.executor": "Run",
+    "JavaScript Debug.general.html.executor": "Run",
+    "JavaScript Debug.prophecies.html.executor": "Run",
+    "Python.__init__.executor": "Run",
+    "Python.analyze_project.executor": "Run",
+    "Python.auth.executor": "Run",
+    "Python.dashboard.executor": "Run",
+    "Python.donations.executor": "Run",
+    "Python.find_flask_in_models.executor": "Run",
+    "Python.groups.executor": "Run",
+    "Python.illustrations.executor": "Run",
+    "Python.inspect_imports.executor": "Run",
+    "Python.main.executor": "Run",
+    "Python.random_pass_gen.executor": "Run",
+    "Python.sermons.executor": "Run",
+    "Python.testmariadb.executor": "Run",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "ai.playground.ignore.import.keys.banner.in.settings": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "main__new",
+    "junie.onboarding.icon.badge.shown": "true",
+    "last_opened_file_path": "C:/Users/fuent/Documents/PyCharm/myvinechurchonline",
+    "list.type.of.created.stylesheet": "CSS",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "configurable.group.python.group.settings",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\fuent\Documents\PyCharm\myvinechurchonline\static\images" />
       <recent name="D:\PyCharm\myvinechurchonline\static\images" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\fuent\Documents\PyCharm\myvinechurchonline\Unrelated_Helper_Tools\old_pys" />
+      <recent name="C:\Users\fuent\Documents\PyCharm\myvinechurchonline\Unrelated_Helper_Tools" />
       <recent name="C:\Users\fuent\Documents\PyCharm\myvinechurchonline\app\templates\settings" />
       <recent name="C:\Users\fuent\Documents\PyCharm\myvinechurchonline\app\templates\auth" />
-      <recent name="C:\Users\fuent\Documents\PyCharm\myvinechurchonline\Unrelated_Helper_Tools" />
       <recent name="C:\Users\fuent\Documents\PyCharm\myvinechurchonline\app\templates\log" />
-      <recent name="C:\Users\fuent\Documents\PyCharm\myvinechurchonline\static\css\old" />
     </key>
   </component>
   <component name="RunManager">
