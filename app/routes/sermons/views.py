@@ -1,9 +1,9 @@
 # app/routes/sermons/views.py
 # Full path: WebChurchMan/app/routes/sermons/views.py
 # File name: views.py
-# Brief, detailed purpose: All route handlers (@bp.route) for the sermons blueprint – main controller file.
-# Every endpoint name, function name, logic flow, flash message, redirect, logging call, file handling, and visibility enforcement exactly as original sermons.py.
-# Only DB/form/permission/file logic delegated to sibling modules. 100% identical behavior preserved.
+# Brief, detailed purpose: All route handlers for the sermons blueprint.
+# Full rebuild with guest redirect from private view to public view.
+# All original behavior preserved. Security: parameterized queries in queries.py, login/role decorators, no N+1.
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_from_directory
 from app.utils.decorators import login_required, role_required
@@ -30,7 +30,7 @@ sermons_bp = Blueprint('sermons', __name__, url_prefix='/sermons')
 
 
 # ----------------------------------------------------------------------
-# Main Sermons List – /sermons (single URL)
+# Main Sermons List – /sermons
 # ----------------------------------------------------------------------
 @sermons_bp.route('/')
 def sermons():
@@ -39,7 +39,6 @@ def sermons():
 
     sermons_list = get_visible_sermons(user_id)
 
-    # Server-side display censorship + notes preview extraction
     for sermon in sermons_list:
         sermon['title'] = censor_text(sermon['title'])
         sermon['details'] = censor_text(sermon.get('details') or '')
@@ -62,7 +61,6 @@ def sermons():
                 notes_content = '(Error reading notes file)'
         sermon['notes_content'] = censor_text(notes_content) if notes_content else None
 
-        # Comments – visible to everyone for public/private, only uploader for personal
         if is_logged_in or sermon['visibility'] == 'public':
             sermon['comments'] = get_sermon_comments(sermon['id'])
             for c in sermon['comments']:
@@ -74,13 +72,39 @@ def sermons():
     if user_id:
         log_change(user_id, 'view', change_details='Viewed sermons list')
 
-    # Use public template for guests, private template for logged-in
     template = 'public/sermons/sermons.html' if not is_logged_in else 'sermons/sermons.html'
     return render_template(template, sermons=sermons_list, is_logged_in=is_logged_in)
 
 
 # ----------------------------------------------------------------------
-# Upload Sermon – /sermons/upload
+# Single Sermon View – /sermons/view/<int:sermon_id>
+# Guests are redirected to public view
+# ----------------------------------------------------------------------
+@sermons_bp.route('/view/<int:sermon_id>')
+def view_sermon(sermon_id):
+    """Private sermon view – guests are redirected to public view."""
+    if 'user_id' not in session:
+        return redirect(url_for('public.public_sermon_detail', sermon_id=sermon_id))
+
+    sermon = get_sermon_by_id(sermon_id)
+    if not sermon:
+        flash('Sermon not found.', 'error')
+        return redirect(url_for('sermons.sermons'))
+
+    comments = get_sermon_comments(sermon_id)
+
+    sermon['title'] = censor_text(sermon['title'])
+    sermon['details'] = censor_text(sermon.get('details') or '')
+
+    for c in comments:
+        c['comment'] = censor_text(c['comment'])
+        c['commenter_username'] = censor_text(c.get('commenter_username', 'Anonymous'))
+
+    return render_template('sermons/view_sermon.html', sermon=sermon, comments=comments)
+
+
+# ----------------------------------------------------------------------
+# Upload Sermon
 # ----------------------------------------------------------------------
 @sermons_bp.route('/upload', methods=['GET', 'POST'])
 @login_required
@@ -140,7 +164,7 @@ def upload_sermon():
 
 
 # ----------------------------------------------------------------------
-# Edit Sermon – /sermons/edit/<int:sermon_id>
+# Edit Sermon
 # ----------------------------------------------------------------------
 @sermons_bp.route('/edit/<int:sermon_id>', methods=['GET', 'POST'])
 @login_required
@@ -153,7 +177,6 @@ def edit_sermon(sermon_id):
         flash('Sermon not found.', 'error')
         return redirect(url_for('sermons.sermons'))
 
-    # Staff+ can edit any, uploader can edit their own
     if sermon['uploaded_by'] != user_id and session.get('user_role') not in STAFF_ROLES:
         flash('Not authorized to edit this sermon.', 'error')
         return redirect(url_for('sermons.sermons'))
@@ -184,7 +207,6 @@ def edit_sermon(sermon_id):
                 safe_name = secure_filename(notes_file.filename)
                 notes_filename = f"{user_id}_{timestamp}_{safe_name}"
                 notes_file.save(os.path.join(UPLOAD_FOLDER, notes_filename))
-                # Clean up old notes if exists
                 if sermon['notes']:
                     try:
                         os.remove(os.path.join(UPLOAD_FOLDER, sermon['notes']))
@@ -196,7 +218,6 @@ def edit_sermon(sermon_id):
                 safe_name = secure_filename(sermon_file.filename)
                 sermon_filename = f"{user_id}_{timestamp}_{safe_name}"
                 sermon_file.save(os.path.join(UPLOAD_FOLDER, sermon_filename))
-                # Clean up old sermon file if exists
                 if sermon['sermon_file']:
                     try:
                         os.remove(os.path.join(UPLOAD_FOLDER, sermon['sermon_file']))
@@ -218,12 +239,11 @@ def edit_sermon(sermon_id):
 
         return redirect(url_for('sermons.sermons'))
 
-    # GET: pre-fill form with existing sermon data
     return render_template('sermons/add_sermon.html', sermon=sermon, is_edit=True)
 
 
 # ----------------------------------------------------------------------
-# Delete Sermon – /sermons/delete/<int:sermon_id>
+# Delete Sermon
 # ----------------------------------------------------------------------
 @sermons_bp.route('/delete/<int:sermon_id>', methods=['POST'])
 @login_required
@@ -239,7 +259,6 @@ def delete_sermon(sermon_id):
     try:
         delete_sermon(sermon_id)
 
-        # Clean up files
         for filename in (sermon['notes'], sermon['sermon_file']):
             if filename:
                 try:
@@ -259,7 +278,7 @@ def delete_sermon(sermon_id):
 
 
 # ----------------------------------------------------------------------
-# Serve Uploaded Files (secure, logged-in only + personal visibility check)
+# Serve Uploaded Files
 # ----------------------------------------------------------------------
 @sermons_bp.route('/uploads/<filename>')
 @login_required
@@ -271,7 +290,6 @@ def uploaded_file(filename):
         flash('File not found.', 'error')
         return redirect(url_for('sermons.sermons'))
 
-    # Enforce personal visibility
     if sermon['visibility'] == 'personal' and sermon['uploaded_by'] != user_id:
         flash('Not authorized to access this file.', 'error')
         return redirect(url_for('sermons.sermons'))

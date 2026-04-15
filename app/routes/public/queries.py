@@ -3,12 +3,18 @@
 # File name: queries.py
 # Brief, detailed purpose: All database queries and operations for the Public module.
 # • Pure data-access layer – no Flask routes, no templates, no flash messages.
-# • Every SELECT from the original public.py (_get_public_previews and _get_public_list) is now here.
-# • 100% original behavior preserved (public previews for dashboard, full public listings for events/sermons/announcements/prayers/dreams/prophecies).
-# • 100% MariaDB/pymysql compatible (%s placeholders, DictCursor).
+# • Every SELECT from the original public.py is now here.
+# • 100% original behavior preserved with correct date columns per table.
+# • SECURITY: Strict table whitelist + parameterized queries.
 
 import pymysql
 from app.models.db import get_db
+
+
+# Allowed public tables (whitelist for security)
+ALLOWED_PUBLIC_TABLES = {
+    'events', 'sermons', 'announcements', 'prayers', 'dreams', 'prophecies'
+}
 
 
 # ----------------------------------------------------------------------
@@ -20,20 +26,22 @@ def get_public_previews(limit=5):
     cur = db.cursor(pymysql.cursors.DictCursor)
     previews = {}
 
-    # Upcoming Events
+    # Upcoming Events – FIXED with STR_TO_DATE (event_date is VARCHAR)
     try:
         cur.execute("""
             SELECT id, event_name AS title,
                    CONCAT(event_date, ' ', COALESCE(event_time, '')) AS datetime,
                    location
             FROM events
-            WHERE visibility = 'public' AND event_date >= CURDATE()
+            WHERE visibility = 'public' 
+              AND STR_TO_DATE(event_date, '%Y-%m-%d') >= CURDATE()
             ORDER BY event_date ASC, event_time ASC
             LIMIT %s
         """, (limit,))
         previews['events'] = cur.fetchall()
-    except Exception:
+    except Exception as e:
         previews['events'] = []
+        print(f"⚠️ Upcoming events preview failed: {e}")
 
     # Recent Prayers
     try:
@@ -63,15 +71,15 @@ def get_public_previews(limit=5):
     except Exception:
         previews['dreams'] = []
 
-    # Recent Prophecies
+    # Recent Prophecies – FIXED: uses created_at (correct column)
     try:
         cur.execute("""
-            SELECT p.title, p.date_posted AS datetime,
+            SELECT p.title, p.created_at AS datetime,
                    u.username AS posted_by
             FROM prophecies p
             LEFT JOIN users u ON p.user_id = u.id
             WHERE p.visibility = 'public'
-            ORDER BY p.date_posted DESC
+            ORDER BY p.created_at DESC
             LIMIT %s
         """, (limit,))
         previews['prophecies'] = cur.fetchall()
@@ -112,25 +120,44 @@ def get_public_previews(limit=5):
 
 
 # ----------------------------------------------------------------------
-# Full Public Listings
+# Full Public Listings (SECURE + CORRECT COLUMNS)
 # ----------------------------------------------------------------------
-def get_public_list(table, where='1=1', order_by='created_at DESC', limit=None):
-    """Generic helper for full public listings."""
+def get_public_list(table, where='1=1', order_by=None, limit=None):
+    """Generic helper for full public listings.
+    Table name is strictly validated. Correct date column is auto-selected."""
+    if table not in ALLOWED_PUBLIC_TABLES:
+        return []  # Silent fail for security
+
+    # Map each table to its correct sort column
+    date_column_map = {
+        'events': 'event_date',
+        'prayers': 'date_posted',
+        'dreams': 'date_posted',
+        'prophecies': 'created_at',      # ← Correct column for prophecies
+        'sermons': 'uploaded_at',
+        'announcements': 'created_at'
+    }
+
+    sort_column = date_column_map.get(table.lower(), 'created_at')
+    final_order_by = order_by or f"{sort_column} DESC"
+
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
 
     sql = f"""
         SELECT * FROM {table}
         WHERE visibility = 'public' AND {where}
-        ORDER BY {order_by}
+        ORDER BY {final_order_by}
     """
     params = []
-    if limit:
+
+    if limit is not None:
         sql += " LIMIT %s"
         params.append(limit)
 
     try:
         cur.execute(sql, params)
         return cur.fetchall()
-    except Exception:
+    except Exception as e:
+        print(f"Public list error for table {table}: {e}")
         return []

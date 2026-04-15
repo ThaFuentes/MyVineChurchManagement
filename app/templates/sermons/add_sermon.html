@@ -1,20 +1,16 @@
 <!-- app/templates/sermons/add_sermon.html -->
 <!-- Full path: WebChurchMan/app/templates/sermons/add_sermon.html -->
 <!-- File name: add_sermon.html -->
-<!-- Brief, detailed purpose: Upload/Add New Sermon form.
-   Extends base_sermons.html → identical glass wrapper, menu, flash handling as other modules.
-   Uses ONLY global classes (styled-form, form-group, help-text, btn-primary/btn-secondary).
-   All original fields preserved.
-   Visibility now includes 'personal' option – visible ONLY to the uploader.
-   Default remains 'private' for member review.
-   Restricted to Staff/Admin/Owner (enforced server-side). -->
+<!-- Brief, detailed purpose: Upload/Add New Sermon form with new Full Sermon Manuscript field.
+   All original fields, layout, classes, repopulation, and behavior preserved 100%.
+   New optional large textarea added for pasting complete sermon text. -->
 
 {% extends "sermons/base_sermons.html" %}
 
 {% block page_title %}Upload New Sermon{% endblock %}
 
 {% block page_description %}
-Add a new sermon with optional notes, media file, or external link.<br>
+Add a new sermon with optional notes, media file, external link, or full manuscript text.<br>
 Choose visibility: Public (everyone), Private (members only), or Personal (only you).
 {% endblock %}
 
@@ -58,6 +54,14 @@ Choose visibility: Public (everyone), Private (members only), or Personal (only 
             <label for="details">Additional Details / Description</label>
             <textarea id="details" name="details" rows="6" class="form-input"
                       placeholder="Scripture references, key points, or any extra information...">{{ request.form.get('details', '') }}</textarea>
+        </div>
+
+        <!-- NEW FIELD: Full Sermon Manuscript -->
+        <div class="form-group">
+            <label for="sermon_text">Full Sermon Manuscript (Optional)</label>
+            <textarea id="sermon_text" name="sermon_text" rows="14" class="form-input"
+                      placeholder="Paste the complete typed sermon text here...">{{ request.form.get('sermon_text', '') }}</textarea>
+            <p class="help-text">You can paste the entire sermon manuscript here instead of (or in addition to) uploading a file.</p>
         </div>
 
         <div class="form-group">

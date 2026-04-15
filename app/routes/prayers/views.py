@@ -6,7 +6,7 @@
 # • All database work moved to queries.py
 # • All form validation + censorship moved to forms.py
 # • All helpers moved to utils.py
-# • 100% original behavior preserved.
+# • 100% original behavior preserved + new ability to edit/delete responses (including guest responses).
 
 from flask import render_template, request, redirect, url_for, flash, session
 import pymysql
@@ -205,20 +205,8 @@ def view_prayer(prayer_id):
         if prayer['date_posted']:
             prayer['formatted_date'] = format_church(prayer['date_posted'], '%B %d, %Y at %I:%M %p')
 
-        cur.execute("""
-            SELECT pa.id, pa.prayer, pa.date_added,
-                   COALESCE(CONCAT(u.first_name, ' ', u.last_name), pa.contributor_name, 'Anonymous') AS responder_name
-            FROM prayers_added pa
-            LEFT JOIN users u ON pa.user_id = u.id
-            WHERE pa.prayer_request_id = %s
-            ORDER BY pa.date_added ASC
-        """, (prayer_id,))
-        responses = cur.fetchall()
-        for r in responses:
-            r['prayer'] = censor_text(r['prayer'] or '')
-            r['responder_name'] = censor_text(r['responder_name'] or 'Anonymous')
-            if r['date_added']:
-                r['formatted_date'] = format_church(r['date_added'], '%B %d, %Y at %I:%M %p')
+        # Get responses
+        responses = get_prayer_responses(prayer_id)
 
         if request.method == 'POST':
             response_text = request.form.get('prayer', '').strip()
@@ -365,3 +353,89 @@ def delete_prayer(prayer_id):
         flash('Failed to delete prayer request.', 'error')
 
     return redirect(url_for('prayers.prayers'))
+
+
+# ==================================================================
+# NEW: DELETE RESPONSE (works for guest + member responses)
+# ==================================================================
+@prayers_bp.route('/<int:prayer_id>/delete_response/<int:response_id>', methods=['POST'])
+@login_required
+def delete_response(prayer_id, response_id):
+    user_id = session['user_id']
+    user_role = session.get('user_role')
+
+    db = get_db()
+    cur = db.cursor(pymysql.cursors.DictCursor)
+
+    # Fetch response to check ownership
+    cur.execute("SELECT user_id FROM prayers_added WHERE id = %s", (response_id,))
+    response = cur.fetchone()
+
+    is_owner = response and response['user_id'] == user_id
+    is_moderator = user_role in ['Admin', 'Owner'] or session.get('user_has_permission', lambda p: False)('moderate_prayers')
+
+    if not response or (not is_owner and not is_moderator):
+        flash('You do not have permission to delete this response.', 'error')
+        return redirect(url_for('prayers.view_prayer', prayer_id=prayer_id))
+
+    try:
+        cur = db.cursor()
+        cur.execute("DELETE FROM prayers_added WHERE id = %s", (response_id,))
+        db.commit()
+        log_change(user_id, 'delete', target_id=response_id,
+                   change_details=f'Deleted response on prayer {prayer_id}')
+        flash('Response deleted.', 'success')
+    except Exception:
+        db.rollback()
+        flash('Failed to delete response.', 'error')
+
+    return redirect(url_for('prayers.view_prayer', prayer_id=prayer_id))
+
+
+# ==================================================================
+# NEW: EDIT RESPONSE (works for guest + member responses)
+# ==================================================================
+@prayers_bp.route('/<int:prayer_id>/edit_response/<int:response_id>', methods=['POST'])
+@login_required
+def edit_response(prayer_id, response_id):
+    user_id = session['user_id']
+    user_role = session.get('user_role')
+    new_text = request.form.get('response_text', '').strip()
+
+    if not new_text:
+        flash('Response cannot be empty.', 'error')
+        return redirect(url_for('prayers.view_prayer', prayer_id=prayer_id))
+
+    if contains_censored_word(new_text):
+        flash('Response contains a prohibited word or phrase.', 'error')
+        return redirect(url_for('prayers.view_prayer', prayer_id=prayer_id))
+
+    db = get_db()
+    cur = db.cursor(pymysql.cursors.DictCursor)
+
+    cur.execute("SELECT user_id FROM prayers_added WHERE id = %s", (response_id,))
+    response = cur.fetchone()
+
+    is_owner = response and response['user_id'] == user_id
+    is_moderator = user_role in ['Admin', 'Owner'] or session.get('user_has_permission', lambda p: False)('moderate_prayers')
+
+    if not response or (not is_owner and not is_moderator):
+        flash('You do not have permission to edit this response.', 'error')
+        return redirect(url_for('prayers.view_prayer', prayer_id=prayer_id))
+
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            UPDATE prayers_added 
+            SET prayer = %s, date_added = UTC_TIMESTAMP()
+            WHERE id = %s
+        """, (new_text, response_id))
+        db.commit()
+        log_change(user_id, 'update', target_id=response_id,
+                   change_details=f'Edited response on prayer {prayer_id}')
+        flash('Response updated.', 'success')
+    except Exception:
+        db.rollback()
+        flash('Failed to update response.', 'error')
+
+    return redirect(url_for('prayers.view_prayer', prayer_id=prayer_id))

@@ -2,25 +2,20 @@
 # Full path: MyVineChurch/app/routes/public/utils.py
 # File name: utils.py
 # Brief, detailed purpose: Utility functions and constants for the Public module.
-# • Public-facing helpers (censoring for previews and listings, formatting).
-# • Keeps views.py clean and consistent with other packages.
-# • 100% matches the original public.py intent.
+# • Public-facing helpers (censoring for previews and listings).
+# • Keeps all feature files (events, dreams, etc.) clean and consistent.
+# • 100% original behavior preserved.
 
 from app.utils.helpers import censor_text
-
-
-# ----------------------------------------------------------------------
-# Constants
-# ----------------------------------------------------------------------
-# No role restrictions for public routes (guest-friendly)
-PUBLIC_ROLES = []  # Placeholder for future consistency
+from app.utils.time_utils import format_church   # ← Moved to top for best practice
 
 
 # ----------------------------------------------------------------------
 # Public Helpers
 # ----------------------------------------------------------------------
 def censor_public_content(items):
-    """Apply server-side censorship to a list of public items (titles, descriptions, names, notes, etc.)."""
+    """Apply server-side censorship to a list of public items.
+    Used by all public listing routes (events, sermons, dreams, etc.)."""
     for item in items:
         for key in ['title', 'description', 'content', 'name', 'item', 'note', 'location', 'event_name']:
             if key in item and item[key]:
@@ -29,8 +24,7 @@ def censor_public_content(items):
 
 
 def format_public_datetime(date_value):
-    """Optional helper for public date formatting (can be expanded)."""
-    from app.utils.time_utils import format_church
+    """Format datetime for public pages using the church's timezone helper."""
     if date_value:
         return format_church(date_value, '%B %d, %Y at %I:%M %p')
     return 'Unknown date'

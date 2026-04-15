@@ -1,11 +1,6 @@
 <!-- myvinechurchonline/app/templates/groups/edit.html -->
 <!-- Full path: myvinechurchonline/app/templates/groups/edit.html -->
 <!-- File name: edit.html -->
-<!-- Brief, detailed purpose: Form for editing an existing permission group with granular permission checkboxes.
-   Permissions grouped into logical, collapsible sections (identical to create.html).
-   "Current Members" section shows assigned members with role update/remove.
-   "Add Member" now uses live search by name, username, or email with direct "Add as Member/Leader" buttons.
-   Fully uses GLOBAL CSS only – consistent with other admin forms. -->
 
 {% extends "base.html" %}
 
@@ -39,7 +34,43 @@
 
         <section class="content-section">
             <form method="POST" action="{{ url_for('groups.edit_group', group_id=group.id) }}" class="styled-form">
-                <!-- ... (existing name, description, visibility, and collapsible permissions sections unchanged – keep them exactly as in your current file) ... -->
+
+                <!-- Group Name -->
+                <div class="form-group">
+                    <label for="name">Group Name</label>
+                    <input type="text" id="name" name="name" value="{{ group.name }}" class="form-input" required>
+                </div>
+
+                <!-- Description -->
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" class="form-input" rows="3">{{ group.description or '' }}</textarea>
+                </div>
+
+                <!-- Visibility -->
+                <div class="form-group">
+                    <label for="visibility">Visibility</label>
+                    <select id="visibility" name="visibility" class="form-input">
+                        <option value="public" {% if group.visibility == 'public' %}selected{% endif %}>Public</option>
+                        <option value="private" {% if group.visibility == 'private' %}selected{% endif %}>Private</option>
+                    </select>
+                </div>
+
+                <!-- Current Permissions - Clean Vertical List (Read Only) -->
+                <div class="form-group">
+                    <label>Current Permissions</label>
+                    <div class="current-permissions-list">
+                        {% if current_permissions %}
+                            <ul>
+                                {% for perm_key in current_permissions %}
+                                    <li>{{ known_permissions.get(perm_key, perm_key) }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="no-data">No permissions assigned yet.</p>
+                        {% endif %}
+                    </div>
+                </div>
 
                 <div class="form-actions">
                     <button type="submit" class="btn-primary">Save Changes</button>

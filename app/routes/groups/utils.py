@@ -7,6 +7,7 @@
 # • Clean, reusable, and consistent with the rest of the app.
 # • Designed for easy future growth (add new permission helpers, group validation, etc.)
 
+from flask import session
 import pymysql
 from app.models.db import get_db
 

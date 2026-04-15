@@ -2,19 +2,14 @@
 # Full path: myvinechurchonline/app/builddb/dreams.py
 # File name: dreams.py
 # Brief, detailed purpose: Creates/updates the dreams and dream_comments tables for MariaDB.
-# Now supports three visibility levels via the visibility column:
-#   - 'public'   : visible to everyone (including guests)
-#   - 'private'  : visible to all logged-in members
-#   - 'personal' : visible ONLY to the submitter/uploader
-# Default visibility = 'private' for member review (backward compatible).
-# Removed separate is_personal flag – now fully handled by visibility column for consistency with sermons module.
-# Safe schema evolution: drops old CHECK constraint if present, updates visibility to include 'personal'.
-# Isolated module – called from builddb.py during DB initialization.
+# Supports three visibility levels (public/private/personal) + parent_id for simple one-level replies.
+# Safe migration for existing databases.
 
 def create_tables(cursor):
     """
-    Creates/updates the dreams-related tables with new 'personal' visibility.
-    Designed for both fresh DB creation and safe migration of existing databases.
+    Creates/updates the dreams-related tables with new 'personal' visibility
+    and parent_id support for one-level replies.
+    Designed for both fresh DB creation and safe migration.
     """
 
     # ----- DREAMS TABLE -----
@@ -83,7 +78,7 @@ def create_tables(cursor):
             CHECK(visibility IN ('public', 'private', 'personal'))
         """)
 
-    # Remove is_personal column if it exists (no longer needed – visibility handles it)
+    # Remove is_personal column if it exists
     if 'is_personal' in existing_columns:
         print("Migration: Removing deprecated 'is_personal' column")
         try:
@@ -91,7 +86,7 @@ def create_tables(cursor):
         except Exception as e:
             print(f"Warning: Could not drop is_personal column: {e}")
 
-    # Safe column additions for other fields
+    # Safe column additions
     columns_to_add = {
         'notes':            "TEXT",
         'category':         "VARCHAR(100)",
@@ -110,7 +105,7 @@ def create_tables(cursor):
             print(f"Migration: Adding missing column '{col_name}' to dreams table.")
             cursor.execute(f"ALTER TABLE dreams ADD COLUMN {col_name} {col_def}")
 
-    # Indexes for performance
+    # Indexes
     try:
         cursor.execute("CREATE INDEX idx_dreams_visibility ON dreams(visibility)")
     except: pass
@@ -124,7 +119,7 @@ def create_tables(cursor):
         cursor.execute("CREATE INDEX idx_dreams_date_posted ON dreams(date_posted DESC)")
     except: pass
 
-    # ----- DREAM_COMMENTS TABLE (unchanged from original) -----
+    # ----- DREAM_COMMENTS TABLE (UPDATED WITH parent_id) -----
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS dream_comments (
             id               INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -134,8 +129,10 @@ def create_tables(cursor):
             user_id          INT UNSIGNED,
             contributor_name VARCHAR(255),
             ip_address       VARCHAR(45),
+            parent_id        INT UNSIGNED NULL,   -- NEW: for one-level replies
             FOREIGN KEY(dream_id) REFERENCES dreams(id) ON DELETE CASCADE,
-            FOREIGN KEY(user_id)  REFERENCES users(id) ON DELETE SET NULL
+            FOREIGN KEY(user_id)   REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY(parent_id) REFERENCES dream_comments(id) ON DELETE CASCADE
         ) ENGINE=InnoDB;
     """)
 
@@ -144,6 +141,15 @@ def create_tables(cursor):
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'dream_comments'
     """)
     existing_comments_columns = [row[0] for row in cursor.fetchall()]
+
+    # Safe addition of parent_id if missing
+    if 'parent_id' not in existing_comments_columns:
+        print("Migration: Adding missing 'parent_id' column to dream_comments for one-level replies")
+        cursor.execute("""
+            ALTER TABLE dream_comments 
+            ADD COLUMN parent_id INT UNSIGNED NULL AFTER ip_address,
+            ADD FOREIGN KEY (parent_id) REFERENCES dream_comments(id) ON DELETE CASCADE
+        """)
 
     columns_to_add_comments = {
         'contributor_name': "VARCHAR(255)",
@@ -161,3 +167,8 @@ def create_tables(cursor):
     try:
         cursor.execute("CREATE INDEX idx_dream_comments_date ON dream_comments(date_posted DESC)")
     except: pass
+    try:
+        cursor.execute("CREATE INDEX idx_dream_comments_parent ON dream_comments(parent_id)")
+    except: pass
+
+    print("✓ dreams.py migration completed successfully (including dream_comments table with parent_id for simple one-level replies)")

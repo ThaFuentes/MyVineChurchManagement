@@ -2,17 +2,13 @@
 # Full path: WebChurchMan/app/builddb/sermons.py
 # File name: sermons.py
 # Brief, detailed purpose: Creates/updates the sermons and sermon_comments tables for MariaDB.
-# Now supports three visibility levels:
-# - 'public'   : visible to everyone (including guests)
-# - 'private'  : visible to all logged-in members
-# - 'personal' : visible ONLY to the uploader (new option)
-# Default remains 'private' for backward compatibility.
-# Safe schema evolution: modifies existing CHECK constraint to include 'personal'.
-# Isolated module – called from builddb.py during DB initialization.
+# Now supports three visibility levels (public/private/personal) and simple ONE-LEVEL replies only (parent_id).
+# Safe schema evolution – adds parent_id to sermon_comments to match events and prayers.
+# All other fields and logic from your original file are 100% preserved.
 
 def create_tables(cursor):
     """
-    Creates/updates the sermons-related tables with new 'personal' visibility.
+    Creates/updates the sermons-related tables with new 'personal' visibility and parent_id for replies.
     Designed for both fresh DB creation and safe migration of existing databases.
     """
 
@@ -45,7 +41,6 @@ def create_tables(cursor):
     """)
     visibility_info = cursor.fetchone()
 
-    # If visibility column exists but old CHECK, drop old constraint and add new one
     if visibility_info:
         old_constraint = visibility_info[1]
         if old_constraint:
@@ -53,9 +48,8 @@ def create_tables(cursor):
                 cursor.execute(f"ALTER TABLE sermons DROP CONSTRAINT {old_constraint}")
                 print(f"Migration: Dropped old visibility CHECK constraint '{old_constraint}'")
             except:
-                pass  # Constraint may not exist or name varies
+                pass
 
-    # Ensure column definition is correct (add if missing, modify if needed)
     cursor.execute("""
         SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sermons'
@@ -76,7 +70,7 @@ def create_tables(cursor):
             CHECK(visibility IN ('public', 'private', 'personal'))
         """)
 
-    # Other safe column additions (unchanged)
+    # Other safe column additions
     columns_to_add = {
         'notes':         "TEXT",
         'details':       "TEXT",
@@ -91,7 +85,7 @@ def create_tables(cursor):
             print(f"Migration: Adding missing column '{col_name}' to sermons table.")
             cursor.execute(f"ALTER TABLE sermons ADD COLUMN {col_name} {col_def}")
 
-    # Indexes (unchanged)
+    # Indexes
     try:
         cursor.execute("CREATE INDEX idx_sermons_visibility ON sermons(visibility)")
     except: pass
@@ -102,7 +96,7 @@ def create_tables(cursor):
         cursor.execute("CREATE INDEX idx_sermons_uploaded_at ON sermons(uploaded_at DESC)")
     except: pass
 
-    # ----- SERMON_COMMENTS TABLE (unchanged) -----
+    # ----- SERMON_COMMENTS TABLE (NOW WITH parent_id FOR ONE-LEVEL REPLIES) -----
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sermon_comments (
             id               INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -112,8 +106,10 @@ def create_tables(cursor):
             user_id          INT UNSIGNED,
             contributor_name VARCHAR(255),
             ip_address       VARCHAR(45),
+            parent_id        INT UNSIGNED NULL,          # NEW: Simple one-level replies only (uniform with events/prayers)
             FOREIGN KEY(sermon_id) REFERENCES sermons(id) ON DELETE CASCADE,
-            FOREIGN KEY(user_id)   REFERENCES users(id) ON DELETE SET NULL
+            FOREIGN KEY(user_id)   REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY(parent_id) REFERENCES sermon_comments(id) ON DELETE CASCADE
         ) ENGINE=InnoDB;
     """)
 
@@ -126,7 +122,8 @@ def create_tables(cursor):
     columns_to_add_comments = {
         'contributor_name': "VARCHAR(255)",
         'ip_address':       "VARCHAR(45)",
-        'user_id':          "INT UNSIGNED"
+        'user_id':          "INT UNSIGNED",
+        'parent_id':        "INT UNSIGNED NULL"          # NEW: Simple one-level replies only
     }
 
     for col_name, col_def in columns_to_add_comments.items():
@@ -140,3 +137,8 @@ def create_tables(cursor):
     try:
         cursor.execute("CREATE INDEX idx_sermon_comments_date ON sermon_comments(date_added DESC)")
     except: pass
+    try:
+        cursor.execute("CREATE INDEX idx_sermon_comments_parent ON sermon_comments(parent_id)")
+    except: pass
+
+    print("✓ sermons.py migration completed successfully (including sermon_comments table with parent_id for simple one-level replies)")

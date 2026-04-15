@@ -61,8 +61,9 @@ def create_new_user(first_name, last_name, email, phone, address, birthday,
               hashed_password, role, needs_approval, accepts_emails, show_birthday))
         db.commit()
         return cur.lastrowid
-    except Exception:
+    except Exception as e:
         db.rollback()
+        print(f"Create new user error: {e}")  # For debugging during rebuild
         raise
 
 
@@ -75,6 +76,7 @@ def update_user_password(user_id, hashed_password):
                     (hashed_password, user_id))
         db.commit()
         return True
-    except Exception:
+    except Exception as e:
         db.rollback()
+        print(f"Update user password error: {e}")
         raise

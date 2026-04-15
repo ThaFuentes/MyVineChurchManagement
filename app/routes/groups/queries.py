@@ -8,7 +8,7 @@
 
 import pymysql
 import json
-from flask import session   # ← Added so is_global_manager() works (was missing)
+from flask import session
 from app.models.db import get_db
 from .utils import KNOWN_PERMISSIONS
 

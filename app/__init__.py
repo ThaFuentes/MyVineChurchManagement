@@ -1,13 +1,12 @@
 # app/__init__.py
-# Full path: WebChurchMan/app/__init__.py
+# Full path: MyVineChurch/app/__init__.py
 # File name: __init__.py
 # Brief, detailed purpose: Flask application factory for MYVINECHURCH.ONLINE.
 #   - Loads .env + MariaDB configuration
 #   - Initializes DB schema silently on first request
-#   - Registers all blueprints (core + pastoral + modular packages)
+#   - Registers all blueprints (PUBLIC FIRST so guests hit public routes)
 #   - Injects global settings, Jinja filters, and template context processors
 #   - Handles smart root redirect and initial Owner setup enforcement
-#   - Fully supports package-style blueprints (sermons/, tickets/, dreams/, etc.)
 
 from flask import Flask, g, session, redirect, url_for, request, render_template, flash
 from markupsafe import Markup
@@ -37,52 +36,61 @@ def create_app():
     Create and configure the Flask application instance.
     Returns fully initialized app ready for WSGI / development server.
     """
-    # Static folder (absolute path for reliability)
     static_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static'))
     app = Flask(__name__, static_folder=static_folder)
 
     # ──────────────────────────────────────────────────────────────────────────────
-    # Configuration (pulled from .env – fallback values for dev safety)
+    # Configuration
     # ──────────────────────────────────────────────────────────────────────────────
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev-insecure-change-this-immediately-2026'
 
-    # MariaDB / PyMySQL connection settings
     app.config['MYSQL_HOST']     = os.environ.get('MYSQL_HOST', 'localhost')
     app.config['MYSQL_USER']     = os.environ.get('MYSQL_USER', 'churchuser')
     app.config['MYSQL_PASSWORD'] = os.environ.get('MYSQL_PASSWORD', '')
     app.config['MYSQL_DATABASE'] = os.environ.get('MYSQL_DATABASE', 'church_management')
     app.config['MYSQL_PORT']     = int(os.environ.get('MYSQL_PORT', 3306))
 
-    # Fernet encryption key (for email credentials, etc.)
     app.config['FERNET_KEY'] = os.environ.get('FERNET_KEY')
 
-    # File upload & export directories (persistent)
     app.config['UPLOAD_FOLDER'] = os.path.abspath(os.path.join(app.root_path, '..', 'uploads'))
     app.config['EXPORT_FOLDER'] = os.path.abspath(os.path.join(app.root_path, '..', 'export'))
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['EXPORT_FOLDER'], exist_ok=True)
 
-    # Max upload size (32 MB)
     app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 
-    # Close DB connection at end of each request
     app.teardown_appcontext(close_db)
 
     # ──────────────────────────────────────────────────────────────────────────────
-    # Silent DB schema initialization (runs once on first request)
+    # Silent DB schema initialization
     # ──────────────────────────────────────────────────────────────────────────────
     with app.app_context():
-        build_all(verbose=False)   # False = silent in production
+        build_all(verbose=False)
 
     # ──────────────────────────────────────────────────────────────────────────────
-    # Global settings (available in g on every request)
+    # Global settings
     # ──────────────────────────────────────────────────────────────────────────────
     @app.before_request
     def load_global_settings():
         g.settings = get_settings()
 
     # ──────────────────────────────────────────────────────────────────────────────
-    # Custom Jinja filters
+    # GLOBAL WATCHMAN DEBUG
+    # ──────────────────────────────────────────────────────────────────────────────
+    @app.before_request
+    def watchman_debug():
+        if request.path.startswith('/static/'):
+            return
+        print(f"\n" + "!"*70)
+        print(f"[WATCHMAN] Request Path: {request.path}")
+        print(f"[WATCHMAN] Blueprint:    {request.blueprint}")
+        print(f"[WATCHMAN] Endpoint:     {request.endpoint}")
+        print(f"[WATCHMAN] Session User: {session.get('user_id', 'GUEST')}")
+        print(f"[WATCHMAN] Session Role: {session.get('user_role', 'NONE')}")
+        print(f"!"*70 + "\n")
+
+    # ──────────────────────────────────────────────────────────────────────────────
+    # Custom Jinja filters & context processors
     # ──────────────────────────────────────────────────────────────────────────────
     @app.template_filter('nl2br')
     def nl2br_filter(value: str) -> Markup:
@@ -124,40 +132,47 @@ def create_app():
             value = value.replace(old, new)
         return value
 
-    # ──────────────────────────────────────────────────────────────────────────────
-    # Template context processors
-    # ──────────────────────────────────────────────────────────────────────────────
     @app.context_processor
     def inject_permissions():
-        """Expose user_has_permission helper to all templates."""
         return dict(user_has_permission=user_has_permission)
 
     @app.context_processor
     def inject_pastoral_access():
-        """Expose in_pastoral_group check to templates."""
         return dict(in_pastoral_group=is_in_pastoral_group(session.get('user_id')))
 
     # ──────────────────────────────────────────────────────────────────────────────
-    # Blueprint Registration
+    # BLUEPRINT REGISTRATION – PUBLIC FIRST (this fixes the loop for dreams & prophecies)
     # ──────────────────────────────────────────────────────────────────────────────
-    # Required core blueprints – fail loud if missing
+    # 1. Required core blueprints (PUBLIC comes FIRST)
     required_blueprints = ['auth', 'dashboard', 'public']
     for name in required_blueprints:
         module = importlib.import_module(f'app.routes.{name}')
         blueprint = getattr(module, f'{name}_bp')
         app.register_blueprint(blueprint)
 
-    # Pastoral area – always registered
+    # Pastoral area
     from app.routes.pastoral import pastoral_bp
     app.register_blueprint(pastoral_bp)
 
-    # Optional / modularized features (package-style folders)
-    # Already converted: sermons, tickets, dreams
-    # Next candidates: profile (family), members, prayers, prophecies, announcements, public
+    # 2. Private feature blueprints (registered AFTER public)
+    from app.routes.prophecies import prophecies_bp
+    from app.routes.dreams import dreams_bp
+    from app.routes.prayers import prayers_bp
+    from app.routes.announcements import announcements_bp
+    from app.routes.events import events_bp
+    from app.routes.attendance import attendance_bp
+
+    app.register_blueprint(prophecies_bp)
+    app.register_blueprint(dreams_bp)
+    app.register_blueprint(prayers_bp)
+    app.register_blueprint(announcements_bp)
+    app.register_blueprint(events_bp)
+    app.register_blueprint(attendance_bp)
+
+    # Remaining optional features
     optional_blueprints = [
-        'announcements', 'attendance', 'bills', 'donations', 'dreams', 'events',
-        'groups', 'inventory', 'log', 'members', 'prayers', 'profile', 'prophecies',
-        'settings', 'sermons', 'tickets', 'emailer'
+        'bills', 'donations', 'groups', 'inventory', 'log',
+        'members', 'profile', 'settings', 'sermons', 'tickets', 'emailer'
     ]
 
     for name in optional_blueprints:
@@ -166,21 +181,17 @@ def create_app():
             blueprint = getattr(module, f'{name}_bp')
             app.register_blueprint(blueprint)
         except (ImportError, AttributeError):
-            pass  # Feature not yet converted – silent skip
+            pass
 
     # ──────────────────────────────────────────────────────────────────────────────
-    # Root Route & Smart Redirect
+    # Root Route & Owner Enforcement
     # ──────────────────────────────────────────────────────────────────────────────
     @app.route('/')
     def index():
-        """Root redirect: logged-in → private dashboard, guests → public welcome."""
         if session.get('user_id'):
             return redirect(url_for('dashboard.dashboard'))
         return redirect(url_for('public.public_dashboard'))
 
-    # ──────────────────────────────────────────────────────────────────────────────
-    # Owner Registration Enforcement (skip public/auth/static routes)
-    # ──────────────────────────────────────────────────────────────────────────────
     @app.before_request
     def enforce_owner_registration():
         if (request.path.startswith('/static/') or

@@ -107,6 +107,7 @@ Detailed view of {{ event.event_name|title }}.
                 <h4 class="section-subtitle" style="text-align:center;">Add Your Contribution</h4>
 
                 <form action="{{ url_for('events.view_event', event_id=event.id) }}" method="POST" class="styled-form">
+                    <input type="hidden" name="action" value="potluck">
                     <div class="form-group">
                         <label class="control-label">Your Name <span class="required">*</span></label>
                         <input type="text" name="name" class="form-input" required placeholder="How you want your name to appear">
@@ -238,6 +239,58 @@ Detailed view of {{ event.event_name|title }}.
         </div>
     </section>
     {% endif %}
+
+    <!-- ==================== NEW: COMMENTS SECTION ==================== -->
+    <section class="content-section">
+        <h3 class="section-title">Comments & Discussion</h3>
+
+        <!-- Comments List -->
+        {% if comments %}
+        <div class="card glass">
+            {% for comment in comments %}
+            <div class="comment-item">
+                <p><strong>{{ comment.name | censor }}</strong>
+                   <small style="color:#888;">{{ comment.created_at_nice }}</small></p>
+                <p>{{ comment.comment_text | nl2br | censor }}</p>
+
+                <!-- Edit / Delete for owner or admin -->
+                {% if is_logged_in and (comment.user_id == session.user_id or user_has_permission('manage_events')) %}
+                <div class="comment-actions" style="margin-top:8px;">
+                    <a href="#" onclick="editComment({{ comment.id }}, '{{ comment.comment_text|escape }}'); return false;" class="btn-secondary btn-small">Edit</a>
+                    <form action="{{ url_for('events.delete_comment', event_id=event.id, comment_id=comment.id) }}" method="POST" style="display:inline;">
+                        <button type="submit" class="btn-danger btn-small"
+                                onclick="return confirm('Delete this comment?');">Delete</button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="no-data">No comments yet – be the first to comment!</p>
+        {% endif %}
+
+        <!-- Add New Comment Form -->
+        <div class="card glass" style="margin-top:2rem;">
+            <h4 class="section-subtitle" style="text-align:center;">Leave a Comment</h4>
+            <form action="{{ url_for('events.view_event', event_id=event.id) }}" method="POST" class="styled-form">
+                <input type="hidden" name="action" value="comment">
+                {% if not is_logged_in %}
+                <div class="form-group">
+                    <label class="control-label">Your Name <span class="required">*</span></label>
+                    <input type="text" name="name" class="form-input" required placeholder="Guest name or nickname">
+                </div>
+                {% endif %}
+                <div class="form-group">
+                    <label class="control-label">Your Comment</label>
+                    <textarea name="comment" class="form-input" rows="3" placeholder="What would you like to know or share?" required></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Post Comment</button>
+                </div>
+            </form>
+        </div>
+    </section>
 
 </section>
 

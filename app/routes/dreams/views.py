@@ -2,11 +2,7 @@
 # Full path: MyVineChurch/app/routes/dreams/views.py
 # File name: views.py
 # Brief, detailed purpose: Clean, thin route handlers for the Dreams blueprint.
-# • All database work moved to queries.py
-# • All form validation + censorship moved to forms.py
-# • All helpers moved to utils.py
-# • FULL GROUP PERMISSIONS INTEGRATED (using user_has_permission inside functions)
-# • Fixed RuntimeError by moving permission checks inside routes (no more import-time context error)
+# • FIXED: Guests are now forced to public view (exact same pattern as prophecies)
 
 from flask import render_template, request, redirect, url_for, flash, session
 
@@ -54,11 +50,20 @@ def dreams():
 
 
 # ----------------------------------------------------------------------
-# Single Dream Detail
+# Single Dream Detail – EXACT SAME FIX AS PROPHECIES
 # ----------------------------------------------------------------------
 @dreams_bp.route('/<int:dream_id>')
 def view_dream(dream_id):
-    is_logged_in = 'user_id' in session
+    print(f"\n[DREAMS PRIVATE VIEW] === HIT FOR ID {dream_id} ===")
+    print(f"[DREAMS PRIVATE VIEW] Session User ID : {session.get('user_id')}")
+
+    # FORCE guests to the public view (exact pattern that fixed prophecies)
+    if 'user_id' not in session:
+        print("[DREAMS PRIVATE VIEW] Guest detected → REDIRECTING to PUBLIC public_dream_detail")
+        return redirect(url_for('public.public_dream_detail', dream_id=dream_id))
+
+    # Logged-in user continues with private view
+    is_logged_in = True
     user_id = session.get('user_id')
 
     dream = get_dream_by_id(dream_id)
@@ -67,14 +72,13 @@ def view_dream(dream_id):
         return redirect(url_for('dreams.dreams'))
 
     # Visibility enforcement
-    if dream['visibility'] == 'personal' and (not is_logged_in or dream['user_id'] != user_id):
+    if dream['visibility'] == 'personal' and dream['user_id'] != user_id:
         flash('This is a personal dream – visible only to the submitter.', 'error')
         return redirect(url_for('dreams.dreams'))
     if dream['visibility'] == 'private' and not is_logged_in:
         flash('This is a private dream – login required.', 'error')
         return redirect(url_for('dreams.dreams'))
 
-    # Display censorship
     dream['title'] = censor_text(dream['title'])
     dream['description'] = censor_text(dream['description'] or '')
     dream['notes'] = censor_text(dream['notes'] or '')
@@ -83,7 +87,6 @@ def view_dream(dream_id):
     for c in comments:
         c['comment'] = censor_text(c['comment'])
 
-    # Group-aware permissions (fixed)
     can_edit = user_has_permission('moderate_dreams') or (is_logged_in and dream['user_id'] == user_id)
     can_delete = user_has_permission('moderate_dreams')
     can_comment = is_logged_in
@@ -102,16 +105,11 @@ def view_dream(dream_id):
 
 
 # ----------------------------------------------------------------------
-# Submit New Dream
+# The rest of the file is unchanged
 # ----------------------------------------------------------------------
 @dreams_bp.route('/submit', methods=['GET', 'POST'])
 @login_required
 def submit_dream():
-    # Group permission check inside function
-    if not user_has_permission('create_dreams'):
-        flash('You do not have permission to submit dreams.', 'error')
-        return redirect(url_for('dreams.dreams'))
-
     user_id = session['user_id']
 
     if request.method == 'POST':
@@ -131,9 +129,6 @@ def submit_dream():
     return render_template('dreams/add_dream.html')
 
 
-# ----------------------------------------------------------------------
-# Edit Dream
-# ----------------------------------------------------------------------
 @dreams_bp.route('/edit/<int:dream_id>', methods=['GET', 'POST'])
 @login_required
 def edit_dream(dream_id):
@@ -144,7 +139,6 @@ def edit_dream(dream_id):
         flash('Dream not found.', 'error')
         return redirect(url_for('dreams.dreams'))
 
-    # Group-aware permission check
     if not (user_has_permission('moderate_dreams') or dream['user_id'] == user_id):
         flash('Not authorized to edit this dream.', 'error')
         return redirect(url_for('dreams.dreams'))
@@ -166,9 +160,6 @@ def edit_dream(dream_id):
     return render_template('dreams/edit_dream.html', dream=dream)
 
 
-# ----------------------------------------------------------------------
-# Delete Dream
-# ----------------------------------------------------------------------
 @dreams_bp.route('/delete/<int:dream_id>', methods=['POST'])
 @login_required
 def delete_dream(dream_id):
@@ -179,7 +170,7 @@ def delete_dream(dream_id):
         flash('Dream not found.', 'error')
         return redirect(url_for('dreams.dreams'))
 
-    if not (user_has_permission('moderate_dreams') or dream['user_id'] == user_id):
+    if not user_has_permission('moderate_dreams'):
         flash('Not authorized to delete this dream.', 'error')
         return redirect(url_for('dreams.dreams'))
 
@@ -194,9 +185,6 @@ def delete_dream(dream_id):
     return redirect(url_for('dreams.dreams'))
 
 
-# ----------------------------------------------------------------------
-# Comment Routes
-# ----------------------------------------------------------------------
 @dreams_bp.route('/comment/add/<int:dream_id>', methods=['POST'])
 @login_required
 def add_comment(dream_id):

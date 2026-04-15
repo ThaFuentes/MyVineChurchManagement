@@ -7,6 +7,8 @@
 # Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS.
 # Isolated module – called from builddb.py during DB initialization.
 # All ID/FK columns use UNSIGNED INT to match users.id type and fix errno 150.
+# ADDED: parent_id column in prayers_added for simple ONE-LEVEL replies only (uniform with event_comments).
+# No deep threading – exactly as you requested for the entire site.
 
 def create_tables(cursor):
     """
@@ -72,8 +74,10 @@ def create_tables(cursor):
             user_id            INT UNSIGNED,
             contributor_name   VARCHAR(255),               -- For non-registered users
             ip_address         VARCHAR(45),                -- For IP tracking
+            parent_id          INT UNSIGNED NULL,          # NEW: Simple one-level replies only (uniform across site)
             FOREIGN KEY(prayer_request_id) REFERENCES prayers(id) ON DELETE CASCADE,
-            FOREIGN KEY(user_id)           REFERENCES users(id) ON DELETE SET NULL
+            FOREIGN KEY(user_id)           REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY(parent_id)         REFERENCES prayers_added(id) ON DELETE CASCADE
         ) ENGINE=InnoDB;
     """)
 
@@ -87,7 +91,8 @@ def create_tables(cursor):
     columns_to_add_responses = {
         'contributor_name': "VARCHAR(255)",
         'ip_address':       "VARCHAR(45)",
-        'user_id':          "INT UNSIGNED"
+        'user_id':          "INT UNSIGNED",
+        'parent_id':        "INT UNSIGNED NULL"          # NEW: Simple one-level replies only
     }
 
     for col_name, col_def in columns_to_add_responses.items():
@@ -102,3 +107,8 @@ def create_tables(cursor):
     try:
         cursor.execute("CREATE INDEX idx_prayers_added_date ON prayers_added(date_added DESC)")
     except: pass
+    try:
+        cursor.execute("CREATE INDEX idx_prayers_added_parent ON prayers_added(parent_id)")
+    except: pass
+
+    print("✓ prayers.py migration completed successfully (including prayers_added table with parent_id for simple one-level replies)")

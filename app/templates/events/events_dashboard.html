@@ -6,7 +6,8 @@
    Summary cards (.card.glass), collapsible search/filters, glass table.
    + Add New Event at top (manage_events only). Event name links to view_event.
    Actions column (Edit/Delete) only for manage_events users – buttons now uniform size, side-by-side flex, no overflow.
-   Client-side live search + potluck/date filters preserved. Global classes only. -->
+   Client-side live search + potluck/date filters preserved. Global classes only.
+   FULL REBUILD: Edit/Delete now works for ALL events (past + future) for Staff/Admin/Owner. -->
 
 {% extends "events/base_events.html" %}
 
@@ -47,7 +48,7 @@ Overview of all church events.<br>
     <h2 class="section-title">All Events</h2>
 
     <!-- Add New Event Button (top) -->
-    {% if user_has_permission('manage_events') %}
+    {% if session.user_role in ['Staff', 'Admin', 'Owner'] %}
     <div class="form-actions add-event-top">
         <a href="{{ url_for('events.add_event') }}" class="btn-primary">+ Add New Event</a>
     </div>
@@ -88,7 +89,7 @@ Overview of all church events.<br>
                     <th>Location</th>
                     <th>Visibility</th>
                     <th>Potluck?</th>
-                    {% if user_has_permission('manage_events') %}
+                    {% if session.user_role in ['Staff', 'Admin', 'Owner'] %}
                     <th>Actions</th>
                     {% endif %}
                 </tr>
@@ -97,7 +98,7 @@ Overview of all church events.<br>
                 {% if events %}
                     {% for event in events %}
                     <tr class="data-row"
-                        data-potluck="{{ 'yes' if event.is_potluck else 'no' }}"
+                        data-potluck="{{ 'yes' if event.potluck_enabled else 'no' }}"
                         data-date="{{ event.event_date or '0000-00-00' }}">
                         <td>
                             <a href="{{ url_for('events.view_event', event_id=event.id) }}">
@@ -110,8 +111,8 @@ Overview of all church events.<br>
                         </td>
                         <td>{{ event.location or 'TBD' }}</td>
                         <td>{{ event.visibility|capitalize }}</td>
-                        <td>{{ 'Yes' if event.is_potluck else 'No' }}</td>
-                        {% if user_has_permission('manage_events') %}
+                        <td>{{ 'Yes' if event.potluck_enabled else 'No' }}</td>
+                        {% if session.user_role in ['Staff', 'Admin', 'Owner'] %}
                         <td class="actions-cell">
                             <div class="actions-buttons" style="display:flex; gap:0.5rem; align-items:center; flex-wrap:nowrap;">
                                 <a href="{{ url_for('events.edit_event', event_id=event.id) }}" class="btn-primary btn-small">Edit</a>
@@ -128,7 +129,7 @@ Overview of all church events.<br>
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="{{ 5 if not user_has_permission('manage_events') else 6 }}" class="no-data">
+                        <td colspan="{{ 5 if not session.user_role in ['Staff', 'Admin', 'Owner'] else 6 }}" class="no-data">
                             {% if not is_logged_in %}
                                 No public events scheduled at this time.<br>
                                 <a href="{{ url_for('auth.login') }}">Log in</a> to view private events.

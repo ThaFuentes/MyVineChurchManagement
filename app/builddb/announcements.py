@@ -1,12 +1,9 @@
 # myvinechurchonline/app/builddb/announcements.py
 # Full path: myvinechurchonline/app/builddb/announcements.py
 # File name: announcements.py
-# Brief, detailed purpose: Creates the announcements and announcement_comments tables for MariaDB.
-# Supports public/private visibility, guest contributions (contributor_name/ip_address for tracking and potential banning),
-# full audit fields (created_by/updated_by + timestamps), effective/expiration dates, and comment enabling.
-# Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS without data loss.
-# Isolated module – called from builddb.py during DB initialization.
-# All user-related FKs use signed INT to match users.id type and fix errno 150 FK mismatch.
+# Brief, detailed purpose: Creates/updates the announcements and announcement_comments tables for MariaDB.
+# Supports public/private visibility, guest contributions, and now parent_id for simple one-level replies.
+# Safe schema evolution – adds missing columns without data loss.
 
 def create_tables(cursor):
     """
@@ -15,14 +12,13 @@ def create_tables(cursor):
     """
 
     # ----- ANNOUNCEMENTS TABLE -----
-    # Using VARCHAR for indexable fields and INT UNSIGNED for Foreign Key compatibility.
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS announcements (
             id                 INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
             title              VARCHAR(255) NOT NULL,
             content            TEXT NOT NULL,
-            contributor_name   VARCHAR(255),               -- For non-registered users
-            ip_address         VARCHAR(45),                -- For IP tracking/banning (IPv6 safe)
+            contributor_name   VARCHAR(255),
+            ip_address         VARCHAR(45),
             created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             effective_date     DATETIME,
@@ -65,7 +61,7 @@ def create_tables(cursor):
             print(f"Migration: Adding missing column '{col_name}' to announcements table.")
             cursor.execute(f"ALTER TABLE announcements ADD COLUMN {col_name} {col_def}")
 
-    # Indexes for common queries (Succeeds because visibility is now VARCHAR)
+    # Indexes
     try:
         cursor.execute("CREATE INDEX idx_announcements_visibility ON announcements(visibility)")
     except: pass
@@ -79,18 +75,20 @@ def create_tables(cursor):
         cursor.execute("CREATE INDEX idx_announcements_created ON announcements(created_at DESC)")
     except: pass
 
-    # ----- ANNOUNCEMENT_COMMENTS TABLE -----
+    # ----- ANNOUNCEMENT_COMMENTS TABLE (UPDATED WITH parent_id) -----
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS announcement_comments (
             id               INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
             announcement_id  INT UNSIGNED NOT NULL,
             user_id          INT UNSIGNED,
-            contributor_name VARCHAR(255),               -- For non-registered users
-            ip_address       VARCHAR(45),                -- For IP tracking
+            contributor_name VARCHAR(255),
+            ip_address       VARCHAR(45),
             comment          TEXT NOT NULL,
             date_added       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            parent_id        INT UNSIGNED NULL,   -- NEW: for one-level replies
             FOREIGN KEY(announcement_id) REFERENCES announcements(id) ON DELETE CASCADE,
-            FOREIGN KEY(user_id)         REFERENCES users(id) ON DELETE SET NULL
+            FOREIGN KEY(user_id)         REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY(parent_id)       REFERENCES announcement_comments(id) ON DELETE CASCADE
         ) ENGINE=InnoDB;
     """)
 
@@ -100,6 +98,15 @@ def create_tables(cursor):
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'announcement_comments'
     """)
     existing_comments_columns = [row[0] for row in cursor.fetchall()]
+
+    # Safe addition of parent_id if missing
+    if 'parent_id' not in existing_comments_columns:
+        print("Migration: Adding missing 'parent_id' column to announcement_comments for one-level replies")
+        cursor.execute("""
+            ALTER TABLE announcement_comments 
+            ADD COLUMN parent_id INT UNSIGNED NULL AFTER ip_address,
+            ADD FOREIGN KEY (parent_id) REFERENCES announcement_comments(id) ON DELETE CASCADE
+        """)
 
     columns_to_add_comments = {
         'contributor_name': "VARCHAR(255)",
@@ -111,10 +118,15 @@ def create_tables(cursor):
             print(f"Migration: Adding missing column '{col_name}' to announcement_comments table.")
             cursor.execute(f"ALTER TABLE announcement_comments ADD COLUMN {col_name} {col_def}")
 
-    # Indexes for fast lookup
+    # Indexes
     try:
         cursor.execute("CREATE INDEX idx_comments_announcement ON announcement_comments(announcement_id)")
     except: pass
     try:
         cursor.execute("CREATE INDEX idx_comments_date ON announcement_comments(date_added DESC)")
     except: pass
+    try:
+        cursor.execute("CREATE INDEX idx_comments_parent ON announcement_comments(parent_id)")
+    except: pass
+
+    print("✓ announcements.py migration completed successfully (including announcement_comments table with parent_id for simple one-level replies)")

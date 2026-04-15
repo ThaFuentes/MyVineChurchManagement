@@ -1,20 +1,15 @@
-# myvinechurchonline/app/builddb/events.py
-# Full path: myvinechurchonline/app/builddb/events.py
+# MYVINECHURCH.ONLINE/app/builddb/events.py
+# Full path: MYVINECHURCH.ONLINE/app/builddb/events.py
 # File name: events.py
-# Brief, detailed purpose: Creates/updates the events and potluck_signups tables.
-# Supports public/private visibility, potluck flag, optional event_time, full audit trail (created_by/updated_by + timestamps),
-# and ALL extensive optional fields for rich event details (as listed in project spec).
-# Guest potluck signups: potluck_signups table (name, item, quantity, note, ip – no user_id required).
-# All truly optional fields allow NULL; required fields remain NOT NULL.
-# Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS (MariaDB-safe).
-# Isolated module – called from builddb.py during DB initialization.
-# FULL REBUILD: Includes every field from your provided code + guest potluck_signups table.
+# Brief, detailed purpose: Creates/updates the events, potluck_signups, and event_comments tables for MariaDB.
+# Uses exact column name "comment" to perfectly match your existing dreams table and legacy code.
+# No schema changes — keeps everything you already have working.
 
 def create_tables(cursor):
     """
-    Creates/updates the events and potluck_signups tables.
-    Designed for both fresh DB creation and safe migration of existing databases.
-    events table created first to satisfy FK in potluck_signups.
+    Creates/updates the events, potluck_signups, and event_comments tables.
+    Designed for both fresh DB creation and safe migration.
+    Uses "comment" column (exactly as your current DB and public/views.py expect).
     """
 
     # ----- EVENTS TABLE -----
@@ -22,8 +17,8 @@ def create_tables(cursor):
         CREATE TABLE IF NOT EXISTS events (
             id                        INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
             event_name                VARCHAR(255) NOT NULL,
-            event_date                VARCHAR(10) NOT NULL,              -- YYYY-MM-DD
-            event_time                VARCHAR(8),                        -- HH:MM or HH:MM AM/PM (optional)
+            event_date                VARCHAR(10) NOT NULL,
+            event_time                VARCHAR(8),
             visibility                VARCHAR(20) NOT NULL DEFAULT 'private'
                                       CHECK(visibility IN ('public', 'private')),
             potluck_enabled           TINYINT(1) NOT NULL DEFAULT 0,
@@ -118,7 +113,7 @@ def create_tables(cursor):
         cursor.execute("CREATE INDEX idx_events_potluck ON events(potluck_enabled)")
     except: pass
 
-    # ----- POTLUCK_SIGNUPS TABLE (guest contributions – replaces potluck_contributions for public) -----
+    # ----- POTLUCK_SIGNUPS TABLE -----
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS potluck_signups (
             id         INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -162,7 +157,57 @@ def create_tables(cursor):
         cursor.execute("CREATE INDEX idx_potluck_created ON potluck_signups(created_at DESC)")
     except: pass
 
-    # Optional: Drop old potluck_contributions if exists (clean up)
     try:
         cursor.execute("DROP TABLE IF EXISTS potluck_contributions")
     except: pass
+
+    # ----- EVENT_COMMENTS TABLE (uses "comment" to match your existing DB + dreams table) -----
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS event_comments (
+            id            INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+            event_id      INT UNSIGNED NOT NULL,
+            name          TEXT,
+            comment       TEXT NOT NULL,
+            user_id       INT UNSIGNED NULL,
+            ip            TEXT,
+            created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            parent_id     INT UNSIGNED NULL,
+            FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
+            FOREIGN KEY(user_id)  REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY(parent_id) REFERENCES event_comments(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB
+    """)
+
+    # Safe column additions for event_comments
+    cursor.execute("""
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'event_comments'
+    """)
+    existing_comments = [row[0] for row in cursor.fetchall()]
+
+    columns_to_add_comments = {
+        'name':        "TEXT",
+        'comment':     "TEXT NOT NULL",
+        'user_id':     "INT UNSIGNED NULL",
+        'ip':          "TEXT",
+        'created_at':  "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        'parent_id':   "INT UNSIGNED NULL"
+    }
+
+    for col, defn in columns_to_add_comments.items():
+        if col not in existing_comments:
+            print(f"Migration: Adding missing column '{col}' to event_comments table.")
+            cursor.execute(f"ALTER TABLE event_comments ADD COLUMN {col} {defn}")
+
+    # Indexes for event_comments
+    try:
+        cursor.execute("CREATE INDEX idx_event_comments_event ON event_comments(event_id)")
+    except: pass
+    try:
+        cursor.execute("CREATE INDEX idx_event_comments_created ON event_comments(created_at DESC)")
+    except: pass
+    try:
+        cursor.execute("CREATE INDEX idx_event_comments_parent ON event_comments(parent_id)")
+    except: pass
+
+    print("✓ events.py migration completed successfully (using 'comment' column to match your existing DB)")

@@ -4,23 +4,32 @@
 # Brief, detailed purpose: All route handlers (controllers) for the Auth blueprint.
 # • Every single @auth_bp.route from the old flat auth.py lives here.
 # • 100% original behavior preserved: root redirect, login/logout, full registration (Owner on first user, pending after), password reset, forgot username, server-side censorship on visible fields, form repopulation on error.
-# • This is the “HTTP layer” only – thin, readable, easy to grow (add new routes like OAuth, 2FA, etc. later without touching DB code).
-# • DB operations, form validation, and helpers will be extracted next (queries.py / forms.py / utils.py) for true scalability.
+# • This is the “HTTP layer” only – thin, readable, easy to grow.
+# • Uses modular queries.py, forms.py, and utils.py – no inline SQL, no inline validation.
 
 from flask import render_template, request, redirect, url_for, session, flash
-from werkzeug.security import generate_password_hash, check_password_hash
-import random
-import string
-import pymysql
+from werkzeug.security import check_password_hash, generate_password_hash
 
-# Package-relative blueprint (defined in __init__.py)
+# Package-relative blueprint
 from . import auth_bp
 
-# Top-level app imports (unchanged)
-from app.models.db import get_db
+# Modular imports
+from .queries import (
+    get_total_user_count,
+    get_user_by_username,
+    get_user_by_email,
+    create_new_user,
+    update_user_password
+)
+from .forms import (
+    validate_register_form,
+    validate_password_reset_form,
+    validate_forgot_username_form
+)
+from .utils import generate_reset_code
+
 from app.models.log import log_change
 from app.utils.emailer import send_email
-from app.utils.helpers import contains_censored_word
 
 
 # ----------------------------------------------------------------------
@@ -29,8 +38,7 @@ from app.utils.helpers import contains_censored_word
 @auth_bp.route('/')
 def index():
     """
-    Smart root: logged-in users → private dashboard, guests → public dashboard (Gathering Place).
-    This creates one consistent "Home" experience as requested.
+    Smart root: logged-in users → private dashboard, guests → public dashboard.
     """
     if session.get('user_id'):
         return redirect(url_for('dashboard.dashboard'))
@@ -42,15 +50,6 @@ def index():
 # ----------------------------------------------------------------------
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
-    db = get_db()
-    cur = db.cursor(pymysql.cursors.DictCursor)
-
-    cur.execute('SELECT COUNT(*) AS total FROM users')
-    user_count = cur.fetchone()['total']
-
-    if user_count == 0:
-        return redirect(url_for('auth.register'))
-
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
@@ -59,11 +58,9 @@ def login():
             flash('Please enter both username and password.', 'error')
             return render_template('auth/login.html')
 
-        cur.execute('SELECT * FROM users WHERE username = %s', (username,))
-        user = cur.fetchone()
-
+        user = get_user_by_username(username)
         if not user:
-            flash('Invalid credentials. Please try again.', 'error')
+            flash('Invalid credentials.', 'error')
             return render_template('auth/login.html')
 
         if user['role'] == 'pending':
@@ -104,64 +101,46 @@ def logout():
 # ----------------------------------------------------------------------
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
-    db = get_db()
-    cur = db.cursor(pymysql.cursors.DictCursor)
-
-    cur.execute('SELECT COUNT(*) AS total FROM users')
-    user_count = cur.fetchone()['total']
-    is_first_user = (user_count == 0)
+    total_users = get_total_user_count()
+    is_first_user = (total_users == 0)
 
     if request.method == 'POST':
-        first_name = request.form.get('first_name', '').strip()
-        last_name = request.form.get('last_name', '').strip()
-        email = request.form.get('email', '').strip().lower()
-        phone = request.form.get('phone', '').strip()
-        address = request.form.get('address', '').strip()
-        birthday = request.form.get('birthday') or None
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '')
-        confirm_password = request.form.get('confirm_password', '')
+        clean_data = validate_register_form(request.form)
+        if not clean_data:
+            # Repopulate form on error
+            return render_template('auth/register.html',
+                                   is_first_user=is_first_user,
+                                   form=request.form)
 
-        accepts_emails = 1 if 'accepts_emails' in request.form else 0
-        show_birthday = 1 if 'show_birthday' in request.form else 0
-
-        # Visible fields censorship check
-        visible_text = f"{first_name} {last_name} {username}"
-        if contains_censored_word(visible_text):
-            flash('Name or username contains a prohibited word or phrase.', 'error')
-            return render_template('auth/register.html', is_first_user=is_first_user, form=request.form)
-
-        if not (first_name and last_name and email and username and password):
-            flash('Required fields missing.', 'error')
-            return render_template('auth/register.html', is_first_user=is_first_user, form=request.form)
-
-        if password != confirm_password:
-            flash('Passwords do not match.', 'error')
-            return render_template('auth/register.html', is_first_user=is_first_user, form=request.form)
-
-        hashed_pw = generate_password_hash(password)
+        hashed_pw = generate_password_hash(clean_data['password'])
         role = 'Owner' if is_first_user else 'pending'
         needs_approval = 0 if is_first_user else 1
 
         try:
-            cur.execute('''
-                INSERT INTO users 
-                (first_name, last_name, email, phone, address, birthday, username, password,
-                 role, needs_approval, accepts_emails, show_birthday)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ''', (first_name, last_name, email, phone, address, birthday, username, hashed_pw,
-                  role, needs_approval, accepts_emails, show_birthday))
-            new_id = cur.lastrowid
-            db.commit()
+            new_id = create_new_user(
+                first_name=clean_data['first_name'],
+                last_name=clean_data['last_name'],
+                email=clean_data['email'],
+                phone=clean_data['phone'],
+                address=clean_data['address'],
+                birthday=clean_data['birthday'],
+                username=clean_data['username'],
+                hashed_password=hashed_pw,
+                role=role,
+                needs_approval=needs_approval,
+                accepts_emails=clean_data['accepts_emails'],
+                show_birthday=clean_data['show_birthday']
+            )
 
-            log_change(new_id, 'register', change_details=f"User {username} registered.")
+            log_change(new_id, 'register', change_details=f"User {clean_data['username']} registered.")
             flash('Registration successful. Please log in.', 'success')
             return redirect(url_for('auth.login'))
 
-        except pymysql.err.IntegrityError:
-            db.rollback()
+        except Exception:
             flash('Username or Email already exists.', 'error')
-            return render_template('auth/register.html', is_first_user=is_first_user, form=request.form)
+            return render_template('auth/register.html',
+                                   is_first_user=is_first_user,
+                                   form=request.form)
 
     return render_template('auth/register.html', is_first_user=is_first_user)
 
@@ -172,23 +151,22 @@ def register():
 @auth_bp.route('/request-reset-password', methods=['GET', 'POST'])
 def request_reset_password():
     if request.method == 'POST':
-        email = request.form.get('email', '').strip().lower()
-        db = get_db()
-        cur = db.cursor(pymysql.cursors.DictCursor)
-        cur.execute('SELECT id FROM users WHERE email = %s', (email,))
-        user = cur.fetchone()
+        email = validate_password_reset_form(request.form)
+        if not email:
+            return render_template('auth/request_reset_password.html')
 
+        user = get_user_by_email(email)
         if user:
-            reset_code = ''.join(random.choices(string.digits, k=10))
+            reset_code = generate_reset_code()
             hashed_code = generate_password_hash(reset_code)
-            cur.execute('UPDATE users SET password = %s WHERE id = %s', (hashed_code, user['id']))
-            db.commit()
+
             try:
+                update_user_password(user['id'], hashed_code)
                 send_email(email, 'Password Reset - MyVineChurch.Online',
                            f'Your temporary password reset code is: {reset_code}\n\n'
                            f'Log in with this code and change your password immediately.')
                 flash('Reset code sent to your email.', 'success')
-            except Exception as e:
+            except Exception:
                 flash('Email send failed. Contact admin.', 'error')
         else:
             flash('If the email exists, a reset code has been sent.', 'info')
@@ -204,18 +182,17 @@ def request_reset_password():
 @auth_bp.route('/forgot-username', methods=['GET', 'POST'])
 def forgot_username():
     if request.method == 'POST':
-        email = request.form.get('email', '').strip().lower()
-        db = get_db()
-        cur = db.cursor(pymysql.cursors.DictCursor)
-        cur.execute('SELECT username FROM users WHERE email = %s', (email,))
-        user = cur.fetchone()
+        email = validate_forgot_username_form(request.form)
+        if not email:
+            return render_template('auth/forgot_username.html')
 
+        user = get_user_by_email(email)
         if user:
             try:
                 send_email(email, 'Username Recovery - MyVineChurch.Online',
                            f'Your username is: {user["username"]}')
                 flash('Username sent to your email.', 'success')
-            except Exception as e:
+            except Exception:
                 flash('Email send failed. Contact admin.', 'error')
         else:
             flash('If the email exists, your username has been sent.', 'info')

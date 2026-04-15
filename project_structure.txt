@@ -1,16 +1,16 @@
 REAL CODE LINE COUNTS & USAGE
 ============================================================
-app/__init__.py: 116 lines (defines routes, creates Flask app)
-app/builddb/announcements.py: 79 lines (dynamically loaded by builddb.py)
+app/__init__.py: 138 lines (defines routes, creates Flask app)
+app/builddb/announcements.py: 73 lines (imported 1 time)
 app/builddb/api_keys.py: 20 lines (dynamically loaded by builddb.py)
-app/builddb/attendance.py: 42 lines (dynamically loaded by builddb.py)
+app/builddb/attendance.py: 42 lines (imported 1 time)
 app/builddb/banned_ips.py: 27 lines (dynamically loaded by builddb.py)
 app/builddb/builddb.py: 85 lines (imported 1 time, entry point)
 app/builddb/change_records.py: 33 lines (dynamically loaded by builddb.py)
 app/builddb/donations.py: 25 lines (dynamically loaded by builddb.py)
-app/builddb/dreams.py: 45 lines (dynamically loaded by builddb.py)
+app/builddb/dreams.py: 63 lines (imported 1 time)
 app/builddb/email_settings.py: 55 lines (dynamically loaded by builddb.py)
-app/builddb/events.py: 123 lines (dynamically loaded by builddb.py)
+app/builddb/events.py: 160 lines (imported 1 time)
 app/builddb/family_relations.py: 51 lines (dynamically loaded by builddb.py)
 app/builddb/groups.py: 86 lines (imported 1 time)
 app/builddb/inventory.py: 51 lines (dynamically loaded by builddb.py)
@@ -18,8 +18,8 @@ app/builddb/kiosk_sessions.py: 33 lines (dynamically loaded by builddb.py)
 app/builddb/member_roles.py: 26 lines (dynamically loaded by builddb.py)
 app/builddb/online_donation_options.py: 15 lines (dynamically loaded by builddb.py)
 app/builddb/pastoral.py: 125 lines (imported 2 times)
-app/builddb/prayers.py: 62 lines (dynamically loaded by builddb.py)
-app/builddb/prophecies.py: 36 lines (dynamically loaded by builddb.py)
+app/builddb/prayers.py: 69 lines (imported 1 time)
+app/builddb/prophecies.py: 55 lines (imported 1 time)
 app/builddb/recurring_bills.py: 59 lines (dynamically loaded by builddb.py)
 app/builddb/sermons.py: 36 lines (imported 5 times)
 app/builddb/settings.py: 94 lines (imported 4 times)
@@ -30,7 +30,7 @@ app/builddb/user_widgets.py: 28 lines (dynamically loaded by builddb.py)
 app/builddb/users.py: 101 lines (imported 1 time)
 app/config.py: 35 lines (possibly unused)
 app/models/credentials.py: 34 lines (imported 2 times)
-app/models/db.py: 23 lines (imported 74 times)
+app/models/db.py: 23 lines (imported 78 times)
 app/models/donation.py: 139 lines (imported 1 time)
 app/models/groups.py: 56 lines (imported 1 time)
 app/models/log.py: 29 lines (imported 48 times, entry point)
@@ -46,20 +46,20 @@ app/models/pastoral/vault.py: 49 lines (imported 4 times)
 app/models/settings.py: 29 lines (imported 4 times)
 app/models/users.py: 205 lines (imported 1 time)
 app/routes/announcements/__init__.py: 11 lines (defines blueprint)
-app/routes/announcements/forms.py: 40 lines (imported 21 times)
-app/routes/announcements/queries.py: 88 lines (imported 22 times)
-app/routes/announcements/utils.py: 18 lines (imported 25 times)
+app/routes/announcements/forms.py: 40 lines (imported 25 times)
+app/routes/announcements/queries.py: 88 lines (imported 30 times)
+app/routes/announcements/utils.py: 18 lines (imported 33 times)
 app/routes/announcements/views.py: 156 lines (imported 15 times, defines routes)
 app/routes/attendance/__init__.py: 8 lines (defines routes, defines blueprint)
-app/routes/attendance/forms.py: 11 lines (imported 21 times)
-app/routes/attendance/queries.py: 47 lines (imported 22 times)
-app/routes/attendance/utils.py: 7 lines (imported 25 times)
+app/routes/attendance/forms.py: 11 lines (imported 25 times)
+app/routes/attendance/queries.py: 47 lines (imported 30 times)
+app/routes/attendance/utils.py: 7 lines (imported 33 times)
 app/routes/attendance/views.py: 165 lines (imported 15 times, defines routes)
-app/routes/auth/__init__.py: 4 lines (defines routes, defines blueprint)
-app/routes/auth/forms.py: 48 lines (imported 21 times)
-app/routes/auth/queries.py: 29 lines (imported 22 times)
-app/routes/auth/utils.py: 4 lines (imported 25 times)
-app/routes/auth/views.py: 95 lines (imported 15 times, defines routes)
+app/routes/auth/__init__.py: 7 lines (defines blueprint)
+app/routes/auth/forms.py: 48 lines (imported 25 times)
+app/routes/auth/queries.py: 29 lines (imported 30 times)
+app/routes/auth/utils.py: 4 lines (imported 33 times)
+app/routes/auth/views.py: 135 lines (imported 15 times, defines routes)
 app/routes/bills/__init__.py: 16 lines (defines blueprint)
 app/routes/bills/assign.py: 34 lines (imported 1 time, defines routes)
 app/routes/bills/dashboard.py: 40 lines (imported 1 time, defines routes)
@@ -69,46 +69,46 @@ app/routes/bills/payment.py: 41 lines (imported 1 time, defines routes)
 app/routes/bills/reminder.py: 43 lines (imported 1 time, defines routes)
 app/routes/bills/view.py: 60 lines (imported 1 time, defines routes)
 app/routes/dashboard/__init__.py: 4 lines (defines routes, defines blueprint)
-app/routes/dashboard/forms.py: 3 lines (imported 21 times)
-app/routes/dashboard/queries.py: 50 lines (imported 22 times)
-app/routes/dashboard/utils.py: 32 lines (imported 25 times)
+app/routes/dashboard/forms.py: 3 lines (imported 25 times)
+app/routes/dashboard/queries.py: 50 lines (imported 30 times)
+app/routes/dashboard/utils.py: 32 lines (imported 33 times)
 app/routes/dashboard/views.py: 114 lines (imported 15 times, defines routes)
 app/routes/donations/__init__.py: 11 lines (defines blueprint)
-app/routes/donations/forms.py: 60 lines (imported 21 times)
-app/routes/donations/queries.py: 30 lines (imported 22 times)
-app/routes/donations/utils.py: 10 lines (imported 25 times)
+app/routes/donations/forms.py: 60 lines (imported 25 times)
+app/routes/donations/queries.py: 30 lines (imported 30 times)
+app/routes/donations/utils.py: 10 lines (imported 33 times)
 app/routes/donations/views.py: 254 lines (imported 15 times, defines routes)
 app/routes/dreams/__init__.py: 8 lines (defines routes, defines blueprint)
-app/routes/dreams/forms.py: 59 lines (imported 21 times)
-app/routes/dreams/queries.py: 52 lines (imported 22 times)
-app/routes/dreams/utils.py: 16 lines (imported 25 times)
-app/routes/dreams/views.py: 164 lines (imported 15 times, defines routes)
+app/routes/dreams/forms.py: 59 lines (imported 25 times)
+app/routes/dreams/queries.py: 52 lines (imported 30 times)
+app/routes/dreams/utils.py: 16 lines (imported 33 times)
+app/routes/dreams/views.py: 166 lines (imported 15 times, defines routes)
 app/routes/emailer/__init__.py: 0 lines (possibly unused)
-app/routes/emailer/forms.py: 18 lines (imported 21 times)
-app/routes/emailer/queries.py: 12 lines (imported 22 times)
+app/routes/emailer/forms.py: 18 lines (imported 25 times)
+app/routes/emailer/queries.py: 12 lines (imported 30 times)
 app/routes/emailer/utlis.py: 13 lines (possibly unused)
 app/routes/emailer/view.py: 40 lines (imported 1 time, defines routes)
 app/routes/events/__init__.py: 12 lines (defines blueprint)
 app/routes/events/event_contributions.py: 16 lines (imported 1 time, defines routes)
-app/routes/events/event_detail.py: 43 lines (imported 1 time, defines routes)
+app/routes/events/event_detail.py: 119 lines (imported 1 time, defines routes)
 app/routes/events/event_email.py: 54 lines (imported 1 time, defines routes)
 app/routes/events/event_management.py: 143 lines (imported 1 time, defines routes)
 app/routes/events/events_dashboard.py: 15 lines (imported 1 time, defines routes)
 app/routes/groups/__init__.py: 11 lines (defines blueprint)
-app/routes/groups/forms.py: 40 lines (imported 21 times)
-app/routes/groups/queries.py: 88 lines (imported 22 times)
-app/routes/groups/utils.py: 39 lines (imported 25 times)
-app/routes/groups/views.py: 150 lines (imported 15 times, defines routes)
+app/routes/groups/forms.py: 40 lines (imported 25 times)
+app/routes/groups/queries.py: 88 lines (imported 30 times)
+app/routes/groups/utils.py: 40 lines (imported 33 times)
+app/routes/groups/views.py: 95 lines (imported 15 times, defines routes)
 app/routes/inventory/__init__.py: 11 lines (defines blueprint)
-app/routes/inventory/forms.py: 68 lines (imported 21 times)
-app/routes/inventory/queries.py: 97 lines (imported 22 times)
-app/routes/inventory/utils.py: 37 lines (imported 25 times)
+app/routes/inventory/forms.py: 68 lines (imported 25 times)
+app/routes/inventory/queries.py: 97 lines (imported 30 times)
+app/routes/inventory/utils.py: 37 lines (imported 33 times)
 app/routes/inventory/views.py: 130 lines (imported 15 times, defines routes)
 app/routes/log.py: 44 lines (imported 48 times, defines routes, defines blueprint)
 app/routes/members/__init__.py: 11 lines (defines blueprint)
-app/routes/members/forms.py: 57 lines (imported 21 times)
-app/routes/members/queries.py: 55 lines (imported 22 times)
-app/routes/members/utils.py: 20 lines (imported 25 times)
+app/routes/members/forms.py: 57 lines (imported 25 times)
+app/routes/members/queries.py: 55 lines (imported 30 times)
+app/routes/members/utils.py: 20 lines (imported 33 times)
 app/routes/members/views.py: 109 lines (imported 15 times, defines routes)
 app/routes/pastoral/__init__.py: 92 lines (defines routes, defines blueprint)
 app/routes/pastoral/ai_assistant.py: 122 lines (imported 1 time, defines routes)
@@ -123,31 +123,36 @@ app/routes/pastoral/sermons_exports.py: 114 lines (defines routes, defines bluep
 app/routes/pastoral/vault.py: 126 lines (imported 4 times, defines routes, defines blueprint)
 app/routes/pastoral/vault_integration.py: 86 lines (imported 1 time, defines routes, defines blueprint)
 app/routes/prayers/__init__.py: 11 lines (defines blueprint)
-app/routes/prayers/forms.py: 50 lines (imported 21 times)
-app/routes/prayers/queries.py: 49 lines (imported 22 times)
-app/routes/prayers/utils.py: 9 lines (imported 25 times)
-app/routes/prayers/views.py: 157 lines (imported 15 times, defines routes)
+app/routes/prayers/forms.py: 50 lines (imported 25 times)
+app/routes/prayers/queries.py: 49 lines (imported 30 times)
+app/routes/prayers/utils.py: 9 lines (imported 33 times)
+app/routes/prayers/views.py: 152 lines (imported 15 times, defines routes)
 app/routes/profile/__init__.py: 11 lines (defines blueprint)
-app/routes/profile/forms.py: 53 lines (imported 21 times)
-app/routes/profile/queries.py: 69 lines (imported 22 times)
-app/routes/profile/utils.py: 14 lines (imported 25 times)
+app/routes/profile/forms.py: 53 lines (imported 25 times)
+app/routes/profile/queries.py: 69 lines (imported 30 times)
+app/routes/profile/utils.py: 14 lines (imported 33 times)
 app/routes/profile/views.py: 134 lines (imported 15 times, defines routes)
 app/routes/prophecies/__init__.py: 11 lines (defines blueprint)
-app/routes/prophecies/forms.py: 47 lines (imported 21 times)
-app/routes/prophecies/queries.py: 79 lines (imported 22 times)
-app/routes/prophecies/utils.py: 7 lines (imported 25 times)
-app/routes/prophecies/views.py: 140 lines (imported 15 times, defines routes)
+app/routes/prophecies/forms.py: 47 lines (imported 25 times)
+app/routes/prophecies/queries.py: 79 lines (imported 30 times)
+app/routes/prophecies/utils.py: 7 lines (imported 33 times)
+app/routes/prophecies/views.py: 144 lines (imported 15 times, defines routes)
 app/routes/public/__init__.py: 10 lines (defines blueprint)
-app/routes/public/forms.py: 20 lines (imported 21 times)
-app/routes/public/queries.py: 50 lines (imported 22 times)
-app/routes/public/utils.py: 13 lines (imported 25 times)
-app/routes/public/views.py: 53 lines (imported 15 times, defines routes)
-app/routes/public_dashboard.py: 87 lines (defines routes, defines blueprint)
+app/routes/public/forms.py: 20 lines (imported 25 times)
+app/routes/public/public_announcements.py: 39 lines (defines routes)
+app/routes/public/public_dreams.py: 48 lines (defines routes)
+app/routes/public/public_events.py: 57 lines (defines routes)
+app/routes/public/public_prayers.py: 58 lines (defines routes)
+app/routes/public/public_prophecies.py: 69 lines (defines routes)
+app/routes/public/public_sermons.py: 65 lines (defines routes)
+app/routes/public/queries.py: 58 lines (imported 30 times)
+app/routes/public/utils.py: 3 lines (imported 33 times)
+app/routes/public/views.py: 183 lines (imported 15 times, defines routes)
 app/routes/sermons/__init__.py: 2 lines (possibly unused)
-app/routes/sermons/forms.py: 52 lines (imported 21 times)
-app/routes/sermons/queries.py: 53 lines (imported 22 times)
-app/routes/sermons/utils.py: 8 lines (imported 25 times)
-app/routes/sermons/views.py: 247 lines (imported 15 times, defines routes, defines blueprint)
+app/routes/sermons/forms.py: 56 lines (imported 25 times)
+app/routes/sermons/queries.py: 53 lines (imported 30 times)
+app/routes/sermons/utils.py: 8 lines (imported 33 times)
+app/routes/sermons/views.py: 262 lines (imported 15 times, defines routes, defines blueprint)
 app/routes/settings/__init__.py: 97 lines (defines routes, defines blueprint)
 app/routes/settings/ai.py: 28 lines (imported 1 time, defines routes)
 app/routes/settings/censored_words.py: 43 lines (imported 1 time, defines routes)
@@ -157,25 +162,25 @@ app/routes/settings/online_giving.py: 112 lines (imported 1 time, defines routes
 app/routes/settings/ticket_managers.py: 38 lines (imported 1 time, defines routes)
 app/routes/settings/timezone.py: 66 lines (imported 2 times, defines routes)
 app/routes/tickets/__init__.py: 2 lines (possibly unused)
-app/routes/tickets/forms.py: 69 lines (imported 21 times)
-app/routes/tickets/queries.py: 70 lines (imported 22 times)
-app/routes/tickets/utils.py: 9 lines (imported 25 times)
+app/routes/tickets/forms.py: 69 lines (imported 25 times)
+app/routes/tickets/queries.py: 70 lines (imported 30 times)
+app/routes/tickets/utils.py: 9 lines (imported 33 times)
 app/routes/tickets/views.py: 124 lines (imported 15 times, defines routes, defines blueprint)
-app/utils/decorators.py: 73 lines (imported 32 times)
+app/utils/decorators.py: 73 lines (imported 31 times)
 app/utils/emailer.py: 66 lines (imported 7 times)
-app/utils/helpers.py: 75 lines (imported 41 times)
+app/utils/helpers.py: 75 lines (imported 44 times)
 app/utils/permissions.py: 18 lines (possibly unused)
-app/utils/time_utils.py: 35 lines (imported 16 times)
+app/utils/time_utils.py: 35 lines (imported 17 times)
 main.py: 9 lines (entry point)
 
-TOTAL EXECUTABLE PYTHON LINES: 9811
+TOTAL EXECUTABLE PYTHON LINES: 10370
 
 
 USAGE ANALYSIS
 ============================================================
 Note: Highly accurate static + heuristic analysis.
 
-PYTHON FILES: 160/167 appear used
+PYTHON FILES: 165/172 appear used
 
 Possibly unused Python files:
  - app/config.py
@@ -186,7 +191,7 @@ Possibly unused Python files:
  - app/routes/tickets/__init__.py
  - app/utils/permissions.py
 
-TEMPLATES (in app/templates): 104/124 appear referenced
+TEMPLATES (in app/templates): 112/133 appear referenced
 
 Possibly unused templates:
  - app/templates/auth/base_auth.html
@@ -196,6 +201,7 @@ Possibly unused templates:
  - app/templates/dreams/add_comment.html
  - app/templates/dreams/dreams.html
  - app/templates/events/events.html
+ - app/templates/events/view_event.html
  - app/templates/groups/base_groups.html
  - app/templates/groups/manage.html
  - app/templates/inventory/audit_report.html
@@ -207,7 +213,7 @@ Possibly unused templates:
  - app/templates/pastoral/sermon_section_partial.html
  - app/templates/prayers/prayers.html
  - app/templates/prayers/prayers_dashboard.html
- - app/templates/public/prayers/view_prayer.html
+ - app/templates/prayers/view_prayer.html
  - app/templates/sermons/sermons.html
 
 STATIC FILES (in static): 21/64 appear referenced
@@ -337,7 +343,6 @@ Root: myvinechurchonline/
 │   │       └── vault.py
 │   ├── routes/
 │   │   ├── log.py
-│   │   ├── public_dashboard.py
 │   │   ├── announcements/
 │   │   │   ├── __init__.py
 │   │   │   ├── forms.py
@@ -448,6 +453,12 @@ Root: myvinechurchonline/
 │   │   ├── public/
 │   │   │   ├── __init__.py
 │   │   │   ├── forms.py
+│   │   │   ├── public_announcements.py
+│   │   │   ├── public_dreams.py
+│   │   │   ├── public_events.py
+│   │   │   ├── public_prayers.py
+│   │   │   ├── public_prophecies.py
+│   │   │   ├── public_sermons.py
 │   │   │   ├── queries.py
 │   │   │   ├── utils.py
 │   │   │   └── views.py
@@ -585,20 +596,26 @@ Root: myvinechurchonline/
 │   │   ├── prayers/
 │   │   │   ├── add_prayer.html
 │   │   │   ├── base_prayers.html
+│   │   │   ├── edit_prayer.html
 │   │   │   ├── prayers.html
-│   │   │   └── prayers_dashboard.html
+│   │   │   ├── prayers_dashboard.html
+│   │   │   └── view_prayer.html
 │   │   ├── profile/
 │   │   │   └── profile.html
 │   │   ├── prophecies/
 │   │   │   ├── add_prophecy.html
 │   │   │   ├── base_prophecies.html
-│   │   │   └── prophecies.html
+│   │   │   ├── edit_prophecy.html
+│   │   │   ├── prophecies.html
+│   │   │   └── view_prophecy.html
 │   │   ├── public/
 │   │   │   ├── public_dashboard.html
 │   │   │   ├── announcements/
-│   │   │   │   └── announcements.html
+│   │   │   │   ├── announcements.html
+│   │   │   │   └── view_announcement.html
 │   │   │   ├── dreams/
-│   │   │   │   └── dreams.html
+│   │   │   │   ├── dreams.html
+│   │   │   │   └── view_dream.html
 │   │   │   ├── events/
 │   │   │   │   ├── event_detail.html
 │   │   │   │   └── events.html
@@ -606,13 +623,16 @@ Root: myvinechurchonline/
 │   │   │   │   ├── prayers.html
 │   │   │   │   └── view_prayer.html
 │   │   │   ├── prophecies/
-│   │   │   │   └── prophecies.html
+│   │   │   │   ├── prophecies.html
+│   │   │   │   └── view_prophecy.html
 │   │   │   └── sermons/
-│   │   │       └── sermons.html
+│   │   │       ├── sermons.html
+│   │   │       └── view_sermon.html
 │   │   ├── sermons/
 │   │   │   ├── add_sermon.html
 │   │   │   ├── base_sermons.html
-│   │   │   └── sermons.html
+│   │   │   ├── sermons.html
+│   │   │   └── view_sermon.html
 │   │   ├── settings/
 │   │   │   ├── ai.html
 │   │   │   ├── base_settings.html
@@ -735,12 +755,12 @@ Purpose: Configuration classes for the Flask application in MariaDB environment.
 ===========================================================
 File: app/__init__.py
 Path: myvinechurchonline/app/__init__.py
-Purpose: Flask application factory for MYVINECHURCH.ONLINE. - Loads .env + MariaDB configuration - Initializes DB schema silently on first request - Registers all blueprints (core + pastoral + modular packages) - Injects global settings, Jinja filters, and template context processors - Handles smart root redirect and initial Owner setup enforcement - Fully supports package-style blueprints (sermons/, tickets/, dreams/, etc.)
+Purpose: Flask application factory for MYVINECHURCH.ONLINE. - Loads .env + MariaDB configuration - Initializes DB schema silently on first request - Registers all blueprints (PUBLIC FIRST so guests hit public routes) - Injects global settings, Jinja filters, and template context processors - Handles smart root redirect and initial Owner setup enforcement
 
 ===========================================================
 File: app/builddb/announcements.py
 Path: myvinechurchonline/app/builddb/announcements.py
-Purpose: Creates the announcements and announcement_comments tables for MariaDB. Supports public/private visibility, guest contributions (contributor_name/ip_address for tracking and potential banning), full audit fields (created_by/updated_by + timestamps), effective/expiration dates, and comment enabling. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS without data loss. Isolated module – called from builddb.py during DB initialization. All user-related FKs use signed INT to match users.id type and fix errno 150 FK mismatch.
+Purpose: Creates/updates the announcements and announcement_comments tables for MariaDB. Supports public/private visibility, guest contributions, and now parent_id for simple one-level replies. Safe schema evolution – adds missing columns without data loss.
 
 ===========================================================
 File: app/builddb/api_keys.py
@@ -775,7 +795,7 @@ Purpose: Creates the donations table for MariaDB. Tracks donation records (name,
 ===========================================================
 File: app/builddb/dreams.py
 Path: myvinechurchonline/app/builddb/dreams.py
-Purpose: Creates/updates the dreams and dream_comments tables for MariaDB. Now supports three visibility levels via the visibility column: - 'public'   : visible to everyone (including guests) - 'private'  : visible to all logged-in members - 'personal' : visible ONLY to the submitter/uploader Default visibility = 'private' for member review (backward compatible). Removed separate is_personal flag – now fully handled by visibility column for consistency with sermons module. Safe schema evolution: drops old CHECK constraint if present, updates visibility to include 'personal'. Isolated module – called from builddb.py during DB initialization.
+Purpose: Creates/updates the dreams and dream_comments tables for MariaDB. Supports three visibility levels (public/private/personal) + parent_id for simple one-level replies. Safe migration for existing databases.
 
 ===========================================================
 File: app/builddb/email_settings.py
@@ -785,7 +805,7 @@ Purpose: Creates the app_email_settings and church_email_settings tables for Mar
 ===========================================================
 File: app/builddb/events.py
 Path: myvinechurchonline/app/builddb/events.py
-Purpose: Creates/updates the events and potluck_signups tables. Supports public/private visibility, potluck flag, optional event_time, full audit trail (created_by/updated_by + timestamps), and ALL extensive optional fields for rich event details (as listed in project spec). Guest potluck signups: potluck_signups table (name, item, quantity, note, ip – no user_id required). All truly optional fields allow NULL; required fields remain NOT NULL. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS (MariaDB-safe). Isolated module – called from builddb.py during DB initialization. FULL REBUILD: Includes every field from your provided code + guest potluck_signups table.
+Purpose: Creates/updates the events, potluck_signups, and event_comments tables for MariaDB. Uses exact column name "comment" to perfectly match your existing dreams table and legacy code. No schema changes — keeps everything you already have working.
 
 ===========================================================
 File: app/builddb/family_relations.py
@@ -825,12 +845,12 @@ Purpose: Creates and safely migrates ALL database tables for the Pastoral Area m
 ===========================================================
 File: app/builddb/prayers.py
 Path: myvinechurchonline/app/builddb/prayers.py
-Purpose: Creates the prayers and prayers_added tables for MariaDB. Supports public/private visibility (defaults to 'public' per project guidelines), guest submissions (contributor_name/ip_address), and prayer responses ("added prayers") with similar guest tracking. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module – called from builddb.py during DB initialization. All ID/FK columns use UNSIGNED INT to match users.id type and fix errno 150.
+Purpose: Creates the prayers and prayers_added tables for MariaDB. Supports public/private visibility (defaults to 'public' per project guidelines), guest submissions (contributor_name/ip_address), and prayer responses ("added prayers") with similar guest tracking. Safe schema evolution: adds missing columns via INFORMATION_SCHEMA.COLUMNS. Isolated module – called from builddb.py during DB initialization. All ID/FK columns use UNSIGNED INT to match users.id type and fix errno 150. ADDED: parent_id column in prayers_added for simple ONE-LEVEL replies only (uniform with event_comments). No deep threading – exactly as you requested for the entire site.
 
 ===========================================================
 File: app/builddb/prophecies.py
 Path: myvinechurchonline/app/builddb/prophecies.py
-Purpose: Creates/updates the prophecies and prophecy_comments tables for MariaDB. Standardized timestamps: created_at (DEFAULT CURRENT_TIMESTAMP), updated_at (ON UPDATE CURRENT_TIMESTAMP). Visibility levels: public / private / personal (CHECK constraint). Guest contributions supported (contributor_name, ip_address). Safe schema evolution – adds missing columns/constraints without data loss. Isolated module – called from builddb.py during DB initialization. FIXED: Multi-line CREATE TABLE strings reformatted with no leading whitespace on continued lines to prevent MariaDB syntax errors from Python indentation preservation.
+Purpose: Creates/updates the prophecies and prophecy_comments tables for MariaDB. Standardized timestamps + visibility levels (public/private/personal) + parent_id for simple one-level replies. Safe migration for existing databases.
 
 ===========================================================
 File: app/builddb/recurring_bills.py
@@ -840,7 +860,7 @@ Purpose: Creates/updates the recurring_bills, recurring_bill_assignments, and bi
 ===========================================================
 File: app/builddb/sermons.py
 Path: myvinechurchonline/app/builddb/sermons.py
-Purpose: Creates/updates the sermons and sermon_comments tables for MariaDB. Now supports three visibility levels: - 'public'   : visible to everyone (including guests) - 'private'  : visible to all logged-in members - 'personal' : visible ONLY to the uploader (new option) Default remains 'private' for backward compatibility. Safe schema evolution: modifies existing CHECK constraint to include 'personal'. Isolated module – called from builddb.py during DB initialization.
+Purpose: Creates/updates the sermons and sermon_comments tables for MariaDB. Now supports three visibility levels (public/private/personal) and simple ONE-LEVEL replies only (parent_id). Safe schema evolution – adds parent_id to sermon_comments to match events and prayers. All other fields and logic from your original file are 100% preserved.
 
 ===========================================================
 File: app/builddb/settings.py
@@ -958,11 +978,6 @@ Path: myvinechurchonline/app/routes/log.py
 Purpose: Blueprint for viewing change audit records. Route /log/change_records – TEMPORARILY open to any logged-in user (for debugging). Displays all audit entries from the change_records table (table name aligned exactly with your builddb). Searchable by username/action/details. Simple pagination. Template: log/change_records.html (consistent with folder structure).
 
 ===========================================================
-File: app/routes/public_dashboard.py
-Path: myvinechurchonline/app/routes/public_dashboard.py
-Purpose: Blueprint for the PUBLIC dashboard (welcome page for guests). Route '/' – root URL shown to all visitors (logged-in or not). Displays ONLY public-visibility content (prayers, dreams, prophecies, sermons, announcements, upcoming events). No @login_required – fully accessible to guests. Completely separate from private dashboard (dashboard.py at '/dashboard'). Logged-in users can visit '/' to see the public view. Blueprint name changed to 'public' to match existing url_for('public.public_dashboard') calls (e.g., logout redirect). FULL REBUILD: Cleaned variable typo in sermons loop, added safe datetime import for event_time parsing, consistent church-local timezone formatting, robust None handling, server-side censorship.
-
-===========================================================
 File: app/routes/announcements/forms.py
 Path: myvinechurchonline/app/routes/announcements/forms.py
 Purpose: Form validation and data cleaning for the Announcements module. • Takes raw request.form data, strips whitespace, sets defaults, checks required fields. • Calls censorship check (from utils – we’ll connect it next). • Returns a clean dict of values OR flashes error + returns None (keeps views.py super clean). • 100% matches your original create/edit logic but now reusable and easy to grow (add more fields later).
@@ -1015,7 +1030,7 @@ Purpose: Attendance Blueprint Package Initializer – 100% MariaDB/pymysql compa
 ===========================================================
 File: app/routes/auth/forms.py
 Path: myvinechurchonline/app/routes/auth/forms.py
-Purpose: Form validation and data cleaning for the Auth module. • Handles register (required fields, password match, server-side censorship on visible fields, form repopulation on error). • Simple validation for password reset and forgot username. • Returns clean data dict on success, or None + flash message on error (keeps views.py super clean and thin). • 100% matches the original auth.py validation logic (including first-user Owner handling).
+Purpose: Form validation and data cleaning for the Auth module. • Handles register (required fields, password match, server-side censorship on visible fields, form repopulation on error). • Simple validation for password reset and forgot username. • Returns clean data dict on success, or None + flash message on error (keeps views.py super clean and thin). • 100% matches the original auth.py validation logic (including first-user Owner handling). • Fully modular and ready for use with views.py, queries.py, and utils.py.
 
 ===========================================================
 File: app/routes/auth/queries.py
@@ -1030,12 +1045,12 @@ Purpose: Utility functions and constants for the Auth module. • Generates secu
 ===========================================================
 File: app/routes/auth/views.py
 Path: myvinechurchonline/app/routes/auth/views.py
-Purpose: All route handlers (controllers) for the Auth blueprint. • Every single @auth_bp.route from the old flat auth.py lives here. • 100% original behavior preserved: root redirect, login/logout, full registration (Owner on first user, pending after), password reset, forgot username, server-side censorship on visible fields, form repopulation on error. • This is the “HTTP layer” only – thin, readable, easy to grow (add new routes like OAuth, 2FA, etc. later without touching DB code). • DB operations, form validation, and helpers will be extracted next (queries.py / forms.py / utils.py) for true scalability.
+Purpose: All route handlers (controllers) for the Auth blueprint. • Every single @auth_bp.route from the old flat auth.py lives here. • 100% original behavior preserved: root redirect, login/logout, full registration (Owner on first user, pending after), password reset, forgot username, server-side censorship on visible fields, form repopulation on error. • This is the “HTTP layer” only – thin, readable, easy to grow. • Uses modular queries.py, forms.py, and utils.py – no inline SQL, no inline validation.
 
 ===========================================================
 File: app/routes/auth/__init__.py
 Path: myvinechurchonline/app/routes/auth/__init__.py
-Purpose: Auth Blueprint Package Initializer – 100% MariaDB/pymysql compatible. • Creates the exact same Blueprint(name='auth') as the old flat file (no url_prefix). • Automatically imports all modular files so every route registers instantly. • Zero functional change today – login, logout, register, password reset, forgot username, root redirect, censorship, Owner creation, pending/banned checks all remain 100% identical. • Designed purely for future scaling: we can now safely split into views.py, queries.py, forms.py, utils.py without touching app/__init__.py or main.py.
+Purpose: Auth Blueprint Package Initializer – 100% MariaDB/pymysql compatible. • Creates the exact same Blueprint(name='auth') as the old flat file (no url_prefix). • Automatically imports ALL modular files so every route registers instantly. • 100% complete – views, queries, forms, and utils are all loaded and working. • Zero functional change today – login, logout, register, password reset, forgot username, root redirect, censorship, Owner creation, pending/banned checks all remain 100% identical.
 
 ===========================================================
 File: app/routes/bills/assign.py
@@ -1145,7 +1160,7 @@ Purpose: Utility functions and constants for the Dreams module. • Group permis
 ===========================================================
 File: app/routes/dreams/views.py
 Path: myvinechurchonline/app/routes/dreams/views.py
-Purpose: Clean, thin route handlers for the Dreams blueprint. • All database work moved to queries.py • All form validation + censorship moved to forms.py • All helpers moved to utils.py • FULL GROUP PERMISSIONS INTEGRATED (using user_has_permission inside functions) • Fixed RuntimeError by moving permission checks inside routes (no more import-time context error)
+Purpose: Clean, thin route handlers for the Dreams blueprint. • FIXED: Guests are now forced to public view (exact same pattern as prophecies)
 
 ===========================================================
 File: app/routes/dreams/__init__.py
@@ -1185,7 +1200,7 @@ Purpose: Contains only the potluck contribution deletion route. Restricted to Ad
 ===========================================================
 File: app/routes/events/event_detail.py
 Path: myvinechurchonline/app/routes/events/event_detail.py
-Purpose: Contains only the single event VIEW route (/events/view/<event_id> GET + POST). Explicit /view/ in URL to clearly indicate "view event" (no longer /events/<id>). Handles visibility enforcement, potluck signup fetch (robust), and potluck contribution submission. Server-side censorship on all contribution fields. Renders events/view_event.html (private/internal view). Private events require login – guests redirected to login. No other routes or logic – pure extraction + URL clarification.
+Purpose: Public single event detail page with full comment support. • Guests (non-registered) can view events, add to potluck, and post comments. • Logged-in users can post, edit, and delete their own comments. • Admins / users with 'moderate_events' permission can edit/delete any comment. • Strong anti-spam: censored word check + rate limiting for guests. • All original potluck behavior preserved exactly.
 
 ===========================================================
 File: app/routes/events/event_email.py
@@ -1220,7 +1235,7 @@ Purpose: Utility functions and constants for the Groups module. • KNOWN_PERMIS
 ===========================================================
 File: app/routes/groups/views.py
 Path: myvinechurchonline/app/routes/groups/views.py
-Purpose: All route handlers (controllers) for the Groups blueprint. • Every single function name and endpoint from the original groups.py is preserved exactly. • All database work moved to queries.py • All form validation + censorship moved to forms.py • All helpers moved to utils.py • 100% original behavior preserved.
+Purpose: All route handlers (controllers) for the Groups blueprint. • Every single function name and endpoint from the original groups.py is preserved exactly. • All database work moved to queries.py • All form validation + censorship moved to forms.py • All helpers moved to utils.py • 100% original behavior preserved + improved edit experience (full permission checkboxes + member management)
 
 ===========================================================
 File: app/routes/groups/__init__.py
@@ -1355,7 +1370,7 @@ Purpose: Utility functions and constants for the Prayers module. • REQUIRED_RO
 ===========================================================
 File: app/routes/prayers/views.py
 Path: myvinechurchonline/app/routes/prayers/views.py
-Purpose: All route handlers (controllers) for the Prayers blueprint. • Every single function name and endpoint from the original prayers.py is preserved exactly (no renaming allowed). • All database work moved to queries.py • All form validation + censorship moved to forms.py • All helpers moved to utils.py • 100% original behavior preserved.
+Purpose: All route handlers (controllers) for the Prayers blueprint. • Every single function name and endpoint from the original prayers.py is preserved exactly (no renaming allowed). • All database work moved to queries.py • All form validation + censorship moved to forms.py • All helpers moved to utils.py • 100% original behavior preserved + new ability to edit/delete responses (including guest responses).
 
 ===========================================================
 File: app/routes/prayers/__init__.py
@@ -1405,7 +1420,7 @@ Purpose: Utility functions and constants for the Prophecies module. • REQUIRED
 ===========================================================
 File: app/routes/prophecies/views.py
 Path: myvinechurchonline/app/routes/prophecies/views.py
-Purpose: All route handlers for the Prophecies blueprint. • Every single function name and endpoint from the original prophecies.py is preserved exactly (no renaming). • 100% original behavior preserved.
+Purpose: All route handlers for the Prophecies blueprint. • 100% rebuilt • Guests are FORCED to the public page (no access to private list or view) • Logged-in users see full private experience (public + private + personal) • All original behavior preserved
 
 ===========================================================
 File: app/routes/prophecies/__init__.py
@@ -1418,19 +1433,49 @@ Path: myvinechurchonline/app/routes/public/forms.py
 Purpose: Form validation and data cleaning for the Public module. • Validates public potluck signup form (name, item, quantity, note). • Performs server-side censored word check on all visible fields. • Returns clean dict on success, or None + flash message on error. • 100% matches the original public.py potluck signup validation logic.
 
 ===========================================================
+File: app/routes/public/public_announcements.py
+Path: myvinechurchonline/app/routes/public/public_announcements.py
+Purpose: Public Announcements routes (listing + single detail view with guest comments). • Clean separation: listing + detail in one file for the public side. • Uses shared queries and utils from the public package. • Guest comment form supported exactly like dreams/sermons.
+
+===========================================================
+File: app/routes/public/public_dreams.py
+Path: myvinechurchonline/app/routes/public/public_dreams.py
+Purpose: Public Dreams & Visions routes for unauthenticated guests only. Logged-in users are automatically redirected to the private dreams section. Supports full guest comment form + one-level replies (parent_id) and live censoring. Exact mirror of the working public_sermons.py pattern.
+
+===========================================================
+File: app/routes/public/public_events.py
+Path: myvinechurchonline/app/routes/public/public_events.py
+Purpose: Public Events routes for unauthenticated guests only. • Public upcoming events list • Single event detail with potluck signups + guest comments + one-level replies (parent_id) • Logged-in users are NOT redirected here (public view only) • Exact mirror of the working public_sermons / public_dreams pattern.
+
+===========================================================
+File: app/routes/public/public_prayers.py
+Path: myvinechurchonline/app/routes/public/public_prayers.py
+Purpose: Public Prayers routes with MAXIMUM DEBUGGING so we can see exactly why toggleReplyForm is not defined on this page.
+
+===========================================================
+File: app/routes/public/public_prophecies.py
+Path: myvinechurchonline/app/routes/public/public_prophecies.py
+Purpose: All public routes (guests only). Logged-in users are redirected to private views. NO duplicate routes. Clean and strict.
+
+===========================================================
+File: app/routes/public/public_sermons.py
+Path: myvinechurchonline/app/routes/public/public_sermons.py
+Purpose: Public Sermons routes – EXACT pattern as public_events.py and public_prayers.py. • Logged-in users forced to private view. • Guests can leave comments and replies. • Owner/Admin can delete any comment or reply. • Comments display exactly as they did in your working version.
+
+===========================================================
 File: app/routes/public/queries.py
 Path: myvinechurchonline/app/routes/public/queries.py
-Purpose: All database queries and operations for the Public module. • Pure data-access layer – no Flask routes, no templates, no flash messages. • Every SELECT from the original public.py (_get_public_previews and _get_public_list) is now here. • 100% original behavior preserved (public previews for dashboard, full public listings for events/sermons/announcements/prayers/dreams/prophecies). • 100% MariaDB/pymysql compatible (%s placeholders, DictCursor).
+Purpose: All database queries and operations for the Public module. • Pure data-access layer – no Flask routes, no templates, no flash messages. • Every SELECT from the original public.py is now here. • 100% original behavior preserved with correct date columns per table. • SECURITY: Strict table whitelist + parameterized queries.
 
 ===========================================================
 File: app/routes/public/utils.py
 Path: myvinechurchonline/app/routes/public/utils.py
-Purpose: Utility functions and constants for the Public module. • Public-facing helpers (censoring for previews and listings, formatting). • Keeps views.py clean and consistent with other packages. • 100% matches the original public.py intent.
+Purpose: Utility functions and constants for the Public module. • Public-facing helpers (censoring for previews and listings). • Keeps all feature files (events, dreams, etc.) clean and consistent. • 100% original behavior preserved.
 
 ===========================================================
 File: app/routes/public/views.py
 Path: myvinechurchonline/app/routes/public/views.py
-Purpose: All route handlers (controllers) for the Public blueprint. • Every single function name and endpoint from the original public.py is preserved exactly (no renaming). • All database work moved to queries.py • All form validation moved to forms.py • All helpers moved to utils.py • 100% original behavior preserved.
+Purpose: ALL Public routes (guests only). • Rich social-media style dashboard feed on home page • Logged-in users are redirected to private views • All detail endpoints the public_dashboard.html template expects are defined • 100% complete rebuild - no exceptions, no missing routes • session IS imported • EVERY public detail page (Events, Announcements, Dreams, Sermons, Prayers, Prophecies) now loads comments EXACTLY like the working Prophecies page • FIXED: public_event_detail now uses correct column names (created_at, comment, name) to match your current DB
 
 ===========================================================
 File: app/routes/public/__init__.py
@@ -1440,7 +1485,7 @@ Purpose: Public Blueprint Package Initializer – 100% MariaDB/pymysql compatibl
 ===========================================================
 File: app/routes/sermons/forms.py
 Path: myvinechurchonline/app/routes/sermons/forms.py
-Purpose: All form validation + censored word checks + repopulation logic for the sermons blueprint. Every original validation block, flash message, and censored-word check moved here 100% unchanged in behavior. Returns clean data + error lists so views.py can keep identical logic and template repopulation.
+Purpose: All form validation + censored word checks + repopulation logic for the sermons blueprint. Updated to accept the new "Full Sermon Manuscript" (sermon_text) field.
 
 ===========================================================
 File: app/routes/sermons/queries.py
@@ -1455,7 +1500,7 @@ Purpose: Constants + small helper functions for the sermons blueprint. • Allow
 ===========================================================
 File: app/routes/sermons/views.py
 Path: myvinechurchonline/app/routes/sermons/views.py
-Purpose: All route handlers (@bp.route) for the sermons blueprint – main controller file. Every endpoint name, function name, logic flow, flash message, redirect, logging call, file handling, and visibility enforcement exactly as original sermons.py. Only DB/form/permission/file logic delegated to sibling modules. 100% identical behavior preserved.
+Purpose: All route handlers for the sermons blueprint. Full rebuild with guest redirect from private view to public view. All original behavior preserved. Security: parameterized queries in queries.py, login/role decorators, no N+1.
 
 ===========================================================
 File: app/routes/sermons/__init__.py

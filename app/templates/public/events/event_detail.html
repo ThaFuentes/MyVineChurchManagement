@@ -1,13 +1,9 @@
 <!-- WebChurchMan/app/templates/public/events/event_detail.html -->
 <!-- Full path: WebChurchMan/app/templates/public/events/event_detail.html -->
 <!-- File name: event_detail.html -->
-<!-- Brief, detailed purpose: Public single event detail page – clean, readable, no admin controls.
-   ALL inline styles removed → uses ONLY global CSS classes for consistency.
-   User-generated potluck fields are now censored on display via global Jinja |censor filter.
-   Client-side submission check retained for instant UX feedback (mirrors server-side logic).
-   Uses word-boundary regex in JS for accurate matching (prevents false positives like 'class' matching 'ass').
-   Safe fallback: if censored_words not provided → empty list → no client-side blocking.
-   Server-side blocking (via contains_censored_word() in route) remains primary security layer. -->
+<!-- Brief, detailed purpose: Public single event detail page with the exact comment box style you want.
+   Potluck section untouched. Comments now support simple ONE-LEVEL replies only (exactly as you requested).
+   No deep threading – only Comment → one indented reply. -->
 
 {% extends "base_public.html" %}
 
@@ -137,7 +133,7 @@
     </section>
     {% endif %}
 
-    <!-- Potluck – collapsed by default -->
+    <!-- Potluck – collapsed by default (completely untouched) -->
     {% if event.potluck_enabled %}
     <section class="content-section">
         <details class="collapsible glass">
@@ -150,16 +146,15 @@
                     <h4 class="section-subtitle">Add Your Contribution</h4>
 
                     <form id="potluck-form" method="POST" class="styled-form">
+                        <input type="hidden" name="action" value="potluck">
                         <div class="form-group">
                             <label class="control-label">Your Name <span class="required">*</span></label>
                             <input type="text" name="name" class="form-input" required placeholder="Your name">
                         </div>
-
                         <div class="form-group">
                             <label class="control-label">What are you bringing? <span class="required">*</span></label>
                             <input type="text" name="item" class="form-input" required placeholder="e.g., Potato salad">
                         </div>
-
                         <div class="form-grid">
                             <div class="form-group">
                                 <label class="control-label">Quantity (optional)</label>
@@ -170,14 +165,13 @@
                                 <input type="text" name="note" class="form-input" placeholder="e.g., Gluten-free">
                             </div>
                         </div>
-
                         <div class="form-actions">
                             <button type="submit" class="btn-primary">Add Contribution</button>
                         </div>
                     </form>
                 </div>
 
-                <!-- Current Signups (censored on display) -->
+                <!-- Current Signups -->
                 <div class="table-wrapper glass">
                     {% if signups %}
                     <table class="data-table">
@@ -210,22 +204,100 @@
     </section>
     {% endif %}
 
+    <!-- ==================== COMMENTS WITH SIMPLE ONE-LEVEL REPLIES ==================== -->
+    <section class="content-section">
+        <h3 class="section-title">Comments & Discussion</h3>
+
+        {% if comments %}
+        <div class="card glass">
+            {% for comment in comments if not comment.parent_id %}
+                <!-- Top-level comment -->
+                <div class="comment-item" style="margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:1px solid rgba(0,255,255,0.1);">
+                    <p><strong>{{ comment.name | censor }}</strong>
+                       <small style="color:#888;">{{ comment.created_at_nice }}</small></p>
+                    <p>{{ comment.comment_text | nl2br | censor }}</p>
+
+                    <!-- Reply button -->
+                    <button onclick="toggleReplyForm({{ comment.id }})"
+                            style="margin-top:0.8rem; padding:0.4rem 1rem; font-size:0.9rem; background:rgba(0,255,255,0.1); color:var(--primary); border:1px solid var(--primary); border-radius:6px; cursor:pointer;">
+                        Reply
+                    </button>
+
+                    <!-- Reply form (hidden by default) -->
+                    <div id="reply-form-{{ comment.id }}" style="display:none; margin-top:1rem; padding:1rem; background:rgba(255,255,255,0.05); border-radius:8px;">
+                        <form action="{{ url_for('public.public_event_detail', event_id=event.id) }}" method="POST">
+                            <input type="hidden" name="action" value="reply">
+                            <input type="hidden" name="parent_id" value="{{ comment.id }}">
+                            <div style="margin-bottom:0.8rem;">
+                                <label style="display:block; color:var(--primary); margin-bottom:0.4rem;">Your Name <span style="color:#ff4444;">*</span></label>
+                                <input type="text" name="name" class="form-input" required
+                                       style="width:100%; padding:1rem; background:rgba(255,255,255,0.1); border:1px solid var(--primary); color:white; border-radius:8px;"
+                                       placeholder="Guest name or nickname">
+                            </div>
+                            <div style="margin-bottom:0.8rem;">
+                                <label style="display:block; color:var(--primary); margin-bottom:0.4rem;">Your Reply</label>
+                                <textarea name="comment" rows="3" class="form-input" required
+                                          style="width:100%; padding:1rem; background:rgba(255,255,255,0.1); border:1px solid var(--primary); color:white; border-radius:8px;"
+                                          placeholder="Write your reply..."></textarea>
+                            </div>
+                            <button type="submit"
+                                    style="padding:0.8rem 2rem; background:var(--primary); color:#000; font-weight:bold; border:none; border-radius:8px; cursor:pointer;">
+                                Post Reply
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- One-level replies (indented) -->
+                {% for reply in comments if reply.parent_id == comment.id %}
+                <div class="comment-item" style="margin-left:2rem; margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:1px solid rgba(0,255,255,0.1); border-left:3px solid var(--primary); padding-left:1rem;">
+                    <p><strong>{{ reply.name | censor }}</strong>
+                       <small style="color:#888;">{{ reply.created_at_nice }}</small></p>
+                    <p>{{ reply.comment_text | nl2br | censor }}</p>
+                </div>
+                {% endfor %}
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="no-data">No comments yet – be the first to comment!</p>
+        {% endif %}
+
+        <!-- Main Guest Comment Form (top-level) – EXACT style you wanted -->
+        <form action="{{ url_for('public.public_event_detail', event_id=event.id) }}" method="POST" style="margin-top: 2rem;">
+            <input type="hidden" name="action" value="comment">
+            <div style="margin-bottom: 1rem;">
+              <label style="display: block; color: var(--primary); margin-bottom: 0.4rem;">Your Name <span style="color: #ff4444;">*</span></label>
+              <input type="text" name="name" class="form-input"
+                     style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.1); border: 1px solid var(--primary); color: white; border-radius: 8px;"
+                     placeholder="Guest name or nickname" required>
+            </div>
+            <div style="margin-bottom: 1rem;">
+              <label style="display: block; color: var(--primary); margin-bottom: 0.4rem;">Your Comment</label>
+              <textarea name="comment" rows="4" class="form-input"
+                        style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.1); border: 1px solid var(--primary); color: white; border-radius: 8px;"
+                        placeholder="Share your thoughts..." required></textarea>
+            </div>
+            <button type="submit"
+                    style="padding: 1rem 2.5rem; background: var(--primary); color: #000; font-weight: bold; border: none; border-radius: 8px; cursor: pointer;">
+              Post Comment
+            </button>
+        </form>
+    </section>
+
 </div>
 
-<!-- Client-side censored words check (mirrors server-side word-boundary logic) -->
+<!-- Client-side censored words check (potluck form only) – untouched -->
 <script>
-  // Safe default: empty list if not provided
   const censoredWords = {{ censored_words|default([])|tojson }};
 
-  const form = document.getElementById('potluck-form');
-  if (form && censoredWords.length > 0) {
-    // Sort longer phrases first (same as Python helper)
+  const potluckForm = document.getElementById('potluck-form');
+  if (potluckForm && censoredWords.length > 0) {
     const sortedWords = censoredWords
       .map(w => w.toLowerCase().trim())
       .filter(w => w)
       .sort((a, b) => b.length - a.length);
 
-    form.addEventListener('submit', function(e) {
+    potluckForm.addEventListener('submit', function(e) {
       const fields = [
         document.querySelector('input[name="name"]')?.value || '',
         document.querySelector('input[name="item"]')?.value || '',
@@ -242,6 +314,12 @@
         }
       }
     });
+  }
+
+  // Simple toggle for reply forms
+  function toggleReplyForm(commentId) {
+    const form = document.getElementById('reply-form-' + commentId);
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
   }
 </script>
 

@@ -2,21 +2,16 @@
 # Full path: WebChurchMan/app/builddb/prophecies.py
 # File name: prophecies.py
 # Brief, detailed purpose: Creates/updates the prophecies and prophecy_comments tables for MariaDB.
-# Standardized timestamps: created_at (DEFAULT CURRENT_TIMESTAMP), updated_at (ON UPDATE CURRENT_TIMESTAMP).
-# Visibility levels: public / private / personal (CHECK constraint).
-# Guest contributions supported (contributor_name, ip_address).
-# Safe schema evolution – adds missing columns/constraints without data loss.
-# Isolated module – called from builddb.py during DB initialization.
-# FIXED: Multi-line CREATE TABLE strings reformatted with no leading whitespace on continued lines
-#        to prevent MariaDB syntax errors from Python indentation preservation.
+# Standardized timestamps + visibility levels (public/private/personal) + parent_id for simple one-level replies.
+# Safe migration for existing databases.
 
 import textwrap
 
 def create_tables(cursor):
     """
-    Creates/updates the prophecies-related tables with standardized timestamps and full visibility support.
-    Designed for both fresh DB creation and safe migration of existing databases.
-    All SQL strings dedented to avoid whitespace-induced syntax errors.
+    Creates/updates the prophecies-related tables with full visibility support
+    and parent_id for one-level replies.
+    Designed for both fresh DB creation and safe migration.
     """
 
     # ----- PROPHECIES TABLE -----
@@ -36,7 +31,7 @@ def create_tables(cursor):
         ) ENGINE=InnoDB;
     """).strip())
 
-    # Safe migration: drop any old visibility CHECK constraint (may not exist)
+    # Safe migration: drop any old visibility CHECK constraint
     cursor.execute("""
         SELECT CONSTRAINT_NAME 
         FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
@@ -75,7 +70,7 @@ def create_tables(cursor):
             CHECK(visibility IN ('public', 'private', 'personal'))
         """).strip())
 
-    # Safe additions for other columns
+    # Safe column additions
     columns_to_add = {
         'created_at':       "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
         'updated_at':       "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
@@ -100,11 +95,8 @@ def create_tables(cursor):
     try:
         cursor.execute("CREATE INDEX idx_prophecies_created ON prophecies(created_at DESC)")
     except: pass
-    try:
-        cursor.execute("CREATE INDEX idx_prophecies_updated ON prophecies(updated_at DESC)")
-    except: pass
 
-    # ----- PROPHECY_COMMENTS TABLE -----
+    # ----- PROPHECY_COMMENTS TABLE (UPDATED WITH parent_id) -----
     cursor.execute(textwrap.dedent("""
         CREATE TABLE IF NOT EXISTS prophecy_comments (
             id               INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -114,8 +106,10 @@ def create_tables(cursor):
             user_id          INT UNSIGNED,
             contributor_name VARCHAR(255),
             ip_address       VARCHAR(45),
+            parent_id        INT UNSIGNED NULL,   -- NEW: for one-level replies
             FOREIGN KEY(prophecy_id) REFERENCES prophecies(id) ON DELETE CASCADE,
-            FOREIGN KEY(user_id)     REFERENCES users(id) ON DELETE SET NULL
+            FOREIGN KEY(user_id)     REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY(parent_id)   REFERENCES prophecy_comments(id) ON DELETE CASCADE
         ) ENGINE=InnoDB;
     """).strip())
 
@@ -124,6 +118,15 @@ def create_tables(cursor):
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'prophecy_comments'
     """)
     existing_comment_columns = [row[0] for row in cursor.fetchall()]
+
+    # Safe addition of parent_id if missing
+    if 'parent_id' not in existing_comment_columns:
+        print("Migration: Adding missing 'parent_id' column to prophecy_comments for one-level replies")
+        cursor.execute("""
+            ALTER TABLE prophecy_comments 
+            ADD COLUMN parent_id INT UNSIGNED NULL AFTER ip_address,
+            ADD FOREIGN KEY (parent_id) REFERENCES prophecy_comments(id) ON DELETE CASCADE
+        """)
 
     columns_to_add_comments = {
         'contributor_name': "VARCHAR(255)",
@@ -143,5 +146,8 @@ def create_tables(cursor):
     try:
         cursor.execute("CREATE INDEX idx_prophecy_comments_date ON prophecy_comments(date_added DESC)")
     except: pass
+    try:
+        cursor.execute("CREATE INDEX idx_prophecy_comments_parent ON prophecy_comments(parent_id)")
+    except: pass
 
-    print("Prophecies tables synchronization complete (MariaDB). Ready for public/private/personal visibility.")
+    print("Prophecies tables synchronization complete (MariaDB). Ready for public/private/personal visibility with one-level replies.")

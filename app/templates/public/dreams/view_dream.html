@@ -1,46 +1,48 @@
-<!-- app/templates/public/prayers/view_prayer.html -->
-<!-- Full path: WebChurchMan/app/templates/public/prayers/view_prayer.html -->
-<!-- File name: view_prayer.html -->
-<!-- Brief, detailed purpose: Public single prayer detail page – EXACT mirror of working events template. -->
+<!-- WebChurchMan/app/templates/public/dreams/view_dream.html -->
+<!-- Full path: WebChurchMan/app/templates/public/dreams/view_dream.html -->
+<!-- File name: view_dream.html -->
+<!-- Brief, detailed purpose: Public single Dream & Vision detail page – EXACT mirror of public sermons view with working one-level replies. -->
 
 {% extends "base_public.html" %}
 
-{% block title %}{{ prayer.title|title }}{% endblock %}
+{% block title %}{{ dream.title|title }}{% endblock %}
 
 {% block content %}
 
-<!-- Prayer Header -->
+<!-- Dream Header (exact same as public sermons) -->
 <section class="content-section event-header">
-    <h1 class="page-title">{{ prayer.title|title }}</h1>
+    <h1 class="page-title">{{ dream.title|title }}</h1>
     <div class="event-meta">
-        <p><strong>Posted:</strong> {{ prayer.date_posted.strftime('%B %d, %Y') if prayer.date_posted else 'Unknown' }}</p>
-        <p><strong>By:</strong> {{ prayer.posted_by }}</p>
+        <p><strong>Shared on:</strong> {{ dream.date_posted.strftime('%B %d, %Y') if dream.date_posted else 'Unknown' }}</p>
+        {% if dream.poster_name or dream.creator_name %}
+        <p><strong>By:</strong> {{ dream.poster_name or dream.creator_name }}</p>
+        {% endif %}
     </div>
 </section>
 
 <div class="content-wrapper">
 
-    <!-- Prayer Request -->
-    {% if prayer.description %}
+    <!-- Full Dream / Vision Description -->
+    {% if dream.description or dream.notes %}
     <section class="content-section">
-        <h3 class="section-title">Prayer Request</h3>
+        <h3 class="section-title">The Dream / Vision</h3>
         <div class="card glass">
-            {{ prayer.description | nl2br | censor }}
+            {{ (dream.description or dream.notes) | nl2br | censor }}
         </div>
     </section>
     {% endif %}
 
-    <!-- ==================== RESPONSES WITH SIMPLE ONE-LEVEL REPLIES ==================== -->
+    <!-- ==================== COMMENTS WITH SIMPLE ONE-LEVEL REPLIES ==================== -->
     <section class="content-section">
-        <h3 class="section-title">Responses</h3>
+        <h3 class="section-title">Comments & Discussion</h3>
 
-        {% if comments %}
+        {% if dream.comments %}
         <div class="card glass">
-            {% for c in comments if not c.parent_id %}
-                <!-- Top-level response -->
+            {% for c in dream.comments if not c.parent_id %}
+                <!-- Top-level comment -->
                 <div class="comment-item" style="margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:1px solid rgba(0,255,255,0.1);">
                     <p><strong>{{ c.name | censor }}</strong>
-                       <small style="color:#888;">{{ c.created_at_nice }}</small></p>
+                       <small style="color:#888;">{{ c.date }}</small></p>
                     <p>{{ c.comment_text | nl2br | censor }}</p>
 
                     <!-- Reply button -->
@@ -51,20 +53,20 @@
 
                     <!-- Hidden reply form -->
                     <div id="reply-form-{{ c.id }}" style="display:none; margin-top:1rem; padding:1rem; background:rgba(255,255,255,0.05); border-radius:8px;">
-                        <form action="{{ url_for('public.public_prayer_detail', prayer_id=prayer.id) }}" method="POST">
+                        <form action="{{ url_for('public.public_dream_detail', dream_id=dream.id) }}" method="POST">
                             <input type="hidden" name="action" value="reply">
                             <input type="hidden" name="parent_id" value="{{ c.id }}">
                             <div style="margin-bottom:0.8rem;">
                               <label style="display:block; color:var(--primary); margin-bottom:0.4rem;">Your Name <span style="color:#ff4444;">*</span></label>
-                              <input type="text" name="name" class="form-input" required
+                              <input type="text" name="contributor_name" class="form-input" required
                                      style="width:100%; padding:1rem; background:rgba(255,255,255,0.1); border:1px solid var(--primary); color:white; border-radius:8px;"
                                      placeholder="Guest name or nickname">
                             </div>
                             <div style="margin-bottom:0.8rem;">
-                              <label style="display:block; color:var(--primary); margin-bottom:0.4rem;">Your Response</label>
+                              <label style="display:block; color:var(--primary); margin-bottom:0.4rem;">Your Reply</label>
                               <textarea name="comment" rows="3" class="form-input" required
                                         style="width:100%; padding:1rem; background:rgba(255,255,255,0.1); border:1px solid var(--primary); color:white; border-radius:8px;"
-                                        placeholder="Share your prayer, encouragement, or scripture..."></textarea>
+                                        placeholder="Write your reply..."></textarea>
                             </div>
                             <button type="submit"
                                     style="padding:0.8rem 2rem; background:var(--primary); color:#000; font-weight:bold; border:none; border-radius:8px; cursor:pointer;">
@@ -75,78 +77,55 @@
                 </div>
 
                 <!-- One-level replies (indented) -->
-                {% for reply in comments if reply.parent_id == c.id %}
+                {% for reply in dream.comments if reply.parent_id == c.id %}
                 <div class="comment-item" style="margin-left:2rem; margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:1px solid rgba(0,255,255,0.1); border-left:3px solid var(--primary); padding-left:1rem;">
                     <p><strong>{{ reply.name | censor }}</strong>
-                       <small style="color:#888;">{{ reply.created_at_nice }}</small></p>
+                       <small style="color:#888;">{{ reply.date }}</small></p>
                     <p>{{ reply.comment_text | nl2br | censor }}</p>
                 </div>
                 {% endfor %}
             {% endfor %}
         </div>
         {% else %}
-        <p class="no-data">No responses yet – be the first to pray!</p>
+        <p class="no-data">No comments yet – be the first to comment!</p>
         {% endif %}
 
-        <!-- Main Guest Response Form -->
-        <form action="{{ url_for('public.public_prayer_detail', prayer_id=prayer.id) }}" method="POST" style="margin-top: 2rem;">
+        <!-- Main Guest Comment Form – EXACT same style as public sermons -->
+        <form action="{{ url_for('public.public_dream_detail', dream_id=dream.id) }}" method="POST" style="margin-top: 2rem;">
             <input type="hidden" name="action" value="comment">
             <div style="margin-bottom: 1rem;">
               <label style="display: block; color: var(--primary); margin-bottom: 0.4rem;">Your Name <span style="color: #ff4444;">*</span></label>
-              <input type="text" name="name" class="form-input"
+              <input type="text" name="contributor_name" class="form-input"
                      style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.1); border: 1px solid var(--primary); color: white; border-radius: 8px;"
                      placeholder="Enter your name" required>
             </div>
             <div style="margin-bottom: 1rem;">
-              <label style="display: block; color: var(--primary); margin-bottom: 0.4rem;">Your Response</label>
+              <label style="display: block; color: var(--primary); margin-bottom: 0.4rem;">Your Comment</label>
               <textarea name="comment" rows="4" class="form-input"
                         style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.1); border: 1px solid var(--primary); color: white; border-radius: 8px;"
-                        placeholder="Share your prayer, encouragement, or scripture..." required></textarea>
+                        placeholder="Share your thoughts..." required></textarea>
             </div>
             <button type="submit"
                     style="padding: 1rem 2.5rem; background: var(--primary); color: #000; font-weight: bold; border: none; border-radius: 8px; cursor: pointer;">
-              Post Response
+              Post Comment
             </button>
         </form>
     </section>
 
 </div>
 
-<!-- Back to Prayers -->
+<!-- Back to Dreams -->
 <div class="form-actions" style="margin-top:3rem;">
-    <a href="{{ url_for('public.public_prayers') }}" class="btn-secondary">← Back to Prayers</a>
+    <a href="{{ url_for('public.public_dreams') }}" class="btn-secondary">← Back to Dreams & Visions</a>
 </div>
 
-<!-- JavaScript – EXACT same block you just pasted from the working events page -->
+<!-- JavaScript – CLEAN & placed INSIDE content block so it always loads -->
 <script>
-  const censoredWords = [];
-  const potluckForm = document.getElementById('potluck-form');
-  if (potluckForm && censoredWords.length > 0) {
-    const sortedWords = censoredWords
-      .map(w => w.toLowerCase().trim())
-      .filter(w => w)
-      .sort((a, b) => b.length - a.length);
-    potluckForm.addEventListener('submit', function(e) {
-      const fields = [
-        document.querySelector('input[name="name"]')?.value || '',
-        document.querySelector('input[name="item"]')?.value || '',
-        document.querySelector('input[name="note"]')?.value || ''
-      ];
-      const combined = fields.join(' ').toLowerCase();
-      for (let word of sortedWords) {
-        const regex = new RegExp('\\b' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
-        if (regex.test(combined)) {
-          alert('Your submission contains a prohibited word or phrase. Please revise and try again.');
-          e.preventDefault();
-          return false;
-        }
-      }
-    });
-  }
-  // Simple toggle for reply forms
   function toggleReplyForm(commentId) {
     const form = document.getElementById('reply-form-' + commentId);
-    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    if (form) {
+      form.style.display = (form.style.display === 'none' || form.style.display === '') ? 'block' : 'none';
+    }
   }
 </script>
 

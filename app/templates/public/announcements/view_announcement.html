@@ -1,0 +1,84 @@
+<!-- WebChurchMan/app/templates/public/announcements/view_announcement.html -->
+<!-- Full path: WebChurchMan/app/templates/public/announcements/view_announcement.html -->
+<!-- File name: view_announcement.html -->
+<!-- Brief, detailed purpose: Public single Announcement detail page.
+     Exact same beautiful layout and guest comment form style as view_dream.html. -->
+
+{% extends "base_public.html" %}
+
+{% block title %}{{ announcement.title|title }}{% endblock %}
+
+{% block content %}
+
+<!-- Announcement Header -->
+<section class="content-section event-header">
+    <h1 class="page-title">{{ announcement.title|title }}</h1>
+    <div class="event-meta">
+        <p><strong>Posted on:</strong> {{ announcement.created_at.strftime('%B %d, %Y') if announcement.created_at else 'Unknown' }}</p>
+        {% if announcement.creator_name %}
+        <p><strong>By:</strong> {{ announcement.creator_name }}</p>
+        {% endif %}
+    </div>
+</section>
+
+<div class="content-wrapper">
+
+    <!-- Full Content -->
+    {% if announcement.content %}
+    <section class="content-section">
+        <h3 class="section-title">Announcement</h3>
+        <div class="card glass">
+            {{ announcement.content | safe }}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Comments & Discussion -->
+    <section class="content-section">
+        <h3 class="section-title">Comments & Discussion</h3>
+        <div class="card glass">
+
+            {% if comments %}
+            {% for c in comments %}
+            <div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(0, 255, 255, 0.05); border-radius: 8px;">
+                <strong style="color: var(--primary);">{{ c.commenter_name }}</strong>
+                <small style="color: var(--text-muted); margin-left: 1rem;">{{ c.date_added.strftime('%B %d, %Y at %I:%M %p') }}</small>
+                <p style="margin: 0.5rem 0 0; font-size: 1.25rem; line-height: 1.6;">{{ c.comment | nl2br | censor }}</p>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p style="color: var(--text-muted); font-style: italic; text-align: center;">No comments yet. Be the first to share your thoughts.</p>
+            {% endif %}
+
+            <!-- Fancy Guest Comment Form (exact same style as view_dream.html) -->
+            <form action="{{ url_for('announcements.add_comment', ann_id=announcement.id) }}" method="POST" style="margin-top: 2rem;">
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: block; color: var(--primary); margin-bottom: 0.4rem;">Your Name <span style="color: #ff4444;">*</span></label>
+                    <input type="text" name="contributor_name" class="form-input"
+                           style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.1); border: 1px solid var(--primary); color: white; border-radius: 8px;"
+                           placeholder="Enter your name" required>
+                </div>
+
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: block; color: var(--primary); margin-bottom: 0.4rem;">Your Comment</label>
+                    <textarea name="comment" rows="4" class="form-input"
+                              style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.1); border: 1px solid var(--primary); color: white; border-radius: 8px;"
+                              placeholder="Share your thoughts..." required></textarea>
+                </div>
+
+                <button type="submit"
+                        style="padding: 1rem 2.5rem; background: var(--primary); color: #000; font-weight: bold; border: none; border-radius: 8px; cursor: pointer;">
+                    Post Comment
+                </button>
+            </form>
+        </div>
+    </section>
+
+</div>
+
+<!-- Back button -->
+<div class="form-actions" style="margin-top:3rem;">
+    <a href="{{ url_for('announcements.announcements') }}" class="btn-secondary">← Back to Announcements</a>
+</div>
+
+{% endblock %}

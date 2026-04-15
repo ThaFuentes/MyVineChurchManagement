@@ -1,25 +1,7 @@
 <!-- app/templates/base.html -->
 <!-- Full path: WebChurchMan/app/templates/base.html -->
 <!-- File name: base.html -->
-<!-- Brief, detailed purpose: Master layout template inherited by all pages.
-   Keeps exact dark cyan-glow theme, dynamic branding, multi-theme support.
-   Full header with welcome/clock/logout, global navigation with dropdowns.
-   Dropdowns guaranteed to overlay EVERYTHING (ultra-high z-index 30000+, body relative positioning).
-   Settings link uses /settings/general route.
-   Conditional Donate tab in both public and private nav.
-   "Admin Tools" dropdown visible to Staff/Admin/Owner OR users with 'settings.ticket_managers' permission.
-   "Operations" dropdown visible to Staff/Admin/Owner OR users with 'settings.ticket_managers' permission.
-   "My Portal" dropdown for all logged-in users – groups personal actions (Attendance Check-In, Support Tickets, My Profile).
-   REMOVED: Public "Check-In" tab – self check-in is now fully private (accessible only via My Portal for logged-in members).
-   Active state uses reliable path/endpoint checks.
-   NEW: Inventory added to Operations dropdown (Staff+ access).
-   NEW: Parent dropdowns ("My Portal", "Admin Tools", "Operations", "Gathering Place") stay highlighted when inside any child section (premium feel).
-   NEW: Single "Pastor Area" link inside "Operations" dropdown – visible ONLY to pastoral group members.
-         This is the sole entry point from main navigation.
-         All detailed pastoral sub-tools are inside the Pastoral Area itself (via base_pastoral.html internal nav).
-   Glass wrapper for content, flash messages, footer, clock script preserved.
-   Church name NEVER hard-coded – always pulled from g.settings with sensible fallback.
-   FIXED: Pastor Area link now uses correct endpoint 'pastoral.dashboard_pastoral'. -->
+<!-- Brief, detailed purpose: Master layout template inherited by all pages. -->
 
 <!DOCTYPE html>
 <html lang="en" data-theme="{% if session.user_theme %}{{ session.user_theme }}{% else %}cyan-glow{% endif %}">

@@ -185,11 +185,12 @@ def kiosk():
 
 
 # ----------------------------------------------------------------------
-# Self Check-In – Logged-in members only
+# Self Check-In – Logged-in members only (My Portal)
 # ----------------------------------------------------------------------
 @attendance_bp.route('/self_checkin', methods=['GET', 'POST'])
 @login_required
 def self_checkin():
+    """Self check-in for logged-in users only – accessed via My Portal dropdown."""
     user_id = session['user_id']
     user = get_user_for_self_checkin(user_id)
     if not user:
@@ -203,7 +204,7 @@ def self_checkin():
     checked_in = existing is not None
     check_in_raw = existing['check_in'] if existing else None
 
-    if request.method == 'POST':
+    if request.method == 'POST' and not checked_in:
         client_iso = validate_self_checkin_form(request.form)
         check_in_utc = utc_now()
 

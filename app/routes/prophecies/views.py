@@ -2,8 +2,10 @@
 # Full path: MyVineChurch/app/routes/prophecies/views.py
 # File name: views.py
 # Brief, detailed purpose: All route handlers for the Prophecies blueprint.
-# • Every single function name and endpoint from the original prophecies.py is preserved exactly (no renaming).
-# • 100% original behavior preserved.
+# • 100% rebuilt
+# • Guests are FORCED to the public page (no access to private list or view)
+# • Logged-in users see full private experience (public + private + personal)
+# • All original behavior preserved
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from app.utils.decorators import login_required, role_required
@@ -12,17 +14,21 @@ from app.models.db import get_db
 from app.models.log import log_change
 import pymysql
 
-from . import prophecies_bp   # package-relative
+from . import prophecies_bp
 
 REQUIRED_ROLES = ['Admin', 'Owner']
 
 
 # ----------------------------------------------------------------------
-# Main Listing – /prophecies (single URL)
+# Main Listing – /prophecies
 # ----------------------------------------------------------------------
 @prophecies_bp.route('/')
 def list_prophecies():
-    is_logged_in = 'user_id' in session
+    if 'user_id' not in session:
+        # Guest → go to public page
+        return redirect(url_for('public.public_prophecies'))
+
+    is_logged_in = True
     user_id = session.get('user_id')
     role = session.get('user_role', '')
 
@@ -41,15 +47,11 @@ def list_prophecies():
     """
     params = []
 
-    if not is_logged_in:
-        sql += " WHERE p.visibility = %s"
-        params.append('public')
-    else:
-        sql += """
-            WHERE p.visibility IN ('public', 'private')
-               OR (p.visibility = 'personal' AND p.user_id = %s)
-        """
-        params.append(user_id)
+    sql += """
+        WHERE p.visibility IN ('public', 'private')
+           OR (p.visibility = 'personal' AND p.user_id = %s)
+    """
+    params.append(user_id)
 
     if search_query:
         like_param = '%' + search_query + '%'
@@ -61,7 +63,6 @@ def list_prophecies():
     cur.execute(sql, params)
     prophecy_data = cur.fetchall()
 
-    # Server-side censorship
     for p in prophecy_data:
         p['title'] = censor_text(p['title'])
         p['description'] = censor_text(p['description'] or '')
@@ -70,17 +71,21 @@ def list_prophecies():
     return render_template('prophecies/prophecies.html',
                            prophecy_data=prophecy_data,
                            search_query=search_query,
-                           is_logged_in=is_logged_in,
+                           is_logged_in=True,
                            current_user_id=user_id,
                            is_admin_owner=(role in REQUIRED_ROLES))
 
 
 # ----------------------------------------------------------------------
-# Single Prophecy Detail View – /prophecies/<int:prophecy_id>
+# Single Prophecy View
 # ----------------------------------------------------------------------
 @prophecies_bp.route('/<int:prophecy_id>')
 def view_prophecy(prophecy_id):
-    is_logged_in = 'user_id' in session
+    if 'user_id' not in session:
+        # Guest → go to public detail page
+        return redirect(url_for('public.public_prophecy_detail', prophecy_id=prophecy_id))
+
+    is_logged_in = True
     user_id = session.get('user_id')
     role = session.get('user_role', '')
 
@@ -95,21 +100,20 @@ def view_prophecy(prophecy_id):
         WHERE p.id = %s
     """, (prophecy_id,))
     prophecy = cur.fetchone()
+
     if not prophecy:
         flash('Prophecy not found.', 'error')
         return redirect(url_for('prophecies.list_prophecies'))
 
-    # Visibility enforcement
-    if prophecy['visibility'] == 'personal' and (not is_logged_in or prophecy['user_id'] != user_id):
+    # Visibility enforcement for logged-in users
+    visibility = prophecy.get('visibility')
+    if visibility == 'personal' and prophecy['user_id'] != user_id:
         flash('This is a personal prophecy – visible only to the submitter.', 'error')
-        return redirect(url_for('prophecies.list_prophecies'))
-    if prophecy['visibility'] == 'private' and not is_logged_in:
-        flash('This is a private prophecy – login required.', 'error')
         return redirect(url_for('prophecies.list_prophecies'))
 
     # Server-side censorship
     prophecy['title'] = censor_text(prophecy['title'])
-    prophecy['description'] = censor_text(prophecy['description'] or '')
+    prophecy['description'] = censor_text(prophecy.get('description') or '')
 
     # Load comments
     cur.execute("""
@@ -124,8 +128,7 @@ def view_prophecy(prophecy_id):
     for c in comments:
         c['comment'] = censor_text(c['comment'])
 
-    # Permissions for template
-    can_edit = is_logged_in and (prophecy['user_id'] == user_id or role in REQUIRED_ROLES)
+    can_edit = (prophecy['user_id'] == user_id) or (role in REQUIRED_ROLES)
     can_delete = role in REQUIRED_ROLES
 
     if user_id:
@@ -135,7 +138,7 @@ def view_prophecy(prophecy_id):
     return render_template('prophecies/view_prophecy.html',
                            prophecy=prophecy,
                            comments=comments,
-                           is_logged_in=is_logged_in,
+                           is_logged_in=True,
                            can_edit=can_edit,
                            can_delete=can_delete,
                            current_user_id=user_id,
@@ -143,7 +146,7 @@ def view_prophecy(prophecy_id):
 
 
 # ----------------------------------------------------------------------
-# Add Prophecy – /prophecies/add
+# Add, Edit, Delete, Comments (already require login)
 # ----------------------------------------------------------------------
 @prophecies_bp.route('/add', methods=['GET', 'POST'])
 @login_required
@@ -186,9 +189,6 @@ def add_prophecy():
     return render_template('prophecies/add_prophecy.html')
 
 
-# ----------------------------------------------------------------------
-# Edit Prophecy – /prophecies/edit/<int:prophecy_id>
-# ----------------------------------------------------------------------
 @prophecies_bp.route('/edit/<int:prophecy_id>', methods=['GET', 'POST'])
 @login_required
 def edit_prophecy(prophecy_id):
@@ -234,16 +234,12 @@ def edit_prophecy(prophecy_id):
             flash('Failed to update prophecy.', 'error')
             print(f"Edit prophecy error: {e}")
 
-    # Censored for form repopulation
     prophecy['title'] = censor_text(prophecy['title'])
     prophecy['description'] = censor_text(prophecy['description'])
 
     return render_template('prophecies/edit_prophecy.html', prophecy=prophecy)
 
 
-# ----------------------------------------------------------------------
-# Delete Prophecy – /prophecies/delete/<int:prophecy_id>
-# ----------------------------------------------------------------------
 @prophecies_bp.route('/delete/<int:prophecy_id>', methods=['POST'])
 @login_required
 @role_required(REQUIRED_ROLES)
@@ -267,9 +263,7 @@ def delete_prophecy(prophecy_id):
     return redirect(url_for('prophecies.list_prophecies'))
 
 
-# ----------------------------------------------------------------------
-# Add Comment – /prophecies/comment/add/<int:prophecy_id>
-# ----------------------------------------------------------------------
+# Comment routes (already protected by @login_required)
 @prophecies_bp.route('/comment/add/<int:prophecy_id>', methods=['POST'])
 @login_required
 def add_comment(prophecy_id):
@@ -301,9 +295,6 @@ def add_comment(prophecy_id):
     return redirect(url_for('prophecies.view_prophecy', prophecy_id=prophecy_id))
 
 
-# ----------------------------------------------------------------------
-# Edit Comment
-# ----------------------------------------------------------------------
 @prophecies_bp.route('/comment/edit/<int:comment_id>', methods=['POST'])
 @login_required
 def edit_comment(comment_id):
@@ -341,9 +332,6 @@ def edit_comment(comment_id):
     return redirect(url_for('prophecies.view_prophecy', prophecy_id=comment['prophecy_id']))
 
 
-# ----------------------------------------------------------------------
-# Delete Comment
-# ----------------------------------------------------------------------
 @prophecies_bp.route('/comment/delete/<int:comment_id>', methods=['POST'])
 @login_required
 def delete_comment(comment_id):

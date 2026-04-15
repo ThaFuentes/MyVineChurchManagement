@@ -6,6 +6,7 @@
 # • Simple validation for password reset and forgot username.
 # • Returns clean data dict on success, or None + flash message on error (keeps views.py super clean and thin).
 # • 100% matches the original auth.py validation logic (including first-user Owner handling).
+# • Fully modular and ready for use with views.py, queries.py, and utils.py.
 
 from flask import flash
 from app.utils.helpers import contains_censored_word

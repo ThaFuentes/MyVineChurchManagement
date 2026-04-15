@@ -1,15 +1,9 @@
 <!-- WebChurchMan/app/templates/public/sermons/sermons.html -->
 <!-- Full path: WebChurchMan/app/templates/public/sermons/sermons.html -->
 <!-- File name: sermons.html -->
-<!-- Brief, detailed purpose: Public-facing Sermons listing page.
-   FULL REBUILD – extends base_public.html (single top-level nav + header).
-   Standardized to exactly match public events/announcements style: clean, spacious, centered text on dark background.
-   NO extra CSS file – all styling global/minimal inline.
-   Simple readable list with subtle cyan accents and borders.
-   Displays ONLY public-visibility sermons.
-   Sermon titles NOT clickable (no per-sermon detail page).
-   Media links and notes/details shown directly in flow (matches events description display).
-   NO empty state message or large container – if no sermons, just intro remains (clean open feel). -->
+<!-- Brief, detailed purpose: Public-facing Sermons listing page (search / welcome style).
+   Clickable titles open full single sermon view page (like events).
+   Comments and full details moved to the individual view page. -->
 
 {% extends "base_public.html" %}
 
@@ -27,7 +21,7 @@
   </p>
 </div>
 
-<!-- Sermons list – only appears if sermons exist -->
+<!-- Sermons list – clean clickable titles -->
 {% if sermons %}
 <div style="padding: 0 2rem 8rem;">
   <div style="max-width: 1000px; margin: 0 auto;">
@@ -35,17 +29,27 @@
       {% for s in sermons %}
       <li style="margin-bottom: 3rem; padding-bottom: 2.5rem; border-bottom: 1px solid rgba(0, 255, 255, 0.2);">
         <h3 style="font-size: 2.2rem; margin: 0 0 1.2rem; color: var(--primary); text-shadow: 0 0 20px var(--primary);">
-          {{ s.title|title }}
+          <a href="{{ url_for('sermons.view_sermon', sermon_id=s.id) }}"
+             style="color: var(--primary); text-decoration: none;">
+            {{ s.title|title }}
+          </a>
         </h3>
         <small style="color: var(--text-muted); font-size: 1.3rem; display: block; margin-bottom: 1.5rem;">
           Preached on {{ s.datetime }}{% if s.posted_by %} • by {{ s.posted_by }}{% endif %}
         </small>
 
-        <!-- Media Links -->
+        <!-- Short preview / notes if available -->
+        {% if s.notes_content or s.details %}
+        <div style="font-size: 1.3rem; line-height: 1.8; opacity: 0.95;">
+          {{ (s.notes_content or s.details) | truncate(300) | safe }}
+        </div>
+        {% endif %}
+
+        <!-- Media links (if any) -->
         {% if s.sermon_file or s.external_link %}
-        <div style="margin-bottom: 1.5rem;">
+        <div style="margin-top: 1.5rem;">
           {% if s.sermon_file %}
-          <a href="{{ url_for('static', filename='uploads/sermons/' ~ s.sermon_file) }}" target="_blank"
+          <a href="{{ url_for('sermons.uploaded_file', filename=s.sermon_file) }}" target="_blank"
              style="display: inline-block; margin-right: 1rem; padding: 0.8rem 2rem; background: rgba(0, 255, 255, 0.15); color: var(--primary); border: 1px solid var(--primary); border-radius: var(--radius-large); text-decoration: none; font-weight: bold;">
             Download / Play Media
           </a>
@@ -58,25 +62,11 @@
           {% endif %}
         </div>
         {% endif %}
-
-        <!-- Notes Preview -->
-        {% if s.notes_content %}
-        <div style="font-size: 1.3rem; line-height: 1.8; opacity: 0.95; margin-bottom: 1.5rem;">
-          <strong style="color: var(--primary);">Notes Preview:</strong><br>
-          {{ s.notes_content | safe }}
-        </div>
-        {% endif %}
-
-        <!-- Full Details -->
-        {% if s.details %}
-        <div style="font-size: 1.3rem; line-height: 1.8; opacity: 0.95;">
-          {{ s.details | safe }}
-        </div>
-        {% endif %}
       </li>
       {% endfor %}
     </ul>
   </div>
 </div>
 {% endif %}
+
 {% endblock %}
