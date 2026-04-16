@@ -1,23 +1,24 @@
-# MYVINECHURCH.ONLINE/app/routes/public/public_dreams.py
-# Full path: MYVINECHURCH.ONLINE/app/routes/public/public_dreams.py
-# File name: public_dreams.py
+# MYVINECHURCH.ONLINE/app/routes/public/dreams/views.py
+# Full path: MYVINECHURCH.ONLINE/app/routes/public/dreams/views.py
+# File name: views.py
 # Brief, detailed purpose: Public Dreams & Visions routes for unauthenticated guests only.
-# Logged-in users are automatically redirected to the private dreams section.
-# Supports full guest comment form + one-level replies (parent_id) and live censoring.
-# Exact mirror of the working public_sermons.py pattern.
+# • Logged-in users are automatically redirected to the private dreams section.
+# • Full guest comment form + one-level replies (parent_id) support.
+# • Uses the new feature-specific queries.py and utils.py for maximum readability and maintainability.
+# • 100% of the original public_dreams.py logic preserved with smoother structure and debug clarity.
 
 from flask import render_template, redirect, url_for, session, abort, request, flash
 import pymysql
 
-from . import public_bp
-from .queries import get_public_list
+from . import dreams_bp
+from .queries import get_public_dreams, get_public_dream
 from .utils import censor_public_content
 
 from app.models.db import get_db
 from app.utils.helpers import censor_text, contains_censored_word
 
 
-@public_bp.route('/dreams')
+@dreams_bp.route('/')
 def public_dreams():
     """Public dreams listing page – guests only.
     Any logged-in user is redirected to the private dreams dashboard.
@@ -27,15 +28,15 @@ def public_dreams():
         return redirect(url_for('dreams.dreams'))
 
     # Guest view only
-    dreams = get_public_list('dreams', order_by='date_posted DESC')
+    dreams = get_public_dreams()
     dreams = censor_public_content(dreams)
     return render_template('public/dreams/dreams.html', dreams=dreams)
 
 
-@public_bp.route('/dreams/<int:dream_id>', methods=['GET', 'POST'])
+@dreams_bp.route('/<int:dream_id>', methods=['GET', 'POST'])
 def public_dream_detail(dream_id):
     """Public single dream detail page with guest comment + one-level reply support.
-    Exact mirror of the public sermons detail view.
+    Exact mirror of the working public sermons detail view.
     """
     print(f"\n[DEBUG] PUBLIC DREAM DETAIL ROUTE – dream_id={dream_id} | method={request.method}")
 
@@ -47,13 +48,8 @@ def public_dream_detail(dream_id):
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
 
-    # Fetch the public dream
-    cur.execute("""
-        SELECT * FROM dreams 
-        WHERE id = %s AND visibility = 'public'
-    """, (dream_id,))
-    dream = cur.fetchone()
-
+    # Fetch the public dream using the new dedicated query
+    dream = get_public_dream(dream_id)
     if not dream:
         print("[DEBUG] Dream not found or not public → 404")
         abort(404)
@@ -113,8 +109,11 @@ def public_dream_detail(dream_id):
             flash('Name and comment are required.', 'error')
 
         # Refresh the page to show the new comment
-        return redirect(url_for('public.public_dream_detail', dream_id=dream_id))
+        return redirect(url_for('public_dreams.public_dream_detail', dream_id=dream_id))
 
     # Render public template
     print("[DEBUG] Rendering public/dreams/view_dream.html for guest")
     return render_template('public/dreams/view_dream.html', dream=dream)
+
+
+print("✅ MYVINECHURCH.ONLINE public/dreams/views.py loaded successfully")

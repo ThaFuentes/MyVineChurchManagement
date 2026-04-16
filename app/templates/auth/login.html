@@ -1,13 +1,13 @@
-<!-- app/templates/auth/login.html -->
-<!-- Full path: myvinechurchonline/app/templates/auth/login.html -->
+<!-- MYVINECHURCH.ONLINE/app/templates/auth/login.html -->
+<!-- Full path: MYVINECHURCH.ONLINE/app/templates/auth/login.html -->
 <!-- File name: login.html -->
 <!-- Brief, detailed purpose: Dedicated member login page (route '/login').
-   FULL REBUILD – mirrors public listing pages (e.g., announcements.html) in structure/spacing.
+   FULL REBUILD – mirrors public listing pages in structure/spacing.
    Extends unified base_public.html – inherits full header, navigation, flash messages, footer, clock.
    Hero intro section (big centered title + welcoming paragraph), then centered login form.
-   Manual HTML form (no WTForms) – clean, spacious glow-card with cyan accents.
+   Manual HTML form – clean, spacious glow-card with cyan accents.
    Warm, senior-friendly layout with reduced gaps and large text/buttons.
-   FIXED: No 'form' variable used – removed any WTForms references (hidden_tag, etc.). -->
+   FIXED: Updated to the correct new modular endpoint name for the public dashboard. -->
 
 {% extends "base_public.html" %}
 
@@ -65,7 +65,7 @@
 
       <p style="text-align: center; margin-top: 3rem; color: var(--text-muted); font-size: 1rem;">
         New here? <a href="{{ url_for('auth.register') }}" style="color: var(--primary);">Create an account</a><br>
-        Or <a href="{{ url_for('public.public_dashboard') }}" style="color: var(--primary);">continue as guest</a> to explore
+        Or <a href="{{ url_for('public.public_dashboard.public_dashboard') }}" style="color: var(--primary);">continue as guest</a> to explore
       </p>
     </div>
   </div>

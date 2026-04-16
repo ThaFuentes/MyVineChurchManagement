@@ -1,9 +1,9 @@
-<!-- WebChurchMan/app/templates/public/announcements/announcements.html -->
-<!-- Full path: WebChurchMan/app/templates/public/announcements/announcements.html -->
+<!-- MYVINECHURCH.ONLINE/app/templates/public/announcements/announcements.html -->
+<!-- Full path: MYVINECHURCH.ONLINE/app/templates/public/announcements/announcements.html -->
 <!-- File name: announcements.html -->
-<!-- Brief, detailed purpose: Compact public Announcements listing.
-     Hero uses 1rem padding. Fancy search bar matches guest comment form.
-     Clickable titles now correctly open the PUBLIC detail view. -->
+<!-- Brief, detailed purpose: Compact public Announcements listing with fancy search bar. -->
+<!-- 100% rebuilt with the CORRECT new modular endpoint name (public.public_announcements.public_announcement_detail). -->
+<!-- All original styling, search functionality, truncation, censoring, and layout preserved exactly. -->
 
 {% extends "base_public.html" %}
 
@@ -43,7 +43,7 @@
   </details>
 </section>
 
-<!-- Compact list – now correctly links to PUBLIC detail page -->
+<!-- Compact list – now uses correct new modular endpoint -->
 {% if announcements %}
 <div style="padding: 0 2rem 6rem;">
   <div style="max-width: 1000px; margin: 0 auto;">
@@ -51,7 +51,7 @@
       {% for a in announcements %}
       <li style="margin-bottom: 2.5rem; padding-bottom: 2rem; border-bottom: 1px solid rgba(0, 255, 255, 0.2);">
         <h3 style="font-size: 2.1rem; margin: 0 0 1rem; color: var(--primary); text-shadow: 0 0 20px var(--primary);">
-          <a href="{{ url_for('public.public_announcement_detail', ann_id=a.id) }}"
+          <a href="{{ url_for('public.public_announcements.public_announcement_detail', ann_id=a.id) }}"
              style="color: var(--primary); text-decoration: none;">
             {{ a.title | title }}
           </a>
@@ -74,7 +74,7 @@
 {% endif %}
 
 <script>
-  // Live search - identical to dreams.html
+  // Live search – identical to dreams.html
   (function() {
     const searchBox = document.getElementById('searchBox');
     const rows = document.querySelectorAll('li');

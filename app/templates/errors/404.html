@@ -1,50 +1,37 @@
-<!-- WebChurchMan/app/templates/errors/404.html -->
-<!-- Full path: WebChurchMan/app/templates/errors/404.html -->
+<!-- MYVINECHURCH.ONLINE/app/templates/errors/404.html -->
+<!-- Full path: MYVINECHURCH.ONLINE/app/templates/errors/404.html -->
 <!-- File name: 404.html -->
-<!-- Brief, detailed purpose: Simple 404 error page – prevents crash when static files (like CSS) are missing.
-   Matches dark theme with cyan accents.
-   CREATE THIS FILE (and folder) – fixes the TemplateNotFound crash in error handler. -->
+<!-- Brief, detailed purpose: Global 404 error page. Clean, friendly design matching the church theme. Uses the CORRECT nested endpoint name for the public dashboard (public.public_dashboard.public_dashboard) after the modular sub-blueprint rebuild. No other changes. -->
 
-<!DOCTYPE html>
-<html lang="en" data-theme="cyan-glow">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>404 - Page Not Found | MyVineChurch.Online</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/theme.css') }}?v=20260112">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/global/base.css') }}?v=20260112">
-  <style>
-    body {
-      background: var(--bg-page, linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%));
-      color: #e0e0e0;
-      font-family: system-ui, sans-serif;
-      text-align: center;
-      padding: 6rem 2rem;
-    }
-    h1 {
-      font-size: 4rem;
-      color: var(--primary);
-      text-shadow: 0 0 25px var(--primary);
-      margin-bottom: 1rem;
-    }
-    p {
-      font-size: 1.6rem;
-      max-width: 800px;
-      margin: 2rem auto;
-    }
-    a {
-      color: var(--primary);
-      text-decoration: none;
-      font-size: 1.4rem;
-    }
-    a:hover {
-      text-shadow: 0 0 15px var(--primary);
-    }
-  </style>
-</head>
-<body>
-  <h1>404 - Page Not Found</h1>
-  <p>The page you are looking for does not exist or has been moved.</p>
-  <p><a href="{{ url_for('public.public_dashboard') }}">Return to Gathering Place →</a></p>
-</body>
-</html>
+{% extends "base_public.html" %}
+
+{% block title %}Page Not Found{% endblock %}
+
+{% block content %}
+
+<div style="text-align: center; padding: 6rem 2rem 8rem; max-width: 800px; margin: 0 auto;">
+  <h1 style="font-size: 9rem; color: var(--primary); margin: 0; text-shadow: 0 0 60px var(--primary); line-height: 1;">404</h1>
+
+  <h2 style="font-size: 2.8rem; margin: 1rem 0 2rem; color: white;">
+    Oops… We couldn’t find that page.
+  </h2>
+
+  <p style="font-size: 1.5rem; line-height: 1.7; color: #ccc; margin-bottom: 3rem;">
+    The page you’re looking for may have been moved, deleted, or never existed.<br>
+    Don’t worry — you’re still part of the family.
+  </p>
+
+  <div style="margin: 2rem 0;">
+    <a href="{{ url_for('public.public_dashboard.public_dashboard') }}"
+       class="btn-primary"
+       style="display: inline-block; padding: 1.2rem 3rem; font-size: 1.4rem; background: var(--primary); color: #000; font-weight: bold; border-radius: 12px; text-decoration: none;">
+      ← Return to Gathering Place
+    </a>
+  </div>
+
+  <p style="margin-top: 4rem; font-size: 1.1rem; color: #666;">
+    Still lost? Try the <a href="{{ url_for('public.public_dashboard.public_dashboard') }}" style="color: var(--primary);">Public Home</a> or contact us at the church office.
+  </p>
+</div>
+
+{% endblock %}

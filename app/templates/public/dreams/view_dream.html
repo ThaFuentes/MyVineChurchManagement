@@ -1,7 +1,8 @@
-<!-- WebChurchMan/app/templates/public/dreams/view_dream.html -->
-<!-- Full path: WebChurchMan/app/templates/public/dreams/view_dream.html -->
+<!-- MYVINECHURCH.ONLINE/app/templates/public/dreams/view_dream.html -->
+<!-- Full path: MYVINECHURCH.ONLINE/app/templates/public/dreams/view_dream.html -->
 <!-- File name: view_dream.html -->
 <!-- Brief, detailed purpose: Public single Dream & Vision detail page – EXACT mirror of public sermons view with working one-level replies. -->
+<!-- 100% rebuilt with the CORRECT new modular endpoint names (public.public_dreams.public_dream_detail and public.public_dreams.public_dreams). -->
 
 {% extends "base_public.html" %}
 
@@ -53,7 +54,7 @@
 
                     <!-- Hidden reply form -->
                     <div id="reply-form-{{ c.id }}" style="display:none; margin-top:1rem; padding:1rem; background:rgba(255,255,255,0.05); border-radius:8px;">
-                        <form action="{{ url_for('public.public_dream_detail', dream_id=dream.id) }}" method="POST">
+                        <form action="{{ url_for('public.public_dreams.public_dream_detail', dream_id=dream.id) }}" method="POST">
                             <input type="hidden" name="action" value="reply">
                             <input type="hidden" name="parent_id" value="{{ c.id }}">
                             <div style="margin-bottom:0.8rem;">
@@ -91,7 +92,7 @@
         {% endif %}
 
         <!-- Main Guest Comment Form – EXACT same style as public sermons -->
-        <form action="{{ url_for('public.public_dream_detail', dream_id=dream.id) }}" method="POST" style="margin-top: 2rem;">
+        <form action="{{ url_for('public.public_dreams.public_dream_detail', dream_id=dream.id) }}" method="POST" style="margin-top: 2rem;">
             <input type="hidden" name="action" value="comment">
             <div style="margin-bottom: 1rem;">
               <label style="display: block; color: var(--primary); margin-bottom: 0.4rem;">Your Name <span style="color: #ff4444;">*</span></label>
@@ -116,7 +117,7 @@
 
 <!-- Back to Dreams -->
 <div class="form-actions" style="margin-top:3rem;">
-    <a href="{{ url_for('public.public_dreams') }}" class="btn-secondary">← Back to Dreams & Visions</a>
+    <a href="{{ url_for('public.public_dreams.public_dreams') }}" class="btn-secondary">← Back to Dreams & Visions</a>
 </div>
 
 <!-- JavaScript – CLEAN & placed INSIDE content block so it always loads -->

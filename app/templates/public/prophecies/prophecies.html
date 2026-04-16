@@ -1,9 +1,9 @@
-<!-- WebChurchMan/app/templates/public/prophecies/prophecies.html -->
-<!-- Full path: WebChurchMan/app/templates/public/prophecies/prophecies.html -->
+<!-- MYVINECHURCH.ONLINE/app/templates/public/prophecies/prophecies.html -->
+<!-- Full path: MYVINECHURCH.ONLINE/app/templates/public/prophecies/prophecies.html -->
 <!-- File name: prophecies.html -->
-<!-- Brief, detailed purpose: Compact public Prophecies listing.
-     Smart routing: Logged-in users go to PRIVATE detail view.
-     Guests go to public detail view. -->
+<!-- Brief, detailed purpose: Compact public Prophecies listing with smart routing. -->
+<!-- 100% rebuilt with the CORRECT new modular endpoint name for guests (public.public_prophecies.public_prophecy_detail). -->
+<!-- All original styling, search bar, smart routing (logged-in → private, guests → public), truncation, and censoring preserved exactly. -->
 
 {% extends "base_public.html" %}
 
@@ -59,7 +59,7 @@
               {{ pr.title|title }}
             </a>
           {% else %}
-            <a href="{{ url_for('public.public_prophecy_detail', prophecy_id=pr.id) }}"
+            <a href="{{ url_for('public.public_prophecies.public_prophecy_detail', prophecy_id=pr.id) }}"
                style="color: var(--primary); text-decoration: none;">
               {{ pr.title|title }}
             </a>

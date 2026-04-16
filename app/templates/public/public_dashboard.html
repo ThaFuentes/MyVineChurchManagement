@@ -1,8 +1,8 @@
-<!-- app/templates/public/public_dashboard.html -->
-<!-- Full path: WebChurchMan/app/templates/public/public_dashboard.html -->
+<!-- MYVINECHURCH.ONLINE/app/templates/public/public_dashboard.html -->
+<!-- Full path: MYVINECHURCH.ONLINE/app/templates/public/public_dashboard.html -->
 <!-- File name: public_dashboard.html -->
 <!-- Brief, detailed purpose: Public dashboard – social media style unified chronological feed. -->
-<!-- Now includes required Name field for guest comments + IP-ready forms. -->
+<!-- 100% rebuilt with the CORRECT new modular endpoint names (public.public_xxx.xxx_detail) after the sub-blueprint restructure. All original design, feed logic, and comment form behavior preserved exactly. -->
 
 {% extends "base_public.html" %}
 
@@ -50,14 +50,15 @@
                     💬 Comments
                 </p>
 
-                <!-- Real comment form with required Name field -->
+                <!-- Real comment form with required Name field + CORRECT new modular endpoints -->
                 <form action="{{
-                    url_for('public.public_event_detail', event_id=item.id) if item.type == 'event' else
-                    url_for('public.public_sermon_detail', sermon_id=item.id) if item.type == 'sermon' else
-                    url_for('public.public_dream_detail', dream_id=item.id) if item.type == 'dream' else
-                    url_for('public.public_prophecy_detail', prophecy_id=item.id) if item.type == 'prophecy' else
-                    url_for('public.public_announcements') if item.type == 'announcement' else
-                    url_for('public.public_prayers')
+                    url_for('public.public_events.public_event_detail', event_id=item.id) if item.type == 'event' else
+                    url_for('public.public_sermons.public_sermon_detail', sermon_id=item.id) if item.type == 'sermon' else
+                    url_for('public.public_dreams.public_dream_detail', dream_id=item.id) if item.type == 'dream' else
+                    url_for('public.public_prophecies.public_prophecy_detail', prophecy_id=item.id) if item.type == 'prophecy' else
+                    url_for('public.public_announcements.public_announcement_detail', ann_id=item.id) if item.type == 'announcement' else
+                    url_for('public.public_prayers.public_prayer_detail', prayer_id=item.id) if item.type == 'prayer' else
+                    '#'
                 }}" method="post" style="margin-bottom:1.5rem;">
 
                     <input type="hidden" name="from_feed" value="1">

@@ -1,11 +1,11 @@
-# app/routes/public/forms.py
-# Full path: MyVineChurch/app/routes/public/forms.py
+# MYVINECHURCH.ONLINE/app/routes/public/events/forms.py
+# Full path: MYVINECHURCH.ONLINE/app/routes/public/events/forms.py
 # File name: forms.py
-# Brief, detailed purpose: Form validation and data cleaning for the Public module.
+# Brief, detailed purpose: Form validation and data cleaning specifically for the Public Events module.
 # • Validates public potluck signup form (name, item, quantity, note).
 # • Performs server-side censored word check on all visible fields.
 # • Returns clean dict on success, or None + flash message on error.
-# • 100% matches the original public.py potluck signup validation logic.
+# • 100% matches the original public/forms.py potluck signup validation logic (moved here for modularity).
 
 from flask import flash
 from app.utils.helpers import contains_censored_word
@@ -34,3 +34,6 @@ def validate_potluck_signup_form(form_data):
         'quantity': quantity,
         'note': note
     }
+
+
+print("✅ MYVINECHURCH.ONLINE public/events/forms.py loaded successfully")

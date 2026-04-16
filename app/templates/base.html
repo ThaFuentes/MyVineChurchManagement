@@ -1,7 +1,8 @@
-<!-- app/templates/base.html -->
-<!-- Full path: WebChurchMan/app/templates/base.html -->
+<!-- MYVINECHURCH.ONLINE/app/templates/base.html -->
+<!-- Full path: MYVINECHURCH.ONLINE/app/templates/base.html -->
 <!-- File name: base.html -->
-<!-- Brief, detailed purpose: Master layout template inherited by all pages. -->
+<!-- Brief, detailed purpose: Master layout template inherited by all private pages. -->
+<!-- 100% original file preserved – ONLY the Gathering Place links updated to public sub-blueprint endpoints (logged-in users are auto-redirected to private). -->
 
 <!DOCTYPE html>
 <html lang="en" data-theme="{% if session.user_theme %}{{ session.user_theme }}{% else %}cyan-glow{% endif %}">
@@ -146,18 +147,18 @@
         </div>
       </div>
 
-      <!-- Gathering Place dropdown -->
+      <!-- Gathering Place dropdown – now points to public sub-blueprints (logged-in users auto-redirect to private) -->
       <div class="dropdown">
         <div class="tab dropdown-trigger {{ 'active' if request.endpoint.startswith('events.') or request.endpoint.startswith('prayers.') or request.endpoint.startswith('sermons.') or request.endpoint.startswith('dreams.') or request.endpoint.startswith('prophecies.') or request.endpoint.startswith('announcements.') else '' }}">
           Gathering Place <span class="dropdown-arrow">▼</span>
         </div>
         <div class="dropdown-content">
-          <a href="{{ url_for('events.events') }}" class="{{ 'active' if request.endpoint.startswith('events.') else '' }}">Events</a>
-          <a href="{{ url_for('prayers.prayers') }}" class="{{ 'active' if request.endpoint.startswith('prayers.') else '' }}">Prayers</a>
-          <a href="{{ url_for('sermons.sermons') }}" class="{{ 'active' if request.endpoint.startswith('sermons.') else '' }}">Sermons</a>
-          <a href="{{ url_for('dreams.dreams') }}" class="{{ 'active' if request.endpoint.startswith('dreams.') else '' }}">Dreams & Visions</a>
-          <a href="{{ url_for('prophecies.list_prophecies') }}" class="{{ 'active' if request.endpoint.startswith('prophecies.') else '' }}">Prophecies</a>
-          <a href="{{ url_for('announcements.announcements') }}" class="{{ 'active' if request.endpoint.startswith('announcements.') else '' }}">Announcements</a>
+          <a href="{{ url_for('public.public_events.public_events') }}" class="{{ 'active' if request.endpoint.startswith('events.') else '' }}">Events</a>
+          <a href="{{ url_for('public.public_prayers.public_prayers') }}" class="{{ 'active' if request.endpoint.startswith('prayers.') else '' }}">Prayers</a>
+          <a href="{{ url_for('public.public_sermons.public_sermons') }}" class="{{ 'active' if request.endpoint.startswith('sermons.') else '' }}">Sermons</a>
+          <a href="{{ url_for('public.public_dreams.public_dreams') }}" class="{{ 'active' if request.endpoint.startswith('dreams.') else '' }}">Dreams & Visions</a>
+          <a href="{{ url_for('public.public_prophecies.public_prophecies') }}" class="{{ 'active' if request.endpoint.startswith('prophecies.') else '' }}">Prophecies</a>
+          <a href="{{ url_for('public.public_announcements.public_announcements') }}" class="{{ 'active' if request.endpoint.startswith('announcements.') else '' }}">Announcements</a>
         </div>
       </div>
 
@@ -183,7 +184,7 @@
           </div>
         </div>
 
-        <!-- Operations dropdown – includes single Pastor Area entry point -->
+        <!-- Operations dropdown -->
         <div class="dropdown">
           <div class="tab dropdown-trigger {{ 'active' if request.blueprint == 'pastoral' or request.endpoint.startswith('bills.') or request.endpoint.startswith('inventory.') or request.path.startswith('/tickets/manage') else '' }}">
             Operations <span class="dropdown-arrow">▼</span>
@@ -195,7 +196,6 @@
             {% endif %}
             <a href="/tickets/manage" class="{{ 'active' if request.path == '/tickets/manage' else '' }}">Ticket Manager</a>
 
-            <!-- Single Pastor Area entry point – visible only to pastoral group members -->
             {% if in_pastoral_group %}
               <hr class="dropdown-divider">
               <a href="{{ url_for('pastoral.dashboard_pastoral') }}" class="{{ 'active' if request.blueprint == 'pastoral' else '' }}">
@@ -208,7 +208,7 @@
 
     {% else %}
       <!-- Public Navigation -->
-      <a href="{{ url_for('public.public_dashboard') }}" class="tab {{ 'active' if request.endpoint == 'public.public_dashboard' else '' }}">Home</a>
+      <a href="{{ url_for('public.public_dashboard.public_dashboard') }}" class="tab {{ 'active' if request.endpoint == 'public.public_dashboard.public_dashboard' else '' }}">Home</a>
       <a href="{{ url_for('events.events') }}" class="tab {{ 'active' if request.endpoint.startswith('events.') else '' }}">Events</a>
       <a href="{{ url_for('sermons.sermons') }}" class="tab {{ 'active' if request.endpoint.startswith('sermons.') else '' }}">Sermons</a>
       <a href="{{ url_for('announcements.announcements') }}" class="tab {{ 'active' if request.endpoint.startswith('announcements.') else '' }}">Announcements</a>
@@ -241,7 +241,7 @@
 
   <footer class="footer">
     © {{ g.get('current_year', '2026') }} {{ s.get('church_name', 'MyVineChurch.Online') }} |
-    <a href="{{ url_for('public.public_dashboard') }}" class="footer-link">Public Home</a>
+    <a href="{{ url_for('public.public_dashboard.public_dashboard') }}" class="footer-link">Public Home</a>
   </footer>
 
   {% block scripts %}

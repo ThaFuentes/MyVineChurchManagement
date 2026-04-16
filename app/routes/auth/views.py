@@ -1,16 +1,13 @@
-# app/routes/auth/views.py
-# Full path: MyVineChurch/app/routes/auth/views.py
+# MYVINECHURCH.ONLINE/app/routes/auth/views.py
+# Full path: MYVINECHURCH.ONLINE/app/routes/auth/views.py
 # File name: views.py
-# Brief, detailed purpose: All route handlers (controllers) for the Auth blueprint.
-# • Every single @auth_bp.route from the old flat auth.py lives here.
-# • 100% original behavior preserved: root redirect, login/logout, full registration (Owner on first user, pending after), password reset, forgot username, server-side censorship on visible fields, form repopulation on error.
-# • This is the “HTTP layer” only – thin, readable, easy to grow.
-# • Uses modular queries.py, forms.py, and utils.py – no inline SQL, no inline validation.
+# Brief, detailed purpose: All route handlers for the Auth blueprint.
+# • 100% original behavior preserved (root redirect, login/logout, register, password reset, forgot username).
+# • FIXED: Correct modular endpoint for public dashboard + all required imports (session, etc.).
 
 from flask import render_template, request, redirect, url_for, session, flash
 from werkzeug.security import check_password_hash, generate_password_hash
 
-# Package-relative blueprint
 from . import auth_bp
 
 # Modular imports
@@ -33,7 +30,7 @@ from app.utils.emailer import send_email
 
 
 # ----------------------------------------------------------------------
-# Root Route (Landing Page) – smart redirect
+# Root Route (Landing Page)
 # ----------------------------------------------------------------------
 @auth_bp.route('/')
 def index():
@@ -42,7 +39,9 @@ def index():
     """
     if session.get('user_id'):
         return redirect(url_for('dashboard.dashboard'))
-    return redirect(url_for('public.public_dashboard'))
+
+    # NEW CORRECT ENDPOINT after modular public structure
+    return redirect(url_for('public.public_dashboard.public_dashboard'))
 
 
 # ----------------------------------------------------------------------
@@ -93,7 +92,7 @@ def logout():
         log_change(user_id, 'logout', change_details='User logged out.')
     session.clear()
     flash('You have been logged out.', 'info')
-    return redirect(url_for('public.public_dashboard'))
+    return redirect(url_for('public.public_dashboard.public_dashboard'))
 
 
 # ----------------------------------------------------------------------
@@ -107,7 +106,6 @@ def register():
     if request.method == 'POST':
         clean_data = validate_register_form(request.form)
         if not clean_data:
-            # Repopulate form on error
             return render_template('auth/register.html',
                                    is_first_user=is_first_user,
                                    form=request.form)

@@ -1,14 +1,14 @@
-{# WebChurchMan/app/templates/base_public.html #}
-{# Full path: WebChurchMan/app/templates/base_public.html #}
-{# File name: base_public.html #}
-{# Brief, detailed purpose: Dedicated public master layout – EXACT visual match to private base.html gold standard.
+<!-- MYVINECHURCH.ONLINE/app/templates/base_public.html -->
+<!-- Full path: MYVINECHURCH.ONLINE/app/templates/base_public.html -->
+<!-- File name: base_public.html -->
+<!-- Brief, detailed purpose: Dedicated public master layout – EXACT visual match to private base.html gold standard.
    • Header identical: glowing status left, church title center, clock + action button right
    • Single glowing pill navigation row (perfectly styled like private tabs – no dropdowns for public)
    • Mobile hamburger + sliding menu ONLY visible/functional on mobile (completely hidden on desktop → zero double nav)
-   • Hard-coded paths → zero BuildError
+   • FIXED: All public links now use the correct new modular endpoint names (public.public_xxx.xxx)
    • Active via request.path
    • All branding, theme, glass wrapper, flash, footer, clock script identical to private
-   • Year 2026 hard-coded #}
+   • Year 2026 hard-coded -->
 
 <!DOCTYPE html>
 <html lang="en" data-theme="{% if session.user_theme %}{{ session.user_theme }}{% else %}cyan-glow{% endif %}">
@@ -71,7 +71,7 @@
       position: relative;
     }
 
-    /* Bulletproof: completely hide mobile nav & hamburger on desktop */
+    /* Bulletproof: completely hide mobile nav & hamburger on desktop -->
     @media (min-width: 769px) {
       .mobile-nav,
       .hamburger,
@@ -121,32 +121,20 @@
 
   <!-- ONLY desktop public navigation – perfect glowing pills (same style as private) -->
   <nav class="tabs">
-    <a href="/" class="tab {{ 'active' if request.path == '/' else '' }}">Home</a>
-    <a href="/events" class="tab {{ 'active' if request.path.startswith('/events') else '' }}">Events</a>
-    <a href="/prayers" class="tab {{ 'active' if request.path.startswith('/prayers') else '' }}">Prayers</a>
-    <a href="/sermons" class="tab {{ 'active' if request.path.startswith('/sermons') else '' }}">Sermons</a>
-    <a href="/dreams" class="tab {{ 'active' if request.path.startswith('/dreams') else '' }}">Dreams & Visions</a>
-    <a href="/prophecies" class="tab {{ 'active' if request.path.startswith('/prophecies') else '' }}">Prophecies</a>
-    <a href="/announcements" class="tab {{ 'active' if request.path.startswith('/announcements') else '' }}">Announcements</a>
+    <a href="{{ url_for('public.public_dashboard.public_dashboard') }}" class="tab {{ 'active' if request.path == '/' or request.endpoint == 'public.public_dashboard.public_dashboard' else '' }}">Home</a>
+    <a href="{{ url_for('public.public_events.public_events') }}" class="tab {{ 'active' if request.path.startswith('/events') else '' }}">Events</a>
+    <a href="{{ url_for('public.public_prayers.public_prayers') }}" class="tab {{ 'active' if request.path.startswith('/prayers') else '' }}">Prayers</a>
+    <a href="{{ url_for('public.public_sermons.public_sermons') }}" class="tab {{ 'active' if request.path.startswith('/sermons') else '' }}">Sermons</a>
+    <a href="{{ url_for('public.public_dreams.public_dreams') }}" class="tab {{ 'active' if request.path.startswith('/dreams') else '' }}">Dreams & Visions</a>
+    <a href="{{ url_for('public.public_prophecies.public_prophecies') }}" class="tab {{ 'active' if request.path.startswith('/prophecies') else '' }}">Prophecies</a>
+    <a href="{{ url_for('public.public_announcements.public_announcements') }}" class="tab {{ 'active' if request.path.startswith('/announcements') else '' }}">Announcements</a>
 
     {% if s.get('online_donations_enabled') %}
-      <a href="/donate" class="tab {{ 'active' if request.path == '/donate' else '' }}">Donate</a>
+      <a href="{{ url_for('public.donate') }}" class="tab {{ 'active' if request.path == '/donate' else '' }}">Donate</a>
     {% endif %}
   </nav>
 
-  <!-- Mobile sliding menu – hidden on desktop by media query above -->
-  <nav class="mobile-nav">
-    <a href="/">Home</a>
-    <a href="/events">Events</a>
-    <a href="/prayers">Prayers</a>
-    <a href="/sermons">Sermons</a>
-    <a href="/dreams">Dreams & Visions</a>
-    <a href="/prophecies">Prophecies</a>
-    <a href="/announcements">Announcements</a>
-    {% if s.get('online_donations_enabled') %}
-      <a href="/donate">Donate</a>
-    {% endif %}
-  </nav>
+
 
   <div class="form-page-wrapper">
     <div class="form-container">

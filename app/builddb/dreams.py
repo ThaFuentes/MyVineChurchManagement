@@ -1,18 +1,24 @@
-# myvinechurchonline/app/builddb/dreams.py
-# Full path: myvinechurchonline/app/builddb/dreams.py
+# MYVINECHURCH.ONLINE/app/builddb/dreams.py
+# Full path: MYVINECHURCH.ONLINE/app/builddb/dreams.py
 # File name: dreams.py
 # Brief, detailed purpose: Creates/updates the dreams and dream_comments tables for MariaDB.
-# Supports three visibility levels (public/private/personal) + parent_id for simple one-level replies.
-# Safe migration for existing databases.
+# This is the 100% complete rebuild — every single column, table, index, migration step, and behavior is preserved exactly as you had it.
+# The only updates are: much clearer comments, better code organization, and explicit documentation around the created_by column (this powers "Created by: [Name]" on the public dreams page, just like events and announcements).
+# No new columns, no new tables, no behavior changes.
 
 def create_tables(cursor):
     """
-    Creates/updates the dreams-related tables with new 'personal' visibility
-    and parent_id support for one-level replies.
-    Designed for both fresh DB creation and safe migration.
+    Creates/updates the dreams and dream_comments tables.
+    Designed for both fresh DB creation and safe migration of existing databases.
+    The created_by column is required for displaying WHO created each dream/vision on the public page.
     """
 
+    # ------------------------------------------------------------------
     # ----- DREAMS TABLE -----
+    # ------------------------------------------------------------------
+    # This table stores every dream/vision submission.
+    # created_by and updated_by are used to show "Created by: [Username]"
+    # on the public dreams listing (exactly like events and announcements).
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS dreams (
             id               INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -27,7 +33,7 @@ def create_tables(cursor):
             is_approved      TINYINT(1) DEFAULT 1,
             comments_count   INTEGER DEFAULT 0,
             user_id          INT UNSIGNED,
-            created_by       INT UNSIGNED,
+            created_by       INT UNSIGNED,           -- ← This column shows WHO created the dream/vision
             updated_by       INT UNSIGNED,
             approved_by      INT UNSIGNED,
             contributor_name VARCHAR(255),
@@ -39,7 +45,9 @@ def create_tables(cursor):
         ) ENGINE=InnoDB;
     """)
 
+    # ------------------------------------------------------------------
     # Safe migration: handle old visibility CHECK constraint and add 'personal'
+    # ------------------------------------------------------------------
     cursor.execute("""
         SELECT CONSTRAINT_NAME 
         FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
@@ -78,7 +86,7 @@ def create_tables(cursor):
             CHECK(visibility IN ('public', 'private', 'personal'))
         """)
 
-    # Remove is_personal column if it exists
+    # Remove is_personal column if it exists (deprecated)
     if 'is_personal' in existing_columns:
         print("Migration: Removing deprecated 'is_personal' column")
         try:
@@ -105,7 +113,12 @@ def create_tables(cursor):
             print(f"Migration: Adding missing column '{col_name}' to dreams table.")
             cursor.execute(f"ALTER TABLE dreams ADD COLUMN {col_name} {col_def}")
 
-    # Indexes
+    # Note about created_by / updated_by:
+    # These columns were already created in the CREATE TABLE above.
+    # They allow the public dreams page to display "Created by: [Name]".
+    # If you see "Unknown" on old dreams, it is only because created_by was NULL.
+
+    # Indexes for dreams (safe — will not fail if they already exist)
     try:
         cursor.execute("CREATE INDEX idx_dreams_visibility ON dreams(visibility)")
     except: pass
@@ -119,7 +132,9 @@ def create_tables(cursor):
         cursor.execute("CREATE INDEX idx_dreams_date_posted ON dreams(date_posted DESC)")
     except: pass
 
-    # ----- DREAM_COMMENTS TABLE (UPDATED WITH parent_id) -----
+    # ------------------------------------------------------------------
+    # ----- DREAM_COMMENTS TABLE (with parent_id for replies) -----
+    # ------------------------------------------------------------------
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS dream_comments (
             id               INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -129,7 +144,7 @@ def create_tables(cursor):
             user_id          INT UNSIGNED,
             contributor_name VARCHAR(255),
             ip_address       VARCHAR(45),
-            parent_id        INT UNSIGNED NULL,   -- NEW: for one-level replies
+            parent_id        INT UNSIGNED NULL,   -- for simple one-level replies
             FOREIGN KEY(dream_id) REFERENCES dreams(id) ON DELETE CASCADE,
             FOREIGN KEY(user_id)   REFERENCES users(id) ON DELETE SET NULL,
             FOREIGN KEY(parent_id) REFERENCES dream_comments(id) ON DELETE CASCADE
@@ -161,6 +176,7 @@ def create_tables(cursor):
             print(f"Migration: Adding missing column '{col_name}' to dream_comments table.")
             cursor.execute(f"ALTER TABLE dream_comments ADD COLUMN {col_name} {col_def}")
 
+    # Indexes for dream_comments
     try:
         cursor.execute("CREATE INDEX idx_dream_comments_dream ON dream_comments(dream_id)")
     except: pass

@@ -2,17 +2,23 @@
 # Full path: MYVINECHURCH.ONLINE/app/builddb/events.py
 # File name: events.py
 # Brief, detailed purpose: Creates/updates the events, potluck_signups, and event_comments tables for MariaDB.
-# Uses exact column name "comment" to perfectly match your existing dreams table and legacy code.
-# No schema changes — keeps everything you already have working.
+# This is the 100% complete rebuild — every single column, table, index, migration step, and behavior is preserved exactly as you had it.
+# The only updates are: much clearer comments, better code organization, and explicit documentation around the created_by column (this is what powers "Created by: Name" on the public events page).
+# No new columns, no new tables, no behavior changes.
 
 def create_tables(cursor):
     """
     Creates/updates the events, potluck_signups, and event_comments tables.
-    Designed for both fresh DB creation and safe migration.
-    Uses "comment" column (exactly as your current DB and public/views.py expect).
+    Designed for both fresh DB creation and safe migration of existing databases.
+    Uses exact column name "comment" to perfectly match your existing dreams table and legacy code.
+    The created_by column is required for displaying WHO created each event on the public page.
     """
 
+    # ------------------------------------------------------------------
     # ----- EVENTS TABLE -----
+    # ------------------------------------------------------------------
+    # This table stores every church event. created_by and updated_by are
+    # used to show "Created by: [Username]" on the public events listing.
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS events (
             id                        INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -48,7 +54,7 @@ def create_tables(cursor):
             feedback_form             TEXT,
             live_streaming_details    TEXT,
             event_objectives          TEXT,
-            created_by                INT UNSIGNED,
+            created_by                INT UNSIGNED,           -- ← This column shows WHO created the event
             updated_by                INT UNSIGNED,
             created_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -57,7 +63,10 @@ def create_tables(cursor):
         ) ENGINE=InnoDB
     """)
 
-    # Safe column additions for events
+    # ------------------------------------------------------------------
+    # Safe column additions / migration for events table
+    # ------------------------------------------------------------------
+    # We check what columns already exist so we never break your current database.
     cursor.execute("""
         SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'events'
@@ -102,7 +111,13 @@ def create_tables(cursor):
             print(f"Migration: Adding missing column '{col}' to events table.")
             cursor.execute(f"ALTER TABLE events ADD COLUMN {col} {defn}")
 
-    # Indexes for events
+    # Note about created_by / updated_by:
+    # These two columns were already created in the CREATE TABLE above.
+    # They allow the public events page to display "Created by: [Name]".
+    # If you see "Unknown" on old events, it is only because created_by was NULL.
+    # (You can fix old events with a one-time UPDATE if needed — the code is already ready.)
+
+    # Indexes for events (safe — will not fail if they already exist)
     try:
         cursor.execute("CREATE INDEX idx_events_date ON events(event_date)")
     except: pass
@@ -113,7 +128,9 @@ def create_tables(cursor):
         cursor.execute("CREATE INDEX idx_events_potluck ON events(potluck_enabled)")
     except: pass
 
+    # ------------------------------------------------------------------
     # ----- POTLUCK_SIGNUPS TABLE -----
+    # ------------------------------------------------------------------
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS potluck_signups (
             id         INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -161,7 +178,9 @@ def create_tables(cursor):
         cursor.execute("DROP TABLE IF EXISTS potluck_contributions")
     except: pass
 
-    # ----- EVENT_COMMENTS TABLE (uses "comment" to match your existing DB + dreams table) -----
+    # ------------------------------------------------------------------
+    # ----- EVENT_COMMENTS TABLE (uses exact "comment" column name) -----
+    # ------------------------------------------------------------------
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS event_comments (
             id            INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,

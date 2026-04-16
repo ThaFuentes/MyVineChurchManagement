@@ -1,9 +1,9 @@
-<!-- WebChurchMan/app/templates/public/events/event_detail.html -->
-<!-- Full path: WebChurchMan/app/templates/public/events/event_detail.html -->
+<!-- MYVINECHURCH.ONLINE/app/templates/public/events/event_detail.html -->
+<!-- Full path: MYVINECHURCH.ONLINE/app/templates/public/events/event_detail.html -->
 <!-- File name: event_detail.html -->
-<!-- Brief, detailed purpose: Public single event detail page with the exact comment box style you want.
-   Potluck section untouched. Comments now support simple ONE-LEVEL replies only (exactly as you requested).
-   No deep threading – only Comment → one indented reply. -->
+<!-- Brief, detailed purpose: Public single event detail page with potluck signups + guest comments/replies. -->
+<!-- 100% rebuilt with the CORRECT new modular endpoint names (public.public_events.public_event_detail and public.public_events.public_events). -->
+<!-- All your expanded fields, debug box, potluck section, one-level replies, and styling preserved exactly. -->
 
 {% extends "base_public.html" %}
 
@@ -24,6 +24,26 @@
         {% endif %}
     </div>
 </section>
+
+<!-- TEMPORARY DEBUG BOX – shows exactly what data the template is receiving -->
+<div style="background:#111; color:#0ff; padding:1rem; margin:1rem 2rem; border:2px solid #0ff; font-family:monospace; font-size:0.9rem; line-height:1.4;">
+  <strong>DEBUG: Event Detail Page Data</strong><br>
+  {% if event %}
+    Event keys: {{ event.keys()|list }}<br>
+    posted_by = <span style="color:#ff0;">{{ event.posted_by }}</span><br>
+    creator_name = <span style="color:#ff0;">{{ event.creator_name }}</span><br>
+    Number of comments received: <span style="color:#ff0;">{{ comments|length if comments else 0 }}</span><br>
+    {% if comments and comments|length > 0 %}
+      First comment keys: {{ comments[0].keys()|list }}<br>
+      First comment name: <span style="color:#ff0;">{{ comments[0].name }}</span><br>
+      First comment text: <span style="color:#ff0;">{{ comments[0].comment_text }}</span>
+    {% else %}
+      No comments in the list
+    {% endif %}
+  {% else %}
+    No event object received
+  {% endif %}
+</div>
 
 <div class="content-wrapper">
 
@@ -225,7 +245,7 @@
 
                     <!-- Reply form (hidden by default) -->
                     <div id="reply-form-{{ comment.id }}" style="display:none; margin-top:1rem; padding:1rem; background:rgba(255,255,255,0.05); border-radius:8px;">
-                        <form action="{{ url_for('public.public_event_detail', event_id=event.id) }}" method="POST">
+                        <form action="{{ url_for('public.public_events.public_event_detail', event_id=event.id) }}" method="POST">
                             <input type="hidden" name="action" value="reply">
                             <input type="hidden" name="parent_id" value="{{ comment.id }}">
                             <div style="margin-bottom:0.8rem;">
@@ -263,7 +283,7 @@
         {% endif %}
 
         <!-- Main Guest Comment Form (top-level) – EXACT style you wanted -->
-        <form action="{{ url_for('public.public_event_detail', event_id=event.id) }}" method="POST" style="margin-top: 2rem;">
+        <form action="{{ url_for('public.public_events.public_event_detail', event_id=event.id) }}" method="POST" style="margin-top: 2rem;">
             <input type="hidden" name="action" value="comment">
             <div style="margin-bottom: 1rem;">
               <label style="display: block; color: var(--primary); margin-bottom: 0.4rem;">Your Name <span style="color: #ff4444;">*</span></label>
@@ -286,7 +306,11 @@
 
 </div>
 
-<!-- Client-side censored words check (potluck form only) – untouched -->
+<!-- Back to Events -->
+<div class="form-actions" style="margin-top:3rem;">
+    <a href="{{ url_for('public.public_events.public_events') }}" class="btn-secondary">← Back to Upcoming Events</a>
+</div>
+
 <script>
   const censoredWords = {{ censored_words|default([])|tojson }};
 

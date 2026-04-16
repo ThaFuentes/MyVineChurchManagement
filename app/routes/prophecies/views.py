@@ -6,6 +6,7 @@
 # • Guests are FORCED to the public page (no access to private list or view)
 # • Logged-in users see full private experience (public + private + personal)
 # • All original behavior preserved
+# • FIXED: Correct full public endpoint names for guest redirects
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from app.utils.decorators import login_required, role_required
@@ -25,8 +26,8 @@ REQUIRED_ROLES = ['Admin', 'Owner']
 @prophecies_bp.route('/')
 def list_prophecies():
     if 'user_id' not in session:
-        # Guest → go to public page
-        return redirect(url_for('public.public_prophecies'))
+        # Guest → go to public page (FULL CORRECT NAME)
+        return redirect(url_for('public.public_prophecies.public_prophecies'))
 
     is_logged_in = True
     user_id = session.get('user_id')
@@ -82,8 +83,8 @@ def list_prophecies():
 @prophecies_bp.route('/<int:prophecy_id>')
 def view_prophecy(prophecy_id):
     if 'user_id' not in session:
-        # Guest → go to public detail page
-        return redirect(url_for('public.public_prophecy_detail', prophecy_id=prophecy_id))
+        # Guest → go to public detail page (FULL CORRECT NAME)
+        return redirect(url_for('public.public_prophecies.public_prophecy_detail', prophecy_id=prophecy_id))
 
     is_logged_in = True
     user_id = session.get('user_id')

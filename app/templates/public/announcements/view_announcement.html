@@ -1,8 +1,9 @@
-<!-- WebChurchMan/app/templates/public/announcements/view_announcement.html -->
-<!-- Full path: WebChurchMan/app/templates/public/announcements/view_announcement.html -->
+<!-- MYVINECHURCH.ONLINE/app/templates/public/announcements/view_announcement.html -->
+<!-- Full path: MYVINECHURCH.ONLINE/app/templates/public/announcements/view_announcement.html -->
 <!-- File name: view_announcement.html -->
-<!-- Brief, detailed purpose: Public single Announcement detail page.
-     Exact same beautiful layout and guest comment form style as view_dream.html. -->
+<!-- Brief, detailed purpose: Public single Announcement detail page with guest comments. -->
+<!-- 100% rebuilt with the CORRECT new modular endpoint names (public.public_announcements.public_announcement_detail). -->
+<!-- All original layout, guest comment form, and styling preserved exactly. -->
 
 {% extends "base_public.html" %}
 
@@ -51,7 +52,7 @@
             {% endif %}
 
             <!-- Fancy Guest Comment Form (exact same style as view_dream.html) -->
-            <form action="{{ url_for('announcements.add_comment', ann_id=announcement.id) }}" method="POST" style="margin-top: 2rem;">
+            <form action="{{ url_for('public.public_announcements.public_announcement_detail', ann_id=announcement.id) }}" method="POST" style="margin-top: 2rem;">
                 <div style="margin-bottom: 1rem;">
                     <label style="display: block; color: var(--primary); margin-bottom: 0.4rem;">Your Name <span style="color: #ff4444;">*</span></label>
                     <input type="text" name="contributor_name" class="form-input"
@@ -76,9 +77,9 @@
 
 </div>
 
-<!-- Back button -->
+<!-- Back button – now uses correct modular endpoint -->
 <div class="form-actions" style="margin-top:3rem;">
-    <a href="{{ url_for('announcements.announcements') }}" class="btn-secondary">← Back to Announcements</a>
+    <a href="{{ url_for('public.public_announcements.public_announcements') }}" class="btn-secondary">← Back to Announcements</a>
 </div>
 
 {% endblock %}

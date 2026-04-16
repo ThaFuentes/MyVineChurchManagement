@@ -1,36 +1,38 @@
-# app/routes/public/public_sermons.py
-# Full path: MyVineChurch/app/routes/public/public_sermons.py
-# File name: public_sermons.py
+# MYVINECHURCH.ONLINE/app/routes/public/sermons/views.py
+# Full path: MYVINECHURCH.ONLINE/app/routes/public/sermons/views.py
+# File name: views.py
 # Brief, detailed purpose: Public Sermons routes – EXACT pattern as public_events.py and public_prayers.py.
 # • Logged-in users forced to private view.
-# • Guests can leave comments and replies.
-# • Owner/Admin can delete any comment or reply.
-# • Comments display exactly as they did in your working version.
+# • Guests can leave comments and replies + Owner/Admin can delete any comment or reply.
+# • Uses the new feature-specific queries.py, utils.py, and forms.py.
+# • 100% original public_sermons.py logic preserved with debug prints and exact template expectations.
 
 from flask import render_template, redirect, url_for, session, abort, request, flash
 import pymysql
 
-from . import public_bp
-from .queries import get_public_list
+from . import sermons_bp
+from .queries import get_public_sermons, get_public_sermon
+from .forms import validate_guest_comment_form
 from .utils import censor_public_content
 
 from app.models.db import get_db
 from app.utils.helpers import censor_text, contains_censored_word
 
 
-@public_bp.route('/sermons')
+@sermons_bp.route('/')
 def public_sermons():
     """Public sermons listing – logged-in users go to private dashboard."""
     if 'user_id' in session:
         print("[PUBLIC SERMONS] Logged-in user → redirecting to PRIVATE sermons list")
         return redirect(url_for('sermons.sermons'))
 
-    sermons = get_public_list('sermons', order_by='uploaded_at DESC')
+    # Guest view only
+    sermons = get_public_sermons()
     sermons = censor_public_content(sermons)
     return render_template('public/sermons/sermons.html', sermons=sermons)
 
 
-@public_bp.route('/sermons/<int:sermon_id>', methods=['GET', 'POST'])
+@sermons_bp.route('/<int:sermon_id>', methods=['GET', 'POST'])
 def public_sermon_detail(sermon_id):
     """Public single sermon detail with guest comment support + replies + delete."""
     print(f"\n[DEBUG] ==================== PUBLIC SERMON DETAIL ROUTE HIT ====================")
@@ -47,12 +49,8 @@ def public_sermon_detail(sermon_id):
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
 
-    # Fetch sermon
-    cur.execute("""
-        SELECT * FROM sermons 
-        WHERE id = %s AND visibility = 'public'
-    """, (sermon_id,))
-    sermon = cur.fetchone()
+    # Fetch sermon using dedicated query
+    sermon = get_public_sermon(sermon_id)
     if not sermon:
         print("[DEBUG] Sermon not found or not public → 404")
         abort(404)
@@ -102,27 +100,25 @@ def public_sermon_detail(sermon_id):
                 flash('You do not have permission to delete.', 'error')
 
         elif action in ('comment', 'reply'):
-            name = request.form.get('contributor_name', '').strip()
-            comment_text = request.form.get('comment', '').strip()
-            parent_id = request.form.get('parent_id') if action == 'reply' else None
+            clean = validate_guest_comment_form(request.form)
+            if not clean:
+                return redirect(url_for('public_sermons.public_sermon_detail', sermon_id=sermon_id))
 
-            if not name or not comment_text:
-                flash('Name and comment are required.', 'error')
-            elif contains_censored_word(name + ' ' + comment_text):
-                flash('Your comment contains prohibited content.', 'error')
-            else:
-                try:
-                    cur.execute("""
-                        INSERT INTO sermon_comments (sermon_id, contributor_name, comment, parent_id, date_added)
-                        VALUES (%s, %s, %s, %s, NOW())
-                    """, (sermon_id, name, comment_text, parent_id or None))
-                    db.commit()
-                    flash('Comment posted successfully!', 'success')
-                except Exception as e:
-                    flash('Failed to post comment.', 'error')
-                    print(f"[DEBUG] FAILED to insert comment: {e}")
+            try:
+                cur.execute("""
+                    INSERT INTO sermon_comments (sermon_id, contributor_name, comment, parent_id, date_added)
+                    VALUES (%s, %s, %s, %s, NOW())
+                """, (sermon_id, clean['name'], clean['comment'], clean['parent_id']))
+                db.commit()
+                flash('Comment posted successfully!', 'success')
+            except Exception as e:
+                flash('Failed to post comment.', 'error')
+                print(f"[DEBUG] FAILED to insert comment: {e}")
 
-        return redirect(url_for('public.public_sermon_detail', sermon_id=sermon_id))
+        return redirect(url_for('public_sermons.public_sermon_detail', sermon_id=sermon_id))
 
     print("[DEBUG] Rendering template 'public/sermons/view_sermon.html'")
     return render_template('public/sermons/view_sermon.html', sermon=sermon)
+
+
+print("✅ MYVINECHURCH.ONLINE public/sermons/views.py loaded successfully")

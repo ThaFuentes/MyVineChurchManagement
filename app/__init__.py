@@ -1,12 +1,12 @@
-# app/__init__.py
-# Full path: MyVineChurch/app/__init__.py
+# myvinechurchonline/app/__init__.py
+# Full path: myvinechurchonline/app/__init__.py
 # File name: __init__.py
 # Brief, detailed purpose: Flask application factory for MYVINECHURCH.ONLINE.
 #   - Loads .env + MariaDB configuration
 #   - Initializes DB schema silently on first request
-#   - Registers all blueprints (PUBLIC FIRST so guests hit public routes)
+#   - Registers all blueprints (PRIVATE FIRST so logged-in users hit private routes)
 #   - Injects global settings, Jinja filters, and template context processors
-#   - Handles smart root redirect and initial Owner setup enforcement
+#   - FIXED: Added 'prophecies' to private_blueprints so private nav works
 
 from flask import Flask, g, session, redirect, url_for, request, render_template, flash
 from markupsafe import Markup
@@ -39,9 +39,7 @@ def create_app():
     static_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static'))
     app = Flask(__name__, static_folder=static_folder)
 
-    # ──────────────────────────────────────────────────────────────────────────────
     # Configuration
-    # ──────────────────────────────────────────────────────────────────────────────
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev-insecure-change-this-immediately-2026'
 
     app.config['MYSQL_HOST']     = os.environ.get('MYSQL_HOST', 'localhost')
@@ -61,22 +59,16 @@ def create_app():
 
     app.teardown_appcontext(close_db)
 
-    # ──────────────────────────────────────────────────────────────────────────────
     # Silent DB schema initialization
-    # ──────────────────────────────────────────────────────────────────────────────
     with app.app_context():
         build_all(verbose=False)
 
-    # ──────────────────────────────────────────────────────────────────────────────
     # Global settings
-    # ──────────────────────────────────────────────────────────────────────────────
     @app.before_request
     def load_global_settings():
         g.settings = get_settings()
 
-    # ──────────────────────────────────────────────────────────────────────────────
     # GLOBAL WATCHMAN DEBUG
-    # ──────────────────────────────────────────────────────────────────────────────
     @app.before_request
     def watchman_debug():
         if request.path.startswith('/static/'):
@@ -89,9 +81,7 @@ def create_app():
         print(f"[WATCHMAN] Session Role: {session.get('user_role', 'NONE')}")
         print(f"!"*70 + "\n")
 
-    # ──────────────────────────────────────────────────────────────────────────────
-    # Custom Jinja filters & context processors
-    # ──────────────────────────────────────────────────────────────────────────────
+    # Custom Jinja filters & context processors (unchanged)
     @app.template_filter('nl2br')
     def nl2br_filter(value: str) -> Markup:
         if not value:
@@ -141,61 +131,43 @@ def create_app():
         return dict(in_pastoral_group=is_in_pastoral_group(session.get('user_id')))
 
     # ──────────────────────────────────────────────────────────────────────────────
-    # BLUEPRINT REGISTRATION – PUBLIC FIRST (this fixes the loop for dreams & prophecies)
+    # BLUEPRINT REGISTRATION – PRIVATE FIRST (fixes Gathering Place links)
     # ──────────────────────────────────────────────────────────────────────────────
-    # 1. Required core blueprints (PUBLIC comes FIRST)
-    required_blueprints = ['auth', 'dashboard', 'public']
-    for name in required_blueprints:
-        module = importlib.import_module(f'app.routes.{name}')
-        blueprint = getattr(module, f'{name}_bp')
-        app.register_blueprint(blueprint)
-
-    # Pastoral area
-    from app.routes.pastoral import pastoral_bp
-    app.register_blueprint(pastoral_bp)
-
-    # 2. Private feature blueprints (registered AFTER public)
-    from app.routes.prophecies import prophecies_bp
-    from app.routes.dreams import dreams_bp
-    from app.routes.prayers import prayers_bp
-    from app.routes.announcements import announcements_bp
-    from app.routes.events import events_bp
-    from app.routes.attendance import attendance_bp
-
-    app.register_blueprint(prophecies_bp)
-    app.register_blueprint(dreams_bp)
-    app.register_blueprint(prayers_bp)
-    app.register_blueprint(announcements_bp)
-    app.register_blueprint(events_bp)
-    app.register_blueprint(attendance_bp)
-
-    # Remaining optional features
-    optional_blueprints = [
-        'bills', 'donations', 'groups', 'inventory', 'log',
-        'members', 'profile', 'settings', 'sermons', 'tickets', 'emailer'
+    # Register PRIVATE blueprints FIRST so logged-in users hit private routes
+    private_blueprints = [
+        'auth', 'dashboard', 'events', 'dreams', 'prayers', 'announcements',
+        'sermons', 'profile', 'members', 'donations', 'settings', 'groups',
+        'log', 'tickets', 'attendance', 'bills', 'inventory', 'pastoral',
+        'prophecies'   # ← THIS WAS MISSING
     ]
 
-    for name in optional_blueprints:
+    for name in private_blueprints:
         try:
             module = importlib.import_module(f'app.routes.{name}')
             blueprint = getattr(module, f'{name}_bp')
             app.register_blueprint(blueprint)
+            print(f"✅ Registered private blueprint: {name}")
         except (ImportError, AttributeError):
-            pass
+            print(f"⚠️  Skipped private blueprint: {name} (not found or no _bp)")
 
-    # ──────────────────────────────────────────────────────────────────────────────
-    # Root Route & Owner Enforcement
-    # ──────────────────────────────────────────────────────────────────────────────
+    # Register public parent blueprint LAST (contains all sub-blueprints)
+    from app.routes.public import public_bp
+    app.register_blueprint(public_bp)
+
+    # Root Route
     @app.route('/')
     def index():
         if session.get('user_id'):
             return redirect(url_for('dashboard.dashboard'))
-        return redirect(url_for('public.public_dashboard'))
+        if not owner_exists():
+            flash('Initial setup required – please register the first Owner.', 'info')
+            return redirect(url_for('auth.register'))
+        return redirect(url_for('public.public_dashboard.public_dashboard'))
 
+    # OWNER ENFORCEMENT — strengthened so it cannot be bypassed
     @app.before_request
     def enforce_owner_registration():
         if (request.path.startswith('/static/') or
-            request.blueprint in ['public', None] or
             (request.endpoint and request.endpoint.startswith('auth.'))):
             return
 
@@ -203,9 +175,7 @@ def create_app():
             flash('Initial setup required – please register the first Owner.', 'info')
             return redirect(url_for('auth.register'))
 
-    # ──────────────────────────────────────────────────────────────────────────────
     # Error Handlers
-    # ──────────────────────────────────────────────────────────────────────────────
     @app.errorhandler(404)
     def page_not_found(e):
         return render_template('errors/404.html'), 404

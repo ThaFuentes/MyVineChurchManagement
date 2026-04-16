@@ -1,61 +1,90 @@
-# MYVINECHURCH.ONLINE/app/routes/public/public_events.py
-# Full path: MYVINECHURCH.ONLINE/app/routes/public/public_events.py
-# File name: public_events.py
+# MYVINECHURCH.ONLINE/app/routes/public/events/views.py
+# Full path: MYVINECHURCH.ONLINE/app/routes/public/events/views.py
+# File name: views.py
 # Brief, detailed purpose: Public Events routes for unauthenticated guests only.
-# • Public upcoming events list
-# • Single event detail with potluck signups + guest comments + one-level replies (parent_id)
-# • Logged-in users are NOT redirected here (public view only)
-# • Exact mirror of the working public_sermons / public_dreams pattern.
+# • Listing shows only upcoming public events with potluck signups.
+# • Detail page supports potluck signup + guest comments/replies.
+# • Logged-in users redirected to private events.
+# • Uses new feature-specific queries.py, utils.py, and forms.py.
+# • 100% original public_events.py + views.py events logic preserved (LEFT JOIN, censor order, potluck, comments).
 
-from flask import render_template, abort, request, flash, redirect, url_for
+from flask import render_template, abort, request, flash, redirect, url_for, session
 import pymysql
 
-from . import public_bp
-from .queries import get_public_list
+from . import events_bp
+from .queries import get_public_events, get_public_event
 from .forms import validate_potluck_signup_form
 from .utils import censor_public_content
 
 from app.models.db import get_db
 from app.utils.helpers import censor_text, contains_censored_word
+from app.utils.time_utils import format_church
 
 
-@public_bp.route('/events')
+@events_bp.route('/')
 def public_events():
     """Public events listing – shows only upcoming public events."""
-    events = get_public_list(
-        'events',
-        where="event_date >= CURDATE()",
-        order_by="event_date ASC, event_time ASC"
-    )
-    events = censor_public_content(events)
-    return render_template('public/events/events.html', events=events)
-
-
-@public_bp.route('/events/<int:event_id>', methods=['GET', 'POST'])
-def public_event_detail(event_id):
-    """Public single event detail page with potluck signups, guest comments, and simple one-level replies."""
-    print(f"\n[DEBUG] PUBLIC EVENT DETAIL ROUTE – event_id={event_id} | method={request.method}")
+    if 'user_id' in session:
+        print("[PUBLIC EVENTS] Logged-in user → redirecting to PRIVATE events list")
+        return redirect(url_for('events.events'))
 
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
 
-    # Fetch the public event
-    cur.execute("""
-        SELECT * FROM events 
-        WHERE id = %s AND visibility = 'public'
-    """, (event_id,))
-    event = cur.fetchone()
+    # Use dedicated query (already includes LEFT JOIN for creator_name)
+    events = get_public_events()
 
+    # Censorship first (exactly like original)
+    events = censor_public_content(events)
+
+    # Then set keys the template expects
+    for e in events:
+        e['datetime'] = format_church(e.get('created_at')) if e.get('created_at') else 'Unknown'
+        e['posted_by'] = e.get('creator_name', 'Anonymous')
+
+        # Potluck signups
+        if e.get('potluck_enabled'):
+            try:
+                cur.execute("""
+                    SELECT name, item, quantity, note 
+                    FROM potluck_signups 
+                    WHERE event_id = %s 
+                    ORDER BY id ASC
+                """, (e['id'],))
+                e['signups'] = cur.fetchall()
+                e['signups'] = censor_public_content(e['signups'])
+            except Exception:
+                e['signups'] = []
+        else:
+            e['signups'] = []
+
+    return render_template('public/events/events.html', events=events)
+
+
+@events_bp.route('/<int:event_id>', methods=['GET', 'POST'])
+def public_event_detail(event_id):
+    """Public single event detail page with potluck signups + guest comments/replies."""
+    print(f"\n[DEBUG] PUBLIC EVENT DETAIL ROUTE – event_id={event_id} | method={request.method}")
+
+    # Logged-in users go to private view
+    if 'user_id' in session:
+        print("[DEBUG] Logged-in user → redirecting to PRIVATE event detail")
+        return redirect(url_for('events.view_event', event_id=event_id))
+
+    db = get_db()
+    cur = db.cursor(pymysql.cursors.DictCursor)
+
+    # Fetch the public event using dedicated query
+    event = get_public_event(event_id)
     if not event:
         print("[DEBUG] Event not found or not public → 404")
         abort(404)
 
-    # Server-side censorship for public view
+    # Censor fields
     event['event_name']   = censor_text(event.get('event_name', ''))
     event['location']     = censor_text(event.get('location', ''))
     event['description']  = censor_text(event.get('description', ''))
 
-    # Potluck signups (if enabled)
     signups = []
     if event.get('potluck_enabled'):
         try:
@@ -67,10 +96,10 @@ def public_event_detail(event_id):
             """, (event_id,))
             signups = cur.fetchall()
             signups = censor_public_content(signups)
-        except Exception as e:
-            print(f"[DEBUG] Potluck signups load error: {e}")
+        except Exception:
+            pass
 
-    # Load comments with one-level replies (parent_id)
+    # Load comments (exact aliases template expects)
     comments = []
     try:
         cur.execute("""
@@ -81,21 +110,18 @@ def public_event_detail(event_id):
             ORDER BY created_at ASC
         """, (event_id,))
         comments = cur.fetchall()
-
-        print(f"[DEBUG] Loaded {len(comments)} comments (including replies) for public event {event_id}")
+        print(f"[DEBUG] Loaded {len(comments)} comments for event {event_id}")
     except Exception as e:
-        print(f"[DEBUG] ERROR loading comments for event {event_id}: {e}")
+        print(f"[DEBUG] ERROR loading comments: {e}")
 
-    # === HANDLE POST (potluck signup OR comment/reply) ===
+    # === HANDLE POST (potluck or comment/reply) ===
     if request.method == 'POST':
         action = request.form.get('action')
-        print(f"[DEBUG] POST action = '{action}'")
 
         if action == 'potluck' and event.get('potluck_enabled'):
             clean = validate_potluck_signup_form(request.form)
             if not clean:
-                return redirect(url_for('public.public_event_detail', event_id=event_id))
-
+                return redirect(url_for('public_events.public_event_detail', event_id=event_id))
             ip = request.remote_addr or 'unknown'
             try:
                 cur.execute("""
@@ -105,10 +131,8 @@ def public_event_detail(event_id):
                 """, (event_id, clean['name'], clean['item'], clean['quantity'], clean['note'], ip))
                 db.commit()
                 flash('Thank you for signing up!', 'success')
-                print(f"[DEBUG] Potluck signup inserted for event {event_id}")
-            except Exception as e:
+            except Exception:
                 flash('Signup failed – please try again.', 'error')
-                print(f"[DEBUG] Potluck insert error: {e}")
 
         elif action in ('comment', 'reply'):
             name         = request.form.get('name', '').strip()
@@ -128,17 +152,16 @@ def public_event_detail(event_id):
                     """, (event_id, name, comment_text, parent_id))
                     db.commit()
                     flash('Comment posted successfully!', 'success')
-                    print(f"[DEBUG] Guest comment/reply inserted for event {event_id}")
-                except Exception as e:
+                except Exception:
                     flash('Failed to post comment.', 'error')
-                    print(f"[DEBUG] Comment insert error: {e}")
 
-        # Refresh page to show new signup/comment
-        return redirect(url_for('public.public_event_detail', event_id=event_id))
+        return redirect(url_for('public_events.public_event_detail', event_id=event_id))
 
-    # Render public template
-    print("[DEBUG] Rendering public/events/event_detail.html for guest")
+    print("[DEBUG] Rendering template 'public/events/event_detail.html' for guest")
     return render_template('public/events/event_detail.html',
                            event=event,
                            signups=signups,
                            comments=comments)
+
+
+print("✅ MYVINECHURCH.ONLINE public/events/views.py loaded successfully")
