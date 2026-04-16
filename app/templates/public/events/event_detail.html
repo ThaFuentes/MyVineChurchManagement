@@ -3,7 +3,8 @@
 <!-- File name: event_detail.html -->
 <!-- Brief, detailed purpose: Public single event detail page with potluck signups + guest comments/replies. -->
 <!-- 100% rebuilt with the CORRECT new modular endpoint names (public.public_events.public_event_detail and public.public_events.public_events). -->
-<!-- All your expanded fields, debug box, potluck section, one-level replies, and styling preserved exactly. -->
+<!-- All expanded fields, debug box, potluck section, one-level replies, and styling preserved exactly. -->
+<!-- UPDATED: The top Event Meta row (Date / Time / Location / Created by) is now HORIZONTAL (flex layout) instead of vertical stacked paragraphs. The four lower detail sections remain horizontal as well. Debug box kept for future troubleshooting. -->
 
 {% extends "base_public.html" %}
 
@@ -14,18 +15,21 @@
 <!-- Event Header -->
 <section class="content-section event-header">
     <h1 class="page-title">{{ event.event_name|title }}</h1>
-    <div class="event-meta">
-        <p><strong>Date:</strong> {{ event.event_date }}</p>
+
+    <!-- HORIZONTAL EVENT META (Date, Time, Location, Created by) -->
+    <div class="event-meta" style="display: flex; flex-wrap: wrap; gap: 1.8rem 2.5rem; align-items: baseline; justify-content: center; font-size: 1.15rem; color: #ddd; margin-top: 0.8rem;">
+        <div><strong>Date:</strong> {{ event.event_date }}</div>
         {% if event.event_time %}
-            <p><strong>Time:</strong> {{ event.event_time }}</p>
+            <div><strong>Time:</strong> {{ event.event_time }}</div>
         {% endif %}
         {% if event.location %}
-            <p><strong>Location:</strong> {{ event.location }}</p>
+            <div><strong>Location:</strong> {{ event.location }}</div>
         {% endif %}
+        <div><strong>Created by:</strong> {{ event.creator_name or event.posted_by or 'Anonymous' }}</div>
     </div>
 </section>
 
-<!-- TEMPORARY DEBUG BOX – shows exactly what data the template is receiving -->
+<!-- TEMPORARY DEBUG BOX – kept exactly as requested so we can remember how we fixed comments + creator_name for future modules -->
 <div style="background:#111; color:#0ff; padding:1rem; margin:1rem 2rem; border:2px solid #0ff; font-family:monospace; font-size:0.9rem; line-height:1.4;">
   <strong>DEBUG: Event Detail Page Data</strong><br>
   {% if event %}
@@ -47,7 +51,7 @@
 
 <div class="content-wrapper">
 
-    <!-- Description -->
+    <!-- Description (remains full-width) -->
     {% if event.description %}
     <section class="content-section">
         <h3 class="section-title">Description</h3>
@@ -57,7 +61,7 @@
     </section>
     {% endif %}
 
-    <!-- People & Theme -->
+    <!-- People & Theme – HORIZONTAL (two-column grid) -->
     {% set people_fields = [
         ('Speaker/Host', event.speaker_host),
         ('Special Guests', event.special_guests),
@@ -69,15 +73,16 @@
     {% if people_data %}
     <section class="content-section">
         <h3 class="section-title">People & Theme</h3>
-        <div class="card glass">
+        <div class="card glass" style="display: grid; grid-template-columns: 240px 1fr; gap: 12px 24px; align-items: baseline;">
             {% for label, value in people_data %}
-                <p><strong>{{ label }}:</strong> {{ value }}</p>
+                <div style="font-weight: bold; color: var(--primary);">{{ label }}:</div>
+                <div style="opacity: 0.95;">{{ value }}</div>
             {% endfor %}
         </div>
     </section>
     {% endif %}
 
-    <!-- Logistics -->
+    <!-- Logistics – HORIZONTAL (two-column grid) -->
     {% set logistics_fields = [
         ('Agenda', event.agenda),
         ('Registration Info', event.registration_info),
@@ -92,21 +97,22 @@
     {% if logistics_data %}
     <section class="content-section">
         <h3 class="section-title">Logistics</h3>
-        <div class="card glass">
+        <div class="card glass" style="display: grid; grid-template-columns: 240px 1fr; gap: 12px 24px; align-items: baseline;">
             {% for label, value in logistics_data %}
-                <p><strong>{{ label }}:</strong>
+                <div style="font-weight: bold; color: var(--primary);">{{ label }}:</div>
+                <div style="opacity: 0.95;">
                     {% if label == 'Cost/Fees' %}
                         ${{ "%.2f"|format(value) }}
                     {% else %}
                         {{ value|nl2br }}
                     {% endif %}
-                </p>
+                </div>
             {% endfor %}
         </div>
     </section>
     {% endif %}
 
-    <!-- Communication & Media -->
+    <!-- Communication & Media – HORIZONTAL (two-column grid) -->
     {% set comm_fields = [
         ('Contact Info', event.contact_info),
         ('Social Media Hashtag', event.social_media_hashtag),
@@ -119,21 +125,22 @@
     {% if comm_data %}
     <section class="content-section">
         <h3 class="section-title">Communication & Media</h3>
-        <div class="card glass">
+        <div class="card glass" style="display: grid; grid-template-columns: 240px 1fr; gap: 12px 24px; align-items: baseline;">
             {% for label, value in comm_data %}
-                <p><strong>{{ label }}:</strong>
+                <div style="font-weight: bold; color: var(--primary);">{{ label }}:</div>
+                <div style="opacity: 0.95;">
                     {% if label == 'Feedback Form Link' %}
                         <a href="{{ value }}" target="_blank" rel="noopener">{{ value }}</a>
                     {% else %}
                         {{ value|nl2br }}
                     {% endif %}
-                </p>
+                </div>
             {% endfor %}
         </div>
     </section>
     {% endif %}
 
-    <!-- Additional Details -->
+    <!-- Additional Details – HORIZONTAL (two-column grid) -->
     {% set additional_fields = [
         ('Volunteer Opportunities', event.volunteer_opportunities),
         ('Donation Info', event.donation_info),
@@ -145,9 +152,10 @@
     {% if additional_data %}
     <section class="content-section">
         <h3 class="section-title">Additional Details</h3>
-        <div class="card glass">
+        <div class="card glass" style="display: grid; grid-template-columns: 240px 1fr; gap: 12px 24px; align-items: baseline;">
             {% for label, value in additional_data %}
-                <p><strong>{{ label }}:</strong><br>{{ value|nl2br }}</p>
+                <div style="font-weight: bold; color: var(--primary);">{{ label }}:</div>
+                <div style="opacity: 0.95;">{{ value|nl2br }}</div>
             {% endfor %}
         </div>
     </section>

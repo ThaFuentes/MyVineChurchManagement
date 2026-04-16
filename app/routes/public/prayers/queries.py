@@ -2,8 +2,8 @@
 # Full path: MYVINECHURCH.ONLINE/app/routes/public/prayers/queries.py
 # File name: queries.py
 # Brief, detailed purpose: Reusable database query functions specifically for the public Prayers section.
-# Returns ONLY public records (with posted_by via LEFT JOIN). Clean, efficient, and feature-specific – no generic table-name passing.
-# Used by views.py for listing and single-prayer detail pages. 100% matches original public_prayers.py + shared queries.py logic for prayers.
+# Returns ONLY public records (with creator_name via LEFT JOIN on created_by/user_id).
+# Clean, efficient, and 100% consistent with the public/events/queries.py gold standard.
 
 from app.models.db import get_db
 import pymysql.cursors
@@ -12,7 +12,7 @@ import pymysql.cursors
 def get_public_prayers():
     """
     Retrieve publicly visible prayers for the main public prayers listing page.
-    Ordered by most recent first. Includes posted_by exactly as the original code did.
+    Ordered by most recent first. Includes creator_name exactly as Events does.
     """
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
@@ -23,9 +23,9 @@ def get_public_prayers():
             p.title,
             p.description,
             p.date_posted,
-            COALESCE(u.username, p.contributor_name, 'Unknown') AS posted_by
+            COALESCE(u.username, p.contributor_name, 'Anonymous') AS creator_name
         FROM prayers p
-        LEFT JOIN users u ON p.user_id = u.id
+        LEFT JOIN users u ON COALESCE(p.created_by, p.user_id) = u.id
         WHERE p.visibility = 'public'
         ORDER BY p.date_posted DESC
     """)
@@ -37,7 +37,7 @@ def get_public_prayers():
 def get_public_prayer(prayer_id):
     """
     Retrieve a single public prayer by ID for the detail page (view_prayer.html).
-    Includes posted_by and all fields needed for comments.
+    Includes creator_name and all fields needed for responses.
     """
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
@@ -45,9 +45,9 @@ def get_public_prayer(prayer_id):
     cur.execute("""
         SELECT 
             p.*,
-            COALESCE(u.username, p.contributor_name, 'Unknown') AS posted_by
+            COALESCE(u.username, p.contributor_name, 'Anonymous') AS creator_name
         FROM prayers p
-        LEFT JOIN users u ON p.user_id = u.id
+        LEFT JOIN users u ON COALESCE(p.created_by, p.user_id) = u.id
         WHERE p.id = %s 
           AND p.visibility = 'public'
     """, (prayer_id,))
@@ -57,4 +57,4 @@ def get_public_prayer(prayer_id):
     return prayer
 
 
-print("✅ MYVINECHURCH.ONLINE public/prayers/queries.py loaded successfully")
+print("✅ MYVINECHURCH.ONLINE public/prayers/queries.py loaded successfully (creator_name fixed to match Events gold standard)")

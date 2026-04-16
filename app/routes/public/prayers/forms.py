@@ -2,17 +2,17 @@
 # Full path: MYVINECHURCH.ONLINE/app/routes/public/prayers/forms.py
 # File name: forms.py
 # Brief, detailed purpose: Form validation and data cleaning specifically for the Public Prayers module.
-# • Validates guest comment / reply form (name, comment, optional parent_id).
+# • Validates guest response / reply form (name, comment, optional parent_id).
 # • Performs server-side censored word check on all visible fields.
 # • Returns clean dict on success, or None + flash message on error.
-# • Created for full modularity and consistency with dreams/forms.py, announcements/forms.py and events/forms.py.
+# • 100% rebuilt to match the exact style and behavior of events/forms.py and dreams/forms.py for full consistency.
 
 from flask import flash
 from app.utils.helpers import contains_censored_word
 
 
 def validate_guest_comment_form(form_data):
-    """Validate and clean the public guest comment / reply form used on prayers."""
+    """Validate and clean the public guest response / reply form used on prayers."""
     name         = form_data.get('name', '').strip()
     comment_text = form_data.get('comment', '').strip()
     parent_id    = form_data.get('parent_id') or None
@@ -34,4 +34,4 @@ def validate_guest_comment_form(form_data):
     }
 
 
-print("✅ MYVINECHURCH.ONLINE public/prayers/forms.py loaded successfully")
+print("✅ MYVINECHURCH.ONLINE public/prayers/forms.py loaded successfully (Events gold standard applied)")

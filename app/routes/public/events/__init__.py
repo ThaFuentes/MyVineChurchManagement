@@ -1,19 +1,23 @@
 # MYVINECHURCH.ONLINE/app/routes/public/events/__init__.py
 # Full path: MYVINECHURCH.ONLINE/app/routes/public/events/__init__.py
 # File name: __init__.py
-# Brief, detailed purpose: Public Events sub-blueprint initializer. Creates the events_bp with correct url_prefix='/events' and points to the dedicated public templates folder. Imports the views/routes (and will later include forms) so the main public/__init__.py can register it cleanly. Follows the exact modular public structure plan.
+# Brief, detailed purpose: Public Events sub-blueprint initializer.
+# • CHANGED: url_prefix='/public-events' (unique prefix) to prevent the private 'events' blueprint
+#   (registered first in app/__init__.py) from stealing the /events/ route and forcing guests to login.
+# • All other public sub-blueprints already use unique prefixes or were fixed the same way.
+# • Template and static paths unchanged. Views will be updated next (one file at a time).
 
 from flask import Blueprint
 
 events_bp = Blueprint(
     'public_events',
     __name__,
-    url_prefix='/events',
+    url_prefix='/public-events',          # ← THIS IS THE FIX
     template_folder='../../../templates/public/events',
     static_folder='../../../static'
 )
 
-# Import views/routes (next file we will rebuild)
+# Import views/routes
 from . import views
 
-print("✅ MYVINECHURCH.ONLINE public/events sub-blueprint initialized successfully (url_prefix='/events')")
+print("✅ MYVINECHURCH.ONLINE public/events sub-blueprint initialized successfully (url_prefix='/public-events')")

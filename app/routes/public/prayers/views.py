@@ -2,13 +2,14 @@
 # Full path: MYVINECHURCH.ONLINE/app/routes/public/prayers/views.py
 # File name: views.py
 # Brief, detailed purpose: Public Prayers routes for unauthenticated guests only.
-# • Listing shows public prayers.
-# • Detail page supports guest comment/reply with maximum debugging (exact original behavior).
-# • Logged-in users redirected to private prayers.
-# • Uses new feature-specific queries.py, utils.py, and forms.py for modularity.
-# • 100% original public_prayers.py logic preserved (debug prints, prayers_added table, comment loading, etc.).
+# • Listing shows only public prayers (with creator_name).
+# • Detail page supports guest responses/replies (one-level) + potluck-style censorship.
+# • Logged-in users are redirected to private prayers.
+# • Uses local queries.py, forms.py and utils.py for modularity.
+# • 100% rebuilt clean version - identical structure and style to the working public/events/views.py gold standard.
+# • FIXED: Correct nested blueprint endpoints, response aliasing for new template, creator_name handling, and clean production code (debug prints removed).
 
-from flask import render_template, redirect, url_for, session, abort, request, flash
+from flask import render_template, abort, request, flash, redirect, url_for, session
 import pymysql
 
 from . import prayers_bp
@@ -20,99 +21,96 @@ from app.models.db import get_db
 from app.utils.helpers import censor_text, contains_censored_word
 
 
+# ----------------------------------------------------------------------
+# Public Prayers Listing (Guests Only)
+# ----------------------------------------------------------------------
 @prayers_bp.route('/')
 def public_prayers():
-    """Public prayers listing – logged-in users go to private dashboard."""
-    print("[DEBUG] public_prayers route hit")
+    """Public prayers listing – upcoming public prayers only.
+    Logged-in users are redirected to the private prayers dashboard.
+    """
     if 'user_id' in session:
-        print("[DEBUG] Logged-in user → redirecting to PRIVATE")
         return redirect(url_for('prayers.prayers'))
 
     # Guest view only
     prayers = get_public_prayers()
+
+    # Censorship first
     prayers = censor_public_content(prayers)
-    print(f"[DEBUG] Rendering public prayers list with {len(prayers)} prayers")
+
+    # Prepare data for template
+    for p in prayers:
+        p['formatted_date'] = p.get('date_posted').strftime('%B %d, %Y') if p.get('date_posted') else 'Unknown'
+        p['posted_by'] = p.get('creator_name', 'Anonymous')
+
     return render_template('public/prayers/prayers.html', prayers=prayers)
 
 
+# ----------------------------------------------------------------------
+# Public Single Prayer Detail (Guests Only + Responses/Replies)
+# ----------------------------------------------------------------------
 @prayers_bp.route('/<int:prayer_id>', methods=['GET', 'POST'])
 def public_prayer_detail(prayer_id):
-    """Public single prayer detail page with guest comment + reply support (maximum debugging preserved)."""
-    print(f"\n[DEBUG] ==================== PUBLIC PRAYER DETAIL ROUTE HIT ====================")
-    print(f"[DEBUG] prayer_id = {prayer_id}")
-    print(f"[DEBUG] Request method = {request.method}")
-    print(f"[DEBUG] Session user_id = {session.get('user_id')}")
-
+    """Public single prayer detail with guest responses/replies."""
     if 'user_id' in session:
-        print("[DEBUG] Logged-in user → redirecting to PRIVATE view")
         return redirect(url_for('prayers.view_prayer', prayer_id=prayer_id))
-
-    print("[DEBUG] Guest user → serving public version")
 
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
 
-    # Fetch prayer using dedicated query
     prayer = get_public_prayer(prayer_id)
     if not prayer:
-        print("[DEBUG] Prayer not found or not public → 404")
         abort(404)
 
-    prayer['title'] = censor_text(prayer.get('title') or '')
-    prayer['description'] = censor_text(prayer.get('description') or '')
+    # Censor content for public view
+    prayer['title']       = censor_text(prayer.get('title', ''))
+    prayer['description'] = censor_text(prayer.get('description', ''))
 
-    # Load comments with full debug (exact original query from prayers_added table)
-    comments = []
+    # Load responses (using prayers_added table - exact same pattern as events)
+    responses = []
     try:
         cur.execute("""
-            SELECT id, contributor_name AS name, prayer AS comment_text, parent_id,
-                   DATE_FORMAT(date_added, '%%b %%e, %%Y %%h:%%i %%p') as created_at_nice
-            FROM prayers_added
-            WHERE prayer_request_id = %s
+            SELECT 
+                id,
+                contributor_name AS name,
+                prayer AS comment_text,
+                parent_id,
+                DATE_FORMAT(date_added, '%%b %%e, %%Y %%h:%%i %%p') as created_at_nice
+            FROM prayers_added 
+            WHERE prayer_request_id = %s 
             ORDER BY date_added ASC
         """, (prayer_id,))
-        comments = cur.fetchall()
+        responses = cur.fetchall()
+    except Exception:
+        pass
 
-        print(f"[DEBUG] Loaded {len(comments)} comments for prayer {prayer_id}")
-        for i, c in enumerate(comments):
-            parent = f" (reply to #{c.get('parent_id')})" if c.get('parent_id') else " (top-level)"
-            print(f"[DEBUG] Comment {i+1} ID={c['id']} | Name='{c['name']}' | Text='{c['comment_text'][:60]}...' {parent}")
-    except Exception as e:
-        print(f"[DEBUG] ERROR loading comments: {e}")
-
-    # === HANDLE POST (using new forms.py for consistency) ===
+    # Handle POST - guest response or reply
     if request.method == 'POST':
-        print(f"[DEBUG] POST received. Form data keys: {list(request.form.keys())}")
         action = request.form.get('action')
-        print(f"[DEBUG] action = '{action}'")
-        print(f"[DEBUG] parent_id = {request.form.get('parent_id')}")
 
-        clean = validate_guest_comment_form(request.form)
-        if not clean:
-            print("[DEBUG] Form validation failed")
-            return redirect(url_for('public_prayers.public_prayer_detail', prayer_id=prayer_id))
+        if action in ('comment', 'reply'):
+            clean = validate_guest_comment_form(request.form)
+            if not clean:
+                return redirect(url_for('public.public_prayers.public_prayer_detail', prayer_id=prayer_id))
 
-        try:
-            cur.execute("""
-                INSERT INTO prayers_added (prayer_request_id, contributor_name, prayer, parent_id, date_added)
-                VALUES (%s, %s, %s, %s, NOW())
-            """, (prayer_id, clean['name'], clean['comment'], clean['parent_id']))
-            db.commit()
-            flash('Comment posted successfully!', 'success')
-            print(f"[DEBUG] SUCCESS: Comment inserted for prayer {prayer_id}")
-        except Exception as e:
-            flash('Failed to post comment.', 'error')
-            print(f"[DEBUG] FAILED to insert comment: {e}")
+            parent_id = clean.get('parent_id')
+            try:
+                cur.execute("""
+                    INSERT INTO prayers_added 
+                    (prayer_request_id, contributor_name, prayer, parent_id, date_added)
+                    VALUES (%s, %s, %s, %s, NOW())
+                """, (prayer_id, clean['name'], clean['comment'], parent_id))
+                db.commit()
+                flash('Response posted successfully!', 'success')
+            except Exception:
+                flash('Failed to post response.', 'error')
 
-        print("[DEBUG] Redirecting after POST")
-        return redirect(url_for('public_prayers.public_prayer_detail', prayer_id=prayer_id))
+        # Always redirect using the CORRECT nested blueprint endpoint
+        return redirect(url_for('public.public_prayers.public_prayer_detail', prayer_id=prayer_id))
 
-    # Render template
-    print("[DEBUG] Rendering template 'public/prayers/view_prayer.html' with comments")
-    print(f"[DEBUG] Number of comments passed to template: {len(comments)}")
     return render_template('public/prayers/view_prayer.html',
                            prayer=prayer,
-                           comments=comments)
+                           responses=responses)
 
 
-print("✅ MYVINECHURCH.ONLINE public/prayers/views.py loaded successfully")
+print("✅ MYVINECHURCH.ONLINE public/prayers/views.py loaded successfully (Events gold standard applied)")

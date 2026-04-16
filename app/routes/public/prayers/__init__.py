@@ -1,19 +1,23 @@
 # MYVINECHURCH.ONLINE/app/routes/public/prayers/__init__.py
 # Full path: MYVINECHURCH.ONLINE/app/routes/public/prayers/__init__.py
 # File name: __init__.py
-# Brief, detailed purpose: Public Prayers sub-blueprint initializer. Creates the prayers_bp with correct url_prefix='/prayers' and points to the dedicated public templates folder. Imports the views/routes so the main public/__init__.py can register it cleanly. Follows the exact modular public structure plan.
+# Brief, detailed purpose: Public Prayers sub-blueprint initializer.
+# • CHANGED: url_prefix='/public-prayers' (unique prefix) to prevent the private 'prayers' blueprint
+#   (registered first in app/__init__.py) from stealing the /prayers/ route and forcing guests to login.
+# • All other public sub-blueprints already use unique prefixes or were fixed the same way.
+# • Template and static paths unchanged. Views will be updated next (one file at a time).
 
 from flask import Blueprint
 
 prayers_bp = Blueprint(
     'public_prayers',
     __name__,
-    url_prefix='/prayers',
+    url_prefix='/public-prayers',          # ← THIS IS THE FIX
     template_folder='../../../templates/public/prayers',
     static_folder='../../../static'
 )
 
-# Import views/routes (next file we will rebuild)
+# Import views/routes
 from . import views
 
-print("✅ MYVINECHURCH.ONLINE public/prayers sub-blueprint initialized successfully (url_prefix='/prayers')")
+print("✅ MYVINECHURCH.ONLINE public/prayers sub-blueprint initialized successfully (url_prefix='/public-prayers')")
