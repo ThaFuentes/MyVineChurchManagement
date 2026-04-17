@@ -1,7 +1,8 @@
-<!-- WebChurchMan/app/templates/public/sermons/view_sermon.html -->
-<!-- Full path: WebChurchMan/app/templates/public/sermons/view_sermon.html -->
+<!-- MYVINECHURCH.ONLINE/app/templates/public/sermons/view_sermon.html -->
+<!-- Full path: MYVINECHURCH.ONLINE/app/templates/public/sermons/view_sermon.html -->
 <!-- File name: view_sermon.html -->
-<!-- Brief, detailed purpose: Public single sermon view page – EXACT mirror of your working event_detail.html. -->
+<!-- Brief, detailed purpose: Public single sermon detail page – 100% rebuilt to match the current Events gold standard exactly. -->
+<!-- Media & Downloads section is now collapsible (collapsed by default when unavailable) with clear notice. -->
 
 {% extends "base_public.html" %}
 
@@ -12,13 +13,25 @@
 <!-- Sermon Header -->
 <section class="content-section event-header">
     <h1 class="page-title">{{ sermon.title|title }}</h1>
-    <div class="event-meta">
-        <p><strong>Uploaded on:</strong> {{ sermon.uploaded_at.strftime('%B %d, %Y') if sermon.uploaded_at else 'Unknown' }}</p>
-        {% if sermon.posted_by %}
-        <p><strong>By:</strong> {{ sermon.posted_by }}</p>
-        {% endif %}
+
+    <!-- HORIZONTAL META – exactly like Events -->
+    <div class="event-meta" style="display: flex; flex-wrap: wrap; gap: 1.8rem 2.5rem; align-items: baseline; justify-content: center; font-size: 1.15rem; color: #ddd; margin-top: 0.8rem;">
+        <div><strong>Uploaded on:</strong> {{ sermon.uploaded_at.strftime('%B %d, %Y') if sermon.uploaded_at else 'Unknown' }}</div>
+        <div><strong>By:</strong> {{ sermon.posted_by or sermon.creator_name or 'Anonymous' }}</div>
     </div>
 </section>
+
+<!-- TEMPORARY DEBUG BOX – kept for troubleshooting -->
+<div style="background:#111; color:#0ff; padding:1rem; margin:1rem 2rem; border:2px solid #0ff; font-family:monospace; font-size:0.9rem; line-height:1.4;">
+  <strong>DEBUG: Public Sermon Detail Page Data</strong><br>
+  {% if sermon %}
+    Sermon keys: {{ sermon.keys()|list }}<br>
+    posted_by / creator_name = <span style="color:#ff0;">{{ sermon.posted_by or sermon.creator_name }}</span><br>
+    Number of comments received: <span style="color:#ff0;">{{ sermon.comments|length if sermon.comments else 0 }}</span><br>
+  {% else %}
+    No sermon object received
+  {% endif %}
+</div>
 
 <div class="content-wrapper">
 
@@ -32,20 +45,31 @@
     </section>
     {% endif %}
 
-    <!-- Media & Downloads -->
+    <!-- Media & Downloads – NOW COLLAPSIBLE (exactly like Potluck in Events) -->
     <section class="content-section">
-        <h3 class="section-title">Media & Downloads</h3>
-        <div class="card glass">
-            {% if sermon.sermon_file %}
-            <p><a href="{{ url_for('sermons.uploaded_file', filename=sermon.sermon_file) }}" target="_blank" class="btn-secondary">Download / Play Sermon Media</a></p>
-            {% endif %}
-            {% if sermon.external_link %}
-            <p><a href="{{ sermon.external_link }}" target="_blank" rel="noopener" class="btn-secondary">Watch / Listen Externally</a></p>
-            {% endif %}
-            {% if not sermon.sermon_file and not sermon.external_link %}
-            <p class="no-data">No media available for this sermon.</p>
-            {% endif %}
-        </div>
+        <details class="collapsible glass">
+            <summary class="section-title">
+                Media &amp; Downloads
+                {% if not sermon.sermon_file and not sermon.external_link %}
+                <span style="color:#ff0; font-size:0.9rem; margin-left:1rem;">(Not Available)</span>
+                {% endif %}
+            </summary>
+
+            <div class="card glass" style="margin-top:1rem;">
+                {% if sermon.sermon_file or sermon.external_link %}
+                    {% if sermon.sermon_file %}
+                    <p><a href="{{ url_for('sermons.uploaded_file', filename=sermon.sermon_file) }}" target="_blank" class="btn-secondary">📥 Download / Play Sermon Media</a></p>
+                    {% endif %}
+                    {% if sermon.external_link %}
+                    <p><a href="{{ sermon.external_link }}" target="_blank" rel="noopener" class="btn-secondary">▶️ Watch / Listen Externally</a></p>
+                    {% endif %}
+                {% else %}
+                    <p class="no-data" style="text-align:center; padding:2rem 0; color:#888;">
+                        No media available for this sermon at this time.
+                    </p>
+                {% endif %}
+            </div>
+        </details>
     </section>
 
     <!-- ==================== COMMENTS WITH SIMPLE ONE-LEVEL REPLIES ==================== -->
@@ -55,21 +79,18 @@
         {% if sermon.comments %}
         <div class="card glass">
             {% for c in sermon.comments if not c.parent_id %}
-                <!-- Top-level comment -->
                 <div class="comment-item" style="margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:1px solid rgba(0,255,255,0.1);">
                     <p><strong>{{ c.name | censor }}</strong>
                        <small style="color:#888;">{{ c.date }}</small></p>
                     <p>{{ c.comment | nl2br | censor }}</p>
 
-                    <!-- Reply button -->
                     <button onclick="toggleReplyForm({{ c.id }})"
                             style="margin-top:0.8rem; padding:0.4rem 1rem; font-size:0.9rem; background:rgba(0,255,255,0.1); color:var(--primary); border:1px solid var(--primary); border-radius:6px; cursor:pointer;">
                         Reply
                     </button>
 
-                    <!-- Hidden reply form -->
                     <div id="reply-form-{{ c.id }}" style="display:none; margin-top:1rem; padding:1rem; background:rgba(255,255,255,0.05); border-radius:8px;">
-                        <form action="{{ url_for('public.public_sermon_detail', sermon_id=sermon.id) }}" method="POST">
+                        <form action="{{ url_for('public.public_sermons.public_sermon_detail', sermon_id=sermon.id) }}" method="POST">
                             <input type="hidden" name="action" value="reply">
                             <input type="hidden" name="parent_id" value="{{ c.id }}">
                             <div style="margin-bottom:0.8rem;">
@@ -92,7 +113,6 @@
                     </div>
                 </div>
 
-                <!-- One-level replies (indented) -->
                 {% for reply in sermon.comments if reply.parent_id == c.id %}
                 <div class="comment-item" style="margin-left:2rem; margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:1px solid rgba(0,255,255,0.1); border-left:3px solid var(--primary); padding-left:1rem;">
                     <p><strong>{{ reply.name | censor }}</strong>
@@ -107,7 +127,7 @@
         {% endif %}
 
         <!-- Main Guest Comment Form -->
-        <form action="{{ url_for('public.public_sermon_detail', sermon_id=sermon.id) }}" method="POST" style="margin-top: 2rem;">
+        <form action="{{ url_for('public.public_sermons.public_sermon_detail', sermon_id=sermon.id) }}" method="POST" style="margin-top: 2rem;">
             <input type="hidden" name="action" value="comment">
             <div style="margin-bottom: 1rem;">
               <label style="display: block; color: var(--primary); margin-bottom: 0.4rem;">Your Name <span style="color: #ff4444;">*</span></label>
@@ -132,10 +152,9 @@
 
 <!-- Back to Sermons -->
 <div class="form-actions" style="margin-top:3rem;">
-    <a href="{{ url_for('public.public_sermons') }}" class="btn-secondary">← Back to Sermons</a>
+    <a href="{{ url_for('public.public_sermons.public_sermons') }}" class="btn-secondary">← Back to Sermons</a>
 </div>
 
-<!-- JavaScript – CLEAN & EXACT same working pattern as event_detail.html -->
 <script>
   function toggleReplyForm(commentId) {
     const form = document.getElementById('reply-form-' + commentId);

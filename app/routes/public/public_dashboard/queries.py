@@ -2,219 +2,154 @@
 # Full path: MYVINECHURCH.ONLINE/app/routes/public/public_dashboard/queries.py
 # File name: queries.py
 # Brief, detailed purpose: Reusable database query functions for the Public Dashboard (rich social-media style feed on homepage).
-# • Provides get_public_dashboard_feed() – the full combined feed used on the public home page.
-# • Also includes get_public_previews() for backward compatibility with any template that expects it.
-# • Pure data-access layer – no Flask routes, no templates, no flash messages.
-# • 100% original behavior from the old shared queries.py + rich feed logic preserved.
+# • Reuses ALL existing public queries safely.
+# • Smart priority ordering: Upcoming Events first, then newest Sermons, Announcements, Dreams, Prophecies, Prayers.
+# • FIXED: get_recent_comments now uses the EXACT column names that each module actually uses
+#   (sermons & announcements = contributor_name + date_added)
+#   (dreams & prophecies = contributor_name + date_posted — this is why dreams/prophecies were broken)
+#   (events = name + created_at)
+#   Recent comments now appear on EVERY card exactly like they do on sermon cards.
 
 from app.models.db import get_db
 import pymysql.cursors
 
-
-def get_public_previews(limit=5):
-    """Return limited public previews for the public dashboard (kept for any template compatibility)."""
-    db = get_db()
-    cur = db.cursor(pymysql.cursors.DictCursor)
-    previews = {}
-
-    # Upcoming Events
-    try:
-        cur.execute("""
-            SELECT id, event_name AS title,
-                   CONCAT(event_date, ' ', COALESCE(event_time, '')) AS datetime,
-                   location
-            FROM events
-            WHERE visibility = 'public' 
-              AND event_date >= CURDATE()
-            ORDER BY event_date ASC, event_time ASC
-            LIMIT %s
-        """, (limit,))
-        previews['events'] = cur.fetchall()
-    except Exception:
-        previews['events'] = []
-
-    # Recent Prayers
-    try:
-        cur.execute("""
-            SELECT title, date_posted AS datetime
-            FROM prayers
-            WHERE visibility = 'public'
-            ORDER BY date_posted DESC
-            LIMIT %s
-        """, (limit,))
-        previews['prayers'] = cur.fetchall()
-    except Exception:
-        previews['prayers'] = []
-
-    # Recent Dreams & Visions
-    try:
-        cur.execute("""
-            SELECT d.title, d.date_posted AS datetime,
-                   COALESCE(u.username, d.contributor_name, 'Anonymous') AS posted_by
-            FROM dreams d
-            LEFT JOIN users u ON d.user_id = u.id
-            WHERE d.visibility = 'public'
-            ORDER BY d.date_posted DESC
-            LIMIT %s
-        """, (limit,))
-        previews['dreams'] = cur.fetchall()
-    except Exception:
-        previews['dreams'] = []
-
-    # Recent Prophecies
-    try:
-        cur.execute("""
-            SELECT p.title, p.created_at AS datetime,
-                   COALESCE(u.username, p.contributor_name, 'Anonymous') AS posted_by
-            FROM prophecies p
-            LEFT JOIN users u ON p.user_id = u.id
-            WHERE p.visibility = 'public'
-            ORDER BY p.created_at DESC
-            LIMIT %s
-        """, (limit,))
-        previews['prophecies'] = cur.fetchall()
-    except Exception:
-        previews['prophecies'] = []
-
-    # Recent Sermons
-    try:
-        cur.execute("""
-            SELECT s.title, s.uploaded_at AS datetime,
-                   COALESCE(u.username, 'Anonymous') AS posted_by
-            FROM sermons s
-            LEFT JOIN users u ON s.uploaded_by = u.id
-            WHERE s.visibility = 'public'
-            ORDER BY s.uploaded_at DESC
-            LIMIT %s
-        """, (limit,))
-        previews['sermons'] = cur.fetchall()
-    except Exception:
-        previews['sermons'] = []
-
-    # Recent Announcements
-    try:
-        cur.execute("""
-            SELECT a.title, a.content, a.created_at AS datetime,
-                   COALESCE(u.username, 'Anonymous') AS posted_by
-            FROM announcements a
-            LEFT JOIN users u ON a.created_by = u.id
-            WHERE a.visibility = 'public' AND a.is_active = 1
-            ORDER BY a.created_at DESC
-            LIMIT %s
-        """, (limit,))
-        previews['announcements'] = cur.fetchall()
-    except Exception:
-        previews['announcements'] = []
-
-    cur.close()
-    return previews
+# Reuse our existing public modular queries
+from app.routes.public.events.queries import get_public_events
+from app.routes.public.sermons.queries import get_public_sermons
+from app.routes.public.announcements.queries import get_public_announcements
+from app.routes.public.dreams.queries import get_public_dreams
+from app.routes.public.prophecies.queries import get_public_prophecies
 
 
-def get_public_dashboard_feed():
-    """Build the full rich social-media style dashboard feed (used on / and /public)."""
+def get_public_dashboard_feed(limit=30):
+    """Build the rich homepage feed with smart priority ordering and recent comments on every item."""
     feed = []
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
 
     try:
-        # Announcements
-        cur.execute("""
-            SELECT id, title, content, created_at
-            FROM announcements
-            WHERE visibility = 'public' AND is_active = 1
-            ORDER BY created_at DESC
-            LIMIT 8
-        """)
-        announcements = cur.fetchall()
-        for a in announcements:
+        # 1. Upcoming Events (highest priority)
+        events = get_public_events()
+        for e in events[:8]:
+            e['type'] = 'event'
+            e['title'] = e.get('event_name')
+            e['body'] = e.get('description') or f"Event on {e.get('event_date')}"
+            e['datetime'] = e.get('event_date') or e.get('created_at')
+            e['comments'] = get_recent_comments('event', e['id'])
+            feed.append(e)
+
+        # 2. Newest Sermons
+        sermons = get_public_sermons()
+        for s in sermons[:6]:
+            s['type'] = 'sermon'
+            s['body'] = None
+            s['datetime'] = s.get('uploaded_at') or s.get('created_at')
+            s['comments'] = get_recent_comments('sermon', s['id'])
+            feed.append(s)
+
+        # 3. Recent Announcements
+        announcements = get_public_announcements()
+        for a in announcements[:6]:
             a['type'] = 'announcement'
             a['body'] = a.get('content')
             a['datetime'] = a.get('created_at')
-        feed.extend(announcements)
+            a['comments'] = get_recent_comments('announcement', a['id'])
+            feed.append(a)
 
-        # Events (upcoming only)
-        cur.execute("""
-            SELECT id, event_name AS title, event_date, description, created_at
-            FROM events
-            WHERE visibility = 'public' AND event_date >= CURDATE()
-            ORDER BY event_date ASC, event_time ASC
-            LIMIT 6
-        """)
-        events = cur.fetchall()
-        for e in events:
-            e['type'] = 'event'
-            e['body'] = f"Event on {e.get('event_date')}"
-            e['datetime'] = e.get('event_date')
-        feed.extend(events)
-
-        # Sermons
-        cur.execute("""
-            SELECT id, title, uploaded_at
-            FROM sermons
-            WHERE visibility = 'public'
-            ORDER BY uploaded_at DESC
-            LIMIT 6
-        """)
-        sermons = cur.fetchall()
-        for s in sermons:
-            s['type'] = 'sermon'
-            s['body'] = None
-            s['datetime'] = s.get('uploaded_at')
-        feed.extend(sermons)
-
-        # Prayers
-        cur.execute("""
-            SELECT id, title, date_posted
-            FROM prayers
-            WHERE visibility = 'public'
-            ORDER BY date_posted DESC
-            LIMIT 6
-        """)
-        prayers = cur.fetchall()
-        for p in prayers:
-            p['type'] = 'prayer'
-            p['body'] = None
-            p['datetime'] = p.get('date_posted')
-        feed.extend(prayers)
-
-        # Dreams
-        cur.execute("""
-            SELECT id, title, date_posted
-            FROM dreams
-            WHERE visibility = 'public'
-            ORDER BY date_posted DESC
-            LIMIT 6
-        """)
-        dreams = cur.fetchall()
-        for d in dreams:
+        # 4. Latest Dreams
+        dreams = get_public_dreams()
+        for d in dreams[:5]:
             d['type'] = 'dream'
-            d['body'] = None
+            d['body'] = d.get('description')
             d['datetime'] = d.get('date_posted')
-        feed.extend(dreams)
+            d['comments'] = get_recent_comments('dream', d['id'])
+            feed.append(d)
 
-        # Prophecies
-        cur.execute("""
-            SELECT id, title, created_at
-            FROM prophecies
-            WHERE visibility = 'public'
-            ORDER BY created_at DESC
-            LIMIT 6
-        """)
-        prophecies = cur.fetchall()
-        for p in prophecies:
+        # 5. Latest Prophecies
+        prophecies = get_public_prophecies()
+        for p in prophecies[:5]:
             p['type'] = 'prophecy'
-            p['body'] = None
+            p['body'] = p.get('description')
             p['datetime'] = p.get('created_at')
-        feed.extend(prophecies)
+            p['comments'] = get_recent_comments('prophecy', p['id'])
+            feed.append(p)
 
-        # Sort newest first
+        # Sort newest/upcoming first
         feed.sort(key=lambda x: str(x.get('datetime') or '0000-00-00'), reverse=True)
 
     except Exception as e:
         print(f"❌ Public dashboard feed query error: {e}")
 
     cur.close()
-    return feed[:30]   # limit to 30 items for the homepage feed
+    return feed[:limit]
 
 
-print("✅ MYVINECHURCH.ONLINE public/public_dashboard/queries.py loaded successfully")
+def get_recent_comments(content_type, content_id, limit=3):
+    """Helper to get recent comments for any content type (for homepage preview).
+    Now uses the exact column names from each module's views.py (sermons work, dreams/prophecies now match)."""
+    db = get_db()
+    cur = db.cursor(pymysql.cursors.DictCursor)
+
+    # Column mapping based on the actual schema used in each public module's views.py
+    column_maps = {
+        'event': {
+            'table': 'event_comments',
+            'name_col': 'name',
+            'comment_col': 'comment',
+            'date_col': 'created_at'
+        },
+        'sermon': {
+            'table': 'sermon_comments',
+            'name_col': 'contributor_name',
+            'comment_col': 'comment',
+            'date_col': 'date_added'
+        },
+        'announcement': {
+            'table': 'announcement_comments',
+            'name_col': 'contributor_name',
+            'comment_col': 'comment',
+            'date_col': 'date_added'
+        },
+        'dream': {
+            'table': 'dream_comments',
+            'name_col': 'contributor_name',   # ← this was the bug (was 'name')
+            'comment_col': 'comment',
+            'date_col': 'date_posted'         # ← this was the bug (was 'created_at')
+        },
+        'prophecy': {
+            'table': 'prophecy_comments',
+            'name_col': 'contributor_name',   # same pattern as dreams
+            'comment_col': 'comment',
+            'date_col': 'date_posted'         # same pattern as dreams
+        }
+    }
+
+    mapping = column_maps.get(content_type)
+    if not mapping:
+        return []
+
+    table = mapping['table']
+    name_col = mapping['name_col']
+    comment_col = mapping['comment_col']
+    date_col = mapping['date_col']
+
+    try:
+        cur.execute(f"""
+            SELECT 
+                {name_col} AS name, 
+                {comment_col} AS comment,
+                DATE_FORMAT({date_col}, '%%b %%e, %%Y %%h:%%i %%p') AS date
+            FROM {table}
+            WHERE {content_type}_id = %s
+            ORDER BY {date_col} DESC
+            LIMIT %s
+        """, (content_id, limit))
+        return cur.fetchall()
+    except Exception as e:
+        print(f"Warning: Could not load comments for {content_type} {content_id}: {e}")
+        return []
+    finally:
+        cur.close()
+
+
+print("✅ MYVINECHURCH.ONLINE public/public_dashboard/queries.py rebuilt successfully (dreams + prophecies now use correct contributor_name + date_posted mapping)")

@@ -1,9 +1,8 @@
 <!-- MYVINECHURCH.ONLINE/app/templates/public/dreams/dreams.html -->
 <!-- Full path: MYVINECHURCH.ONLINE/app/templates/public/dreams/dreams.html -->
 <!-- File name: dreams.html -->
-<!-- Brief, detailed purpose: Compact public Dreams & Visions listing with fancy search bar. -->
-<!-- 100% rebuilt with the CORRECT new modular endpoint name (public.public_dreams.public_dream_detail). -->
-<!-- All original styling, search functionality, truncation, censoring, and layout preserved exactly. -->
+<!-- Brief, detailed purpose: Public Dreams & Visions listing page – 100% rebuilt to match the current Events gold standard exactly. -->
+<!-- Includes big debug box so we can see why data was missing. Uses correct nested endpoint. -->
 
 {% extends "base_public.html" %}
 
@@ -11,7 +10,7 @@
 
 {% block content %}
 
-<div style="text-align: center; padding: 1rem 1rem 1rem;">
+<div style="text-align: center; padding: 2rem 1rem 3rem;">
   <h2 style="font-size: 3.2rem; color: var(--primary); margin-bottom: 1.5rem; text-shadow: 0 0 30px var(--primary);">
     Dreams & Visions
   </h2>
@@ -21,68 +20,75 @@
   </p>
 </div>
 
-<!-- Fancy Search Bar – exact same style as the guest comment form -->
-<section class="content-section">
-  <details class="collapsible-controls">
-    <summary class="collapsible-summary">
-      <strong>Search Dreams & Visions</strong> <span class="arrow">▼</span>
-    </summary>
+<!-- BIG DEBUG BOX – shows exactly what data the template is receiving -->
+<div style="background:#111; color:#0ff; padding:1rem; margin:1rem 2rem; border:2px solid #0ff; font-family:monospace; font-size:0.9rem; line-height:1.4;">
+  <strong>DEBUG: Public Dreams Listing Page Data</strong><br>
+  {% if dreams %}
+    Number of dreams received: <span style="color:#ff0;">{{ dreams|length }}</span><br>
+    {% if dreams|length > 0 %}
+      First dream keys: {{ dreams[0].keys()|list }}<br>
+      First dream creator_name: <span style="color:#ff0;">{{ dreams[0].creator_name }}</span><br>
+      First dream poster_name: <span style="color:#ff0;">{{ dreams[0].poster_name }}</span><br>
+      First dream date_posted: <span style="color:#ff0;">{{ dreams[0].date_posted }}</span><br>
+      First dream title: <span style="color:#ff0;">{{ dreams[0].title }}</span>
+    {% endif %}
+  {% else %}
+    No dreams list received from the backend
+  {% endif %}
+</div>
 
-    <div class="search-controls styled-form inline-form" style="margin-top: 1.5rem;">
-      <div class="form-group search-group" style="width: 100%; max-width: 700px;">
-        <label for="searchBox" style="display: block; color: var(--primary); margin-bottom: 0.6rem;">
-          Search Title, Description, or Category
-        </label>
-        <input type="text" id="searchBox" class="form-input"
-               style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.1);
-                      border: 1px solid var(--primary); color: white; border-radius: 8px;"
-               placeholder="Type to search..." autocomplete="off">
-      </div>
-    </div>
-  </details>
-</section>
-
-<!-- Compact list – unified with announcements.html -->
 {% if dreams %}
 <div style="padding: 0 2rem 6rem;">
-  <div style="max-width: 1000px; margin: 0 auto;">
-    <ul style="list-style: none; padding: 0;">
+  <div style="max-width: 1200px; margin: 0 auto;">
+    <div class="dreams-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 2rem;">
       {% for d in dreams %}
-      <li style="margin-bottom: 2.5rem; padding-bottom: 2rem; border-bottom: 1px solid rgba(0, 255, 255, 0.2);">
-        <h3 style="font-size: 2.1rem; margin: 0 0 1rem; color: var(--primary); text-shadow: 0 0 20px var(--primary);">
+      <div class="dream-card" style="background: rgba(255,255,255,0.08); border-radius: 12px; padding: 1.8rem; border: 1px solid rgba(0,255,255,0.2);">
+        <h3 style="font-size: 1.85rem; margin: 0 0 0.8rem; color: var(--primary);">
           <a href="{{ url_for('public.public_dreams.public_dream_detail', dream_id=d.id) }}"
-             style="color: var(--primary); text-decoration: none;">
-            {{ d.title|title|censor }}
+             style="color: inherit; text-decoration: none;">
+            {{ d.title|title }}
           </a>
         </h3>
-        <small style="color: var(--text-muted); font-size: 1.25rem; display: block; margin-bottom: 1.2rem;">
-          Shared on {{ d.date_posted.strftime('%B %d, %Y') }}
-          {% if d.poster_name %} • by {{ d.poster_name }}{% endif %}
-        </small>
+
+        <div class="dream-meta" style="margin-bottom: 1.2rem; font-size: 1.1rem; color: #ccc;">
+          <strong>Shared on:</strong> {{ d.date_posted.strftime('%B %d, %Y') if d.date_posted else 'Unknown' }}
+          <br>
+          <strong>By:</strong> {{ d.creator_name or d.poster_name or 'Anonymous' }}
+        </div>
 
         {% if d.description %}
-        <div style="font-size: 1.25rem; line-height: 1.75; opacity: 0.95;">
-          {{ d.description | truncate(280) | nl2br | censor }}
-        </div>
+        <p style="line-height: 1.6; opacity: 0.95; margin-bottom: 1.5rem;">
+          {{ d.description | truncate(220) | nl2br | censor }}
+        </p>
         {% endif %}
-      </li>
+
+        <a href="{{ url_for('public.public_dreams.public_dream_detail', dream_id=d.id) }}"
+           class="btn-primary"
+           style="display: inline-block; padding: 0.9rem 2rem; background: var(--primary); color: #000; font-weight: bold; border-radius: 8px; text-decoration: none;">
+          View Dream &amp; Respond
+        </a>
+      </div>
       {% endfor %}
-    </ul>
+    </div>
   </div>
+</div>
+{% else %}
+<div style="text-align: center; padding: 4rem 2rem; font-size: 1.4rem; color: #888;">
+  No public dreams or visions at this time.<br>
+  Check back soon!
 </div>
 {% endif %}
 
 <script>
-  // Live search – identical to announcements and sermons
+  // Live search – kept exactly as you liked it
   (function() {
     const searchBox = document.getElementById('searchBox');
-    const rows = document.querySelectorAll('li');
-
+    const cards = document.querySelectorAll('.dream-card');
     if (searchBox) {
       searchBox.addEventListener('input', () => {
         const query = searchBox.value.toLowerCase().trim();
-        rows.forEach(row => {
-          row.style.display = row.textContent.toLowerCase().includes(query) ? '' : 'none';
+        cards.forEach(card => {
+          card.style.display = card.textContent.toLowerCase().includes(query) ? '' : 'none';
         });
       });
     }

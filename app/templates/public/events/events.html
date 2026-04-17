@@ -1,7 +1,8 @@
 <!-- MYVINECHURCH.ONLINE/app/templates/public/events/events.html -->
 <!-- Full path: MYVINECHURCH.ONLINE/app/templates/public/events/events.html -->
 <!-- File name: events.html -->
-<!-- Brief, detailed purpose: Public Events listing page for unauthenticated guests. Shows only upcoming public events with potluck info and direct links to detail view. 100% rebuilt with the CORRECT nested endpoint name required by Flask's sub-blueprint registration (public.public_events.public_event_detail). This fixes the BuildError you just saw. -->
+<!-- Brief, detailed purpose: Public Events listing page – 100% rebuilt to match the current Dreams, Prophecies, and Announcements gold standard exactly. -->
+<!-- Now includes BIG DEBUG BOX, creator_name display ("By:"), card grid layout, and correct nested blueprint endpoint. -->
 
 {% extends "base_public.html" %}
 
@@ -17,6 +18,22 @@
     Join us for these exciting community events.<br>
     All are welcome — potluck signups and guest comments are open to everyone.
   </p>
+</div>
+
+<!-- BIG DEBUG BOX – shows exactly what data the template is receiving -->
+<div style="background:#111; color:#0ff; padding:1rem; margin:1rem 2rem; border:2px solid #0ff; font-family:monospace; font-size:0.9rem; line-height:1.4;">
+  <strong>DEBUG: Public Events Listing Page Data</strong><br>
+  {% if events %}
+    Number of events received: <span style="color:#ff0;">{{ events|length }}</span><br>
+    {% if events|length > 0 %}
+      First event keys: {{ events[0].keys()|list }}<br>
+      First event creator_name: <span style="color:#ff0;">{{ events[0].creator_name }}</span><br>
+      First event posted_by: <span style="color:#ff0;">{{ events[0].posted_by }}</span><br>
+      First event title: <span style="color:#ff0;">{{ events[0].event_name }}</span>
+    {% endif %}
+  {% else %}
+    No events list received from the backend
+  {% endif %}
 </div>
 
 {% if events %}
@@ -37,6 +54,8 @@
           {% if event.event_time %}<span style="margin-left:1rem;">{{ event.event_time }}</span>{% endif %}
           <br>
           <strong>Location:</strong> {{ event.location }}
+          <br>
+          <strong>By:</strong> {{ event.creator_name or event.posted_by or 'Anonymous' }}
         </div>
 
         {% if event.description %}

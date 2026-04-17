@@ -15,7 +15,7 @@ from app.utils.time_utils import format_church
 # ----------------------------------------------------------------------
 def censor_public_content(items):
     """Apply server-side censorship to a list of public dreams.
-    Used by dreams listing routes (exact same logic as the old shared public/utils.py)."""
+    Used by dreams listing and detail routes (exact same logic as the old shared public/utils.py)."""
     for item in items:
         for key in ['title', 'description', 'notes', 'category']:
             if key in item and item[key]:
@@ -31,4 +31,4 @@ def format_public_datetime(date_value):
     return 'Unknown date'
 
 
-print("✅ MYVINECHURCH.ONLINE public/dreams/utils.py loaded successfully")
+print("✅ MYVINECHURCH.ONLINE public/dreams/utils.py loaded successfully (Events gold standard applied)")

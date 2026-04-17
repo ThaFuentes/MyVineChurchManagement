@@ -2,18 +2,10 @@
 # Full path: MYVINECHURCH.ONLINE/app/routes/public/events/views.py
 # File name: views.py
 # Brief, detailed purpose: Public Events routes for unauthenticated guests only.
+# • Made 100% identical to the working sermon section (same comment handling, same debug, same success flow).
 # • Listing shows only upcoming public events with potluck signups.
-# • Detail page supports potluck signup + full guest comments/replies (one-level).
+# • Detail page supports potluck + full guest comments/replies (one-level).
 # • Logged-in users are redirected to private events.
-# • Uses local queries.py, forms.py and utils.py for modularity.
-# • 100% rebuilt clean version - consistent with working prophecies/dreams pattern.
-# • FIXED: All url_for calls now use the correct nested blueprint endpoint
-#   'public.public_events.public_event_detail' (matches how the sub-blueprint
-#   is registered under the public blueprint).
-# • FIXED: event_comments table uses column 'comment' (per builddb/events.py).
-#   We now SELECT 'comment AS comment_text' and INSERT into 'comment' so the
-#   existing event_detail.html template continues to work unchanged.
-# • All debug prints removed for production cleanliness.
 
 from flask import render_template, abort, request, flash, redirect, url_for, session
 import pymysql
@@ -33,40 +25,31 @@ from app.utils.time_utils import format_church
 # ----------------------------------------------------------------------
 @events_bp.route('/')
 def public_events():
-    """Public events listing – upcoming public events only.
-    Logged-in users are redirected to the private events dashboard.
-    """
+    """Public events listing – upcoming public events only."""
+    print("🔍 [PUBLIC EVENTS] Route /public-events/ hit (sub-blueprint)")
+
     if 'user_id' in session:
+        print("🔄 [PUBLIC EVENTS] Logged-in user → redirecting to private events")
         return redirect(url_for('events.events'))
 
-    # Guest view only
     events = get_public_events()
+    print(f"📊 [PUBLIC EVENTS] Raw events returned from query: {len(events)} records")
 
-    # Censorship first
     events = censor_public_content(events)
 
-    # Prepare data for template
     for e in events:
         e['datetime'] = format_church(e.get('created_at')) if e.get('created_at') else 'Unknown'
         e['posted_by'] = e.get('creator_name', 'Anonymous')
 
-        # Potluck signups
         if e.get('potluck_enabled'):
             try:
                 db = get_db()
                 cur = db.cursor(pymysql.cursors.DictCursor)
-                cur.execute("""
-                    SELECT name, item, quantity, note 
-                    FROM potluck_signups 
-                    WHERE event_id = %s 
-                    ORDER BY id ASC
-                """, (e['id'],))
+                cur.execute("SELECT name, item, quantity, note FROM potluck_signups WHERE event_id = %s ORDER BY id ASC", (e['id'],))
                 e['signups'] = cur.fetchall()
-                e['signups'] = censor_public_content(e['signups'])
+                cur.close()
             except Exception:
                 e['signups'] = []
-        else:
-            e['signups'] = []
 
     return render_template('public/events/events.html', events=events)
 
@@ -77,7 +60,10 @@ def public_events():
 @events_bp.route('/<int:event_id>', methods=['GET', 'POST'])
 def public_event_detail(event_id):
     """Public single event detail with potluck signups + guest comments/replies."""
+    print(f"🔍 [PUBLIC EVENT DETAIL] Route /public-events/{event_id} hit")
+
     if 'user_id' in session:
+        print("🔄 [PUBLIC EVENT DETAIL] Logged-in user → redirecting to private view")
         return redirect(url_for('events.view_event', event_id=event_id))
 
     db = get_db()
@@ -85,6 +71,7 @@ def public_event_detail(event_id):
 
     event = get_public_event(event_id)
     if not event:
+        print(f"❌ [PUBLIC EVENT DETAIL] Event {event_id} not found or not public")
         abort(404)
 
     # Censor content for public view
@@ -95,18 +82,13 @@ def public_event_detail(event_id):
     signups = []
     if event.get('potluck_enabled'):
         try:
-            cur.execute("""
-                SELECT name, item, quantity, note 
-                FROM potluck_signups 
-                WHERE event_id = %s 
-                ORDER BY id ASC
-            """, (event_id,))
+            cur.execute("SELECT name, item, quantity, note FROM potluck_signups WHERE event_id = %s ORDER BY id ASC", (event_id,))
             signups = cur.fetchall()
             signups = censor_public_content(signups)
         except Exception:
             pass
 
-    # Load comments - use correct column name 'comment' and alias to match template
+    # Load comments - exactly like the working sermon section
     comments = []
     try:
         cur.execute("""
@@ -121,12 +103,14 @@ def public_event_detail(event_id):
             ORDER BY created_at ASC
         """, (event_id,))
         comments = cur.fetchall()
-    except Exception:
-        pass
+        print(f"📝 [PUBLIC EVENT DETAIL] Loaded {len(comments)} comments/replies")
+    except Exception as e:
+        print(f"⚠️ [PUBLIC EVENT DETAIL] Comments query failed: {e}")
 
-    # Handle POST - potluck signup or guest comment/reply
+    # Handle POST - potluck or guest comment/reply
     if request.method == 'POST':
         action = request.form.get('action')
+        print(f"📤 [PUBLIC EVENT DETAIL] POST action = {action}")
 
         if action == 'potluck' and event.get('potluck_enabled'):
             clean = validate_potluck_signup_form(request.form)
@@ -155,7 +139,7 @@ def public_event_detail(event_id):
                 flash('Your comment contains prohibited content.', 'error')
             else:
                 try:
-                    # Use correct column 'comment' (per builddb/events.py)
+                    # Exact same INSERT as the working sermon section
                     cur.execute("""
                         INSERT INTO event_comments 
                         (event_id, name, comment, parent_id, created_at)
@@ -163,10 +147,11 @@ def public_event_detail(event_id):
                     """, (event_id, name, comment_text, parent_id))
                     db.commit()
                     flash('Comment posted successfully!', 'success')
-                except Exception:
+                    print("✅ Comment inserted successfully")
+                except Exception as e:
                     flash('Failed to post comment.', 'error')
+                    print(f"❌ Comment insert failed: {e}")
 
-        # Always redirect using the CORRECT nested blueprint endpoint
         return redirect(url_for('public.public_events.public_event_detail', event_id=event_id))
 
     return render_template('public/events/event_detail.html',
@@ -175,4 +160,4 @@ def public_event_detail(event_id):
                            comments=comments)
 
 
-print("✅ MYVINECHURCH.ONLINE public/events/views.py loaded successfully (nested blueprint + comment column fixes applied)")
+print("✅ MYVINECHURCH.ONLINE public/events/views.py rebuilt successfully (exactly like the working sermon section)")

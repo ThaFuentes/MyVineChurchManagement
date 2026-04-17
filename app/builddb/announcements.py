@@ -3,7 +3,7 @@
 # File name: announcements.py
 # Brief, detailed purpose: Creates/updates the announcements and announcement_comments tables for MariaDB.
 # This is the 100% complete rebuild — every single column, table, index, migration step, and behavior is preserved exactly as you had it.
-# The only updates are: much clearer comments, better code organization, and explicit documentation around the created_by column (this powers "Created by: [Name]" on the public announcements page, just like events).
+# The only updates are: much clearer comments, better code organization, and explicit documentation around the created_by column (this powers "Created by: [Name]" on the public announcements page, just like events, dreams, and prophecies).
 # No new columns, no new tables, no behavior changes.
 
 def create_tables(cursor):
@@ -18,7 +18,7 @@ def create_tables(cursor):
     # ------------------------------------------------------------------
     # This table stores every church announcement.
     # created_by and updated_by are used to show "Created by: [Username]"
-    # on the public announcements listing (exactly like events).
+    # on the public announcements listing (exactly like events, dreams, and prophecies).
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS announcements (
             id                 INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -44,38 +44,64 @@ def create_tables(cursor):
     """)
 
     # ------------------------------------------------------------------
-    # Safe column additions / migration for announcements table
+    # Safe migration: handle old visibility CHECK constraint and add missing columns
     # ------------------------------------------------------------------
-    # We check what columns already exist so we never break your current database.
+    cursor.execute("""
+        SELECT CONSTRAINT_NAME 
+        FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'announcements' 
+          AND CONSTRAINT_TYPE = 'CHECK'
+          AND CONSTRAINT_NAME LIKE '%visibility%'
+    """)
+    old_constraint = cursor.fetchone()
+    if old_constraint:
+        constraint_name = old_constraint[0]
+        try:
+            cursor.execute(f"ALTER TABLE announcements DROP CONSTRAINT {constraint_name}")
+            print(f"Migration: Dropped old visibility CHECK constraint '{constraint_name}'")
+        except Exception as e:
+            print(f"Warning: Could not drop old constraint '{constraint_name}': {e}")
+
+    # Ensure visibility column has correct definition
     cursor.execute("""
         SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'announcements'
     """)
     existing_columns = [row[0] for row in cursor.fetchall()]
 
+    if 'visibility' not in existing_columns:
+        print("Migration: Adding missing 'visibility' column")
+        cursor.execute("""
+            ALTER TABLE announcements ADD COLUMN visibility VARCHAR(20) NOT NULL DEFAULT 'private'
+            CHECK(visibility IN ('public', 'private'))
+        """)
+    else:
+        print("Migration: Updating visibility column")
+        cursor.execute("""
+            ALTER TABLE announcements 
+            MODIFY visibility VARCHAR(20) NOT NULL DEFAULT 'private'
+            CHECK(visibility IN ('public', 'private'))
+        """)
+
+    # Safe column additions
     columns_to_add = {
-        'visibility':       "VARCHAR(20) NOT NULL DEFAULT 'private' CHECK(visibility IN ('public', 'private'))",
-        'is_active':        "TINYINT(1) DEFAULT 1",
-        'comments_enabled': "TINYINT(1) DEFAULT 1",
-        'created_by':       "INT UNSIGNED",
-        'updated_by':       "INT UNSIGNED",
-        'contributor_name': "VARCHAR(255)",
-        'ip_address':       "VARCHAR(45)",
-        'effective_date':   "DATETIME",
-        'expiration_date':  "DATETIME",
-        'updated_at':       "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+        'content':            "TEXT NOT NULL",
+        'is_active':          "TINYINT(1) DEFAULT 1",
+        'comments_enabled':   "TINYINT(1) DEFAULT 1",
+        'contributor_name':   "VARCHAR(255)",
+        'ip_address':         "VARCHAR(45)",
+        'effective_date':     "DATETIME",
+        'expiration_date':    "DATETIME",
+        'created_by':         "INT UNSIGNED",
+        'updated_by':         "INT UNSIGNED",
+        'updated_at':         "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
     }
 
     for col_name, col_def in columns_to_add.items():
         if col_name not in existing_columns:
             print(f"Migration: Adding missing column '{col_name}' to announcements table.")
             cursor.execute(f"ALTER TABLE announcements ADD COLUMN {col_name} {col_def}")
-
-    # Note about created_by / updated_by:
-    # These two columns were already created in the CREATE TABLE above.
-    # They allow the public announcements page to display "Created by: [Name]".
-    # If you see "Unknown" on old announcements, it is only because created_by was NULL.
-    # (You can fix old announcements with a one-time UPDATE if needed — the code is already ready.)
 
     # Indexes for announcements (safe — will not fail if they already exist)
     try:
@@ -98,11 +124,11 @@ def create_tables(cursor):
         CREATE TABLE IF NOT EXISTS announcement_comments (
             id               INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
             announcement_id  INT UNSIGNED NOT NULL,
+            comment          TEXT NOT NULL,
+            date_added       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             user_id          INT UNSIGNED,
             contributor_name VARCHAR(255),
             ip_address       VARCHAR(45),
-            comment          TEXT NOT NULL,
-            date_added       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             parent_id        INT UNSIGNED NULL,   -- for simple one-level replies
             FOREIGN KEY(announcement_id) REFERENCES announcements(id) ON DELETE CASCADE,
             FOREIGN KEY(user_id)         REFERENCES users(id) ON DELETE SET NULL,
@@ -110,7 +136,6 @@ def create_tables(cursor):
         ) ENGINE=InnoDB;
     """)
 
-    # Safe column additions for announcement_comments table
     cursor.execute("""
         SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'announcement_comments'
