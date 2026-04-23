@@ -62,12 +62,12 @@ def sermons():
         sermon['notes_content'] = censor_text(notes_content) if notes_content else None
 
         if is_logged_in or sermon['visibility'] == 'public':
-            sermon['comments'] = get_sermon_comments(sermon['id'])
-            for c in sermon['comments']:
+            sermon['comments.html'] = get_sermon_comments(sermon['id'])
+            for c in sermon['comments.html']:
                 c['comment'] = censor_text(c['comment'])
                 c['commenter_username'] = censor_text(c.get('commenter_username', 'Anonymous'))
         else:
-            sermon['comments'] = []
+            sermon['comments.html'] = []
 
     if user_id:
         log_change(user_id, 'view', change_details='Viewed sermons list')

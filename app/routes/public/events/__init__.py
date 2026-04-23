@@ -20,4 +20,3 @@ events_bp = Blueprint(
 # Import views/routes
 from . import views
 
-print("✅ MYVINECHURCH.ONLINE public/events sub-blueprint initialized successfully (url_prefix='/public-events')")

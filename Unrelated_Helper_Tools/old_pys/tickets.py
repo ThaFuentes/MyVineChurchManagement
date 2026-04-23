@@ -6,11 +6,11 @@
 #            Additional access via general groups system: any group with "manage_tickets" in permissions JSON grants full management.
 #          - /tickets/ (function named tickets → endpoint 'tickets.tickets') → ALL logged-in users see ONLY their own tickets (tickets_dashboard.html).
 #          - /tickets/manage (endpoint 'manager_dashboard') → Owners/Admins OR users in a group with "manage_tickets" permission see ALL tickets (ticket_manager.html).
-#          - /tickets/manage-group (endpoint 'manage_group') → Admin/Owner only: manage membership in Ticket Managers group (ticket_managers.html).
+#          - /tickets/manage-group (endpoint 'manage_group') → Admin/Owner only: manage membership in Ticket Managers group (ticket_manager.html).
 #          - /tickets/submit → Public guest submission (allowed categories) + private member submission.
 #          - /tickets/<id> (endpoint 'view_ticket') → Detail view (members see own for read/comment; group sees any for full management).
 #          - Emails: new → staff group; member comment → staff; manager comment → creator (if checked); manager updates → creator; close → creator special.
-#          - Censored word check on title/description/comments
+#          - Censored word check on title/description/comments.html
 #          - All significant actions audit-logged
 #          - FULL REBUILD: Group management moved to Tickets module (correct base template).
 #            Permission uses general groups system + Owner/Admin override.
@@ -235,7 +235,7 @@ def manage_group():
         flash('Ticket Managers group updated.', 'success')
         return redirect(url_for('tickets.manage_group'))
 
-    return render_template('tickets/ticket_managers.html',
+    return render_template('tickets/ticket_manager.html',
                            all_users=all_users,
                            manager_ids=manager_ids)
 

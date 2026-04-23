@@ -117,7 +117,7 @@ def delete_dream(dream_id):
 # Comments
 # ----------------------------------------------------------------------
 def get_dream_comments(dream_id):
-    """Return all comments for a dream."""
+    """Return all comments.html for a dream."""
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
     cur.execute("""

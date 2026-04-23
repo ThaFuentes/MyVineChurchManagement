@@ -20,4 +20,3 @@ prayers_bp = Blueprint(
 # Import views/routes
 from . import views
 
-print("✅ MYVINECHURCH.ONLINE public/prayers sub-blueprint initialized successfully (url_prefix='/public-prayers')")

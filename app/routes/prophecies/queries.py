@@ -77,7 +77,7 @@ def get_prophecy_by_id(prophecy_id, is_logged_in=False, user_id=None):
 
 
 def get_prophecy_comments(prophecy_id):
-    """Return all comments for a prophecy."""
+    """Return all comments.html for a prophecy."""
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
     cur.execute("""
@@ -128,7 +128,7 @@ def update_prophecy(prophecy_id, title, description, visibility):
 
 
 def delete_prophecy(prophecy_id):
-    """Delete prophecy and all its comments."""
+    """Delete prophecy and all its comments.html."""
     db = get_db()
     cur = db.cursor()
     try:

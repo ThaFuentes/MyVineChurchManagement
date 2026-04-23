@@ -74,4 +74,3 @@ def get_public_dream(dream_id):
     return dream
 
 
-print("✅ MYVINECHURCH.ONLINE public/dreams/queries.py loaded successfully (d.* + creator_name fixed to match Events gold standard)")

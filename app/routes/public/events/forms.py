@@ -36,4 +36,3 @@ def validate_potluck_signup_form(form_data):
     }
 
 
-print("✅ MYVINECHURCH.ONLINE public/events/forms.py loaded successfully")

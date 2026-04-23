@@ -2,7 +2,7 @@
 <!-- Full path: MYVINECHURCH.ONLINE/app/templates/base.html -->
 <!-- File name: base.html -->
 <!-- Brief, detailed purpose: Master layout template inherited by all private pages. -->
-<!-- 100% original file preserved – ONLY the Gathering Place links updated to public sub-blueprint endpoints (logged-in users are auto-redirected to private). -->
+<!-- 100% original file preserved – ONLY the Gathering Place Manager link and active-class logic updated to use proper url_for + endpoint check (no more hardcoded /the-gathering/). -->
 
 <!DOCTYPE html>
 <html lang="en" data-theme="{% if session.user_theme %}{{ session.user_theme }}{% else %}cyan-glow{% endif %}">
@@ -137,17 +137,17 @@
 
       <!-- My Portal dropdown -->
       <div class="dropdown">
-        <div class="tab dropdown-trigger {{ 'active' if request.endpoint.startswith('profile.') or request.endpoint == 'attendance.self_checkin' or (request.path.startswith('/tickets/') and request.path != '/tickets/manage') else '' }}">
+        <div class="tab dropdown-trigger {{ 'active' if request.endpoint.startswith('profile.') or request.endpoint == 'attendance.self_checkin' or request.blueprint == 'support_tickets' else '' }}">
           My Portal <span class="dropdown-arrow">▼</span>
         </div>
         <div class="dropdown-content">
           <a href="{{ url_for('attendance.self_checkin') }}" class="{{ 'active' if request.endpoint == 'attendance.self_checkin' else '' }}">Attendance</a>
-          <a href="/tickets/" class="{{ 'active' if request.path.startswith('/tickets/') and request.path != '/tickets/manage' else '' }}">Support Ticket</a>
+          <a href="/support-tickets/" class="{{ 'active' if request.path.startswith('/support-tickets/') else '' }}">Support Ticket</a>
           <a href="{{ url_for('profile.profile') }}" class="{{ 'active' if request.endpoint.startswith('profile.') else '' }}">My Profile</a>
         </div>
       </div>
 
-      <!-- Gathering Place dropdown – now points to public sub-blueprints (logged-in users auto-redirect to private) -->
+      <!-- Gathering Place dropdown -->
       <div class="dropdown">
         <div class="tab dropdown-trigger {{ 'active' if request.endpoint.startswith('events.') or request.endpoint.startswith('prayers.') or request.endpoint.startswith('sermons.') or request.endpoint.startswith('dreams.') or request.endpoint.startswith('prophecies.') or request.endpoint.startswith('announcements.') else '' }}">
           Gathering Place <span class="dropdown-arrow">▼</span>
@@ -186,7 +186,7 @@
 
         <!-- Operations dropdown -->
         <div class="dropdown">
-          <div class="tab dropdown-trigger {{ 'active' if request.blueprint == 'pastoral' or request.endpoint.startswith('bills.') or request.endpoint.startswith('inventory.') or request.path.startswith('/tickets/manage') else '' }}">
+          <div class="tab dropdown-trigger {{ 'active' if request.blueprint == 'pastoral' or request.endpoint.startswith('bills.') or request.endpoint.startswith('inventory.') or request.path.startswith('/tickets/manage') or request.endpoint.startswith('the_gathering.') else '' }}">
             Operations <span class="dropdown-arrow">▼</span>
           </div>
           <div class="dropdown-content">
@@ -195,6 +195,9 @@
               <a href="{{ url_for('inventory.inventory_dashboard') }}" class="{{ 'active' if request.endpoint.startswith('inventory.') else '' }}">Inventory</a>
             {% endif %}
             <a href="/tickets/manage" class="{{ 'active' if request.path == '/tickets/manage' else '' }}">Ticket Manager</a>
+
+            <!-- ✅ FIXED: Gathering Place Manager now uses proper Flask url_for (no hardcoded path) -->
+            <a href="{{ url_for('the_gathering.index') }}" class="{{ 'active' if request.endpoint.startswith('the_gathering.') else '' }}">Gathering Place Manager</a>
 
             {% if in_pastoral_group %}
               <hr class="dropdown-divider">

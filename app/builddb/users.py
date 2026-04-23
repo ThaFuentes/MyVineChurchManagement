@@ -131,4 +131,3 @@ def create_tables(cursor):
     except:
         pass
 
-    print("Users table synchronization complete (MariaDB). Privacy columns + hashed checkin_pin added.")

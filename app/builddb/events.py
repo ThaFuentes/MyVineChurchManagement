@@ -5,6 +5,7 @@
 # This is the 100% complete rebuild — every single column, table, index, migration step, and behavior is preserved exactly as you had it.
 # The only updates are: much clearer comments, better code organization, and explicit documentation around the created_by column (this is what powers "Created by: Name" on the public events page).
 # No new columns, no new tables, no behavior changes.
+# FIX: Split event_comments creation to avoid InterfaceError (0, '') on self-referencing FK.
 
 def create_tables(cursor):
     """
@@ -17,8 +18,6 @@ def create_tables(cursor):
     # ------------------------------------------------------------------
     # ----- EVENTS TABLE -----
     # ------------------------------------------------------------------
-    # This table stores every church event. created_by and updated_by are
-    # used to show "Created by: [Username]" on the public events listing.
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS events (
             id                        INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -54,7 +53,7 @@ def create_tables(cursor):
             feedback_form             TEXT,
             live_streaming_details    TEXT,
             event_objectives          TEXT,
-            created_by                INT UNSIGNED,           -- ← This column shows WHO created the event
+            created_by                INT UNSIGNED,
             updated_by                INT UNSIGNED,
             created_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -63,10 +62,7 @@ def create_tables(cursor):
         ) ENGINE=InnoDB
     """)
 
-    # ------------------------------------------------------------------
-    # Safe column additions / migration for events table
-    # ------------------------------------------------------------------
-    # We check what columns already exist so we never break your current database.
+    # Safe column additions for events
     cursor.execute("""
         SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'events'
@@ -111,21 +107,12 @@ def create_tables(cursor):
             print(f"Migration: Adding missing column '{col}' to events table.")
             cursor.execute(f"ALTER TABLE events ADD COLUMN {col} {defn}")
 
-    # Note about created_by / updated_by:
-    # These two columns were already created in the CREATE TABLE above.
-    # They allow the public events page to display "Created by: [Name]".
-    # If you see "Unknown" on old events, it is only because created_by was NULL.
-    # (You can fix old events with a one-time UPDATE if needed — the code is already ready.)
-
-    # Indexes for events (safe — will not fail if they already exist)
-    try:
-        cursor.execute("CREATE INDEX idx_events_date ON events(event_date)")
+    # Indexes for events
+    try: cursor.execute("CREATE INDEX idx_events_date ON events(event_date)")
     except: pass
-    try:
-        cursor.execute("CREATE INDEX idx_events_visibility ON events(visibility)")
+    try: cursor.execute("CREATE INDEX idx_events_visibility ON events(visibility)")
     except: pass
-    try:
-        cursor.execute("CREATE INDEX idx_events_potluck ON events(potluck_enabled)")
+    try: cursor.execute("CREATE INDEX idx_events_potluck ON events(potluck_enabled)")
     except: pass
 
     # ------------------------------------------------------------------
@@ -145,7 +132,6 @@ def create_tables(cursor):
         ) ENGINE=InnoDB
     """)
 
-    # Safe column additions for potluck_signups
     cursor.execute("""
         SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'potluck_signups'
@@ -166,12 +152,9 @@ def create_tables(cursor):
             print(f"Migration: Adding missing column '{col}' to potluck_signups table.")
             cursor.execute(f"ALTER TABLE potluck_signups ADD COLUMN {col} {defn}")
 
-    # Indexes for potluck_signups
-    try:
-        cursor.execute("CREATE INDEX idx_potluck_event ON potluck_signups(event_id)")
+    try: cursor.execute("CREATE INDEX idx_potluck_event ON potluck_signups(event_id)")
     except: pass
-    try:
-        cursor.execute("CREATE INDEX idx_potluck_created ON potluck_signups(created_at DESC)")
+    try: cursor.execute("CREATE INDEX idx_potluck_created ON potluck_signups(created_at DESC)")
     except: pass
 
     try:
@@ -179,8 +162,10 @@ def create_tables(cursor):
     except: pass
 
     # ------------------------------------------------------------------
-    # ----- EVENT_COMMENTS TABLE (uses exact "comment" column name) -----
+    # ----- EVENT_COMMENTS TABLE (safe self-referencing FK) -------------
     # ------------------------------------------------------------------
+    # We create WITHOUT the self-referencing FK first, then add it safely.
+    # This fixes the InterfaceError: (0, '') crash on existing databases.
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS event_comments (
             id            INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -192,25 +177,37 @@ def create_tables(cursor):
             created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             parent_id     INT UNSIGNED NULL,
             FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
-            FOREIGN KEY(user_id)  REFERENCES users(id) ON DELETE SET NULL,
-            FOREIGN KEY(parent_id) REFERENCES event_comments(id) ON DELETE CASCADE
+            FOREIGN KEY(user_id)  REFERENCES users(id) ON DELETE SET NULL
         ) ENGINE=InnoDB
     """)
 
-    # Safe column additions for event_comments
+    # Safe addition of parent_id + self-referencing FK
     cursor.execute("""
         SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'event_comments'
     """)
     existing_comments = [row[0] for row in cursor.fetchall()]
 
+    if 'parent_id' not in existing_comments:
+        print("Migration: Adding parent_id column to event_comments...")
+        cursor.execute("ALTER TABLE event_comments ADD COLUMN parent_id INT UNSIGNED NULL")
+        try:
+            cursor.execute("""
+                ALTER TABLE event_comments
+                ADD CONSTRAINT fk_event_comments_parent
+                FOREIGN KEY (parent_id) REFERENCES event_comments(id) ON DELETE CASCADE
+            """)
+            print("✓ Added self-referencing FK for parent_id")
+        except Exception as e:
+            print(f"Note: parent_id FK may already exist ({e})")
+
+    # Safe column additions (in case table existed with fewer columns)
     columns_to_add_comments = {
         'name':        "TEXT",
         'comment':     "TEXT NOT NULL",
         'user_id':     "INT UNSIGNED NULL",
         'ip':          "TEXT",
-        'created_at':  "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-        'parent_id':   "INT UNSIGNED NULL"
+        'created_at':  "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
     }
 
     for col, defn in columns_to_add_comments.items():
@@ -219,14 +216,11 @@ def create_tables(cursor):
             cursor.execute(f"ALTER TABLE event_comments ADD COLUMN {col} {defn}")
 
     # Indexes for event_comments
-    try:
-        cursor.execute("CREATE INDEX idx_event_comments_event ON event_comments(event_id)")
+    try: cursor.execute("CREATE INDEX idx_event_comments_event ON event_comments(event_id)")
     except: pass
-    try:
-        cursor.execute("CREATE INDEX idx_event_comments_created ON event_comments(created_at DESC)")
+    try: cursor.execute("CREATE INDEX idx_event_comments_created ON event_comments(created_at DESC)")
     except: pass
-    try:
-        cursor.execute("CREATE INDEX idx_event_comments_parent ON event_comments(parent_id)")
+    try: cursor.execute("CREATE INDEX idx_event_comments_parent ON event_comments(parent_id)")
     except: pass
 
-    print("✓ events.py migration completed successfully (using 'comment' column to match your existing DB)")
+    print("✓ events.py migration completed successfully (using 'comment' column + safe parent_id FK)")

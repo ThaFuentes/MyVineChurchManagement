@@ -31,4 +31,3 @@ def format_public_datetime(date_value):
     return 'Unknown date'
 
 
-print("✅ MYVINECHURCH.ONLINE public/prayers/utils.py loaded successfully")

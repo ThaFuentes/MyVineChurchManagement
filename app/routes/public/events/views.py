@@ -4,7 +4,7 @@
 # Brief, detailed purpose: Public Events routes for unauthenticated guests only.
 # • Made 100% identical to the working sermon section (same comment handling, same debug, same success flow).
 # • Listing shows only upcoming public events with potluck signups.
-# • Detail page supports potluck + full guest comments/replies (one-level).
+# • Detail page supports potluck + full guest comments.html/replies (one-level).
 # • Logged-in users are redirected to private events.
 
 from flask import render_template, abort, request, flash, redirect, url_for, session
@@ -59,7 +59,7 @@ def public_events():
 # ----------------------------------------------------------------------
 @events_bp.route('/<int:event_id>', methods=['GET', 'POST'])
 def public_event_detail(event_id):
-    """Public single event detail with potluck signups + guest comments/replies."""
+    """Public single event detail with potluck signups + guest comments.html/replies."""
     print(f"🔍 [PUBLIC EVENT DETAIL] Route /public-events/{event_id} hit")
 
     if 'user_id' in session:
@@ -88,7 +88,7 @@ def public_event_detail(event_id):
         except Exception:
             pass
 
-    # Load comments - exactly like the working sermon section
+    # Load comments.html - exactly like the working sermon section
     comments = []
     try:
         cur.execute("""
@@ -103,7 +103,7 @@ def public_event_detail(event_id):
             ORDER BY created_at ASC
         """, (event_id,))
         comments = cur.fetchall()
-        print(f"📝 [PUBLIC EVENT DETAIL] Loaded {len(comments)} comments/replies")
+        print(f"📝 [PUBLIC EVENT DETAIL] Loaded {len(comments)} comments.html/replies")
     except Exception as e:
         print(f"⚠️ [PUBLIC EVENT DETAIL] Comments query failed: {e}")
 
@@ -160,4 +160,3 @@ def public_event_detail(event_id):
                            comments=comments)
 
 
-print("✅ MYVINECHURCH.ONLINE public/events/views.py rebuilt successfully (exactly like the working sermon section)")

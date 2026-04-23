@@ -3,7 +3,7 @@
 # File name: dreams.py
 # Brief, detailed purpose: Creates/updates the dreams and dream_comments tables for MariaDB.
 # This is the 100% complete rebuild — every single column, table, index, migration step, and behavior is preserved exactly as you had it.
-# The only updates are: much clearer comments, better code organization, and explicit documentation around the created_by column (this powers "Created by: [Name]" on the public dreams page, just like events, announcements, prayers, and sermons).
+# The only updates are: much clearer comments.html, better code organization, and explicit documentation around the created_by column (this powers "Created by: [Name]" on the public dreams page, just like events, announcements, prayers, and sermons).
 # No new columns, no new tables, no behavior changes.
 
 def create_tables(cursor):
@@ -187,4 +187,3 @@ def create_tables(cursor):
         cursor.execute("CREATE INDEX idx_dream_comments_parent ON dream_comments(parent_id)")
     except: pass
 
-    print("✓ dreams.py migration completed successfully (including dream_comments table with parent_id for simple one-level replies)")

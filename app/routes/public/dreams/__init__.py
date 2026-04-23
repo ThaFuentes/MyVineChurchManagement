@@ -16,4 +16,3 @@ dreams_bp = Blueprint(
 # Import views/routes (next file we will rebuild)
 from . import views
 
-print("✅ MYVINECHURCH.ONLINE public/dreams sub-blueprint initialized successfully (url_prefix='/public-dreams' — route conflict fixed)")

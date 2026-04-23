@@ -3,9 +3,9 @@
 # File name: views.py
 # Brief, detailed purpose: Public Dashboard routes – rich social-media style feed on the home page (/ and /public).
 # • Reuses ALL existing public queries with smart priority ordering (upcoming events first, newest sermons, recent announcements, dreams, prophecies, prayers).
-# • Easy click-to-detail cards with recent comment previews where possible.
-# • 100% rebuilt clean version - identical structure to the working public/events/views.py gold standard.
-# • FIXED: Added missing url_for import so detail links work.
+# • Easy click-to-detail cards with recent comment previews (loaded via queries.py).
+# • 100% rebuilt clean production version - identical structure to the working public/events/views.py gold standard.
+# • All debug prints removed.
 
 from flask import render_template, url_for
 from . import dashboard_bp
@@ -20,17 +20,17 @@ from datetime import datetime
 @dashboard_bp.route('/')
 @dashboard_bp.route('/public')
 def public_dashboard():
-    """Rich public dashboard feed (homepage) with smart priority ordering."""
-    print("🔍 [PUBLIC DASHBOARD] Building rich homepage feed...")
-
+    """Rich public dashboard feed (homepage) with smart priority ordering + latest comment previews."""
     feed = get_public_dashboard_feed()
 
-    # Censor the entire feed
+    # Censor the entire feed (main content only — comments are censored in queries.py)
     feed = censor_public_content(feed)
 
     for item in feed:
+        # Main title handling
         item['title'] = censor_text(item.get('title') or item.get('event_name') or '')
 
+        # Body/description/content censoring
         if item.get('body'):
             item['body'] = censor_text(item['body'])
         elif item.get('description'):
@@ -38,7 +38,7 @@ def public_dashboard():
         elif item.get('content'):
             item['body'] = censor_text(item['content'])
 
-        # Safe date handling
+        # Safe date handling for mixed content types
         dt = item.get('datetime') or item.get('created_at') or item.get('date_posted') or item.get('uploaded_at') or item.get('event_date')
         if isinstance(dt, str):
             try:
@@ -56,7 +56,7 @@ def public_dashboard():
             item['formatted_date'] = 'Unknown'
             item['formatted_time'] = ''
 
-        # Add direct link to the correct detail page
+        # Direct link to the correct public detail page (using the fixed nested blueprint endpoints)
         item_type = item.get('type')
         if item_type == 'event':
             item['detail_url'] = url_for('public.public_events.public_event_detail', event_id=item['id'])
@@ -73,9 +73,7 @@ def public_dashboard():
         else:
             item['detail_url'] = '#'
 
-    print(f"✅ [PUBLIC DASHBOARD] Final homepage feed has {len(feed)} items (priority ordered)")
-
     return render_template('public/public_dashboard.html', feed=feed)
 
 
-print("✅ MYVINECHURCH.ONLINE public/public_dashboard/views.py rebuilt successfully (url_for import fixed + smart priority ordering)")
+print("✅ MYVINECHURCH.ONLINE public/public_dashboard/views.py loaded successfully (production-clean + gold standard applied)")

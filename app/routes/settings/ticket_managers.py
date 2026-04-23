@@ -51,6 +51,6 @@ def ticket_managers():
     cur.execute("SELECT user_id FROM ticket_managers")
     manager_ids = {row['user_id'] for row in cur.fetchall()}
 
-    return render_template('settings/ticket_managers.html',
+    return render_template('settings/ticket_manager.html',
                            all_users=all_users,
                            manager_ids=manager_ids)

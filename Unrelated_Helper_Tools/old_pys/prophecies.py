@@ -113,7 +113,7 @@ def view_prophecy(prophecy_id):
     prophecy['title'] = censor_text(prophecy['title'])
     prophecy['description'] = censor_text(prophecy['description'] or '')
 
-    # Load comments
+    # Load comments.html
     cur.execute("""
         SELECT pc.id, pc.comment, pc.date_added, pc.user_id,
                COALESCE(u.username, 'Anonymous') AS commenter_name

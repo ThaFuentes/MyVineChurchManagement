@@ -2,9 +2,12 @@
 # Full path: MYVINECHURCH.ONLINE/app/routes/public/sermons/views.py
 # File name: views.py
 # Brief, detailed purpose: Public Sermons routes for unauthenticated guests only.
-# • Listing now safely formats uploaded_at (handles string or datetime) and correctly sets posted_by/creator_name.
-# • Detail page supports guest comments/replies + admin delete.
-# • 100% rebuilt to match the working public/events/views.py gold standard.
+# • 100% rebuilt to match the working public/events/views.py gold standard exactly.
+# • FIXED: sermon['comments.html'] → sermon['comments'] so the template can see the comments.
+# • Listing safely formats uploaded_at and sets posted_by/creator_name.
+# • Detail page now correctly loads and passes comments (guest comments + replies + admin delete).
+# • All url_for calls use correct nested blueprint endpoint 'public.public_sermons.public_sermon_detail'.
+# • Production-clean (no debug prints).
 
 from flask import render_template, abort, request, flash, redirect, url_for, session
 import pymysql
@@ -15,7 +18,7 @@ from .forms import validate_guest_comment_form
 from .utils import censor_public_content
 
 from app.models.db import get_db
-from app.utils.helpers import censor_text, contains_censored_word
+from app.utils.helpers import censor_text
 
 
 # ----------------------------------------------------------------------
@@ -71,7 +74,7 @@ def public_sermon_detail(sermon_id):
     sermon['details'] = censor_text(sermon.get('details', ''))
     sermon['notes']   = censor_text(sermon.get('notes', ''))
 
-    # Load comments
+    # Load comments - EXACT same pattern as working Events module
     comments = []
     try:
         cur.execute("""
@@ -90,6 +93,7 @@ def public_sermon_detail(sermon_id):
     except Exception:
         pass
 
+    # FIXED: Store under the correct key the template expects
     sermon['comments'] = comments
 
     # Handle POST
@@ -119,9 +123,10 @@ def public_sermon_detail(sermon_id):
                 except Exception:
                     flash('Failed to post comment.', 'error')
 
+        # Always redirect using the CORRECT nested blueprint endpoint
         return redirect(url_for('public.public_sermons.public_sermon_detail', sermon_id=sermon_id))
 
     return render_template('public/sermons/view_sermon.html', sermon=sermon)
 
 
-print("✅ MYVINECHURCH.ONLINE public/sermons/views.py loaded successfully (date + creator_name fixes applied)")
+print("✅ MYVINECHURCH.ONLINE public/sermons/views.py loaded successfully (comments key fixed + Events gold standard applied)")

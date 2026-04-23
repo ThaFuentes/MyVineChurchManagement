@@ -48,4 +48,3 @@ def create_tables(cursor):
 
     # No indexes needed – this is a single-row config table
 
-    print("Timezone setting synchronization complete. Church timezone is now configurable (default: America/Chicago).")

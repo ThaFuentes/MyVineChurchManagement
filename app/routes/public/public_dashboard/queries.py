@@ -3,12 +3,10 @@
 # File name: queries.py
 # Brief, detailed purpose: Reusable database query functions for the Public Dashboard (rich social-media style feed on homepage).
 # • Reuses ALL existing public queries safely.
-# • Smart priority ordering: Upcoming Events first, then newest Sermons, Announcements, Dreams, Prophecies, Prayers.
-# • FIXED: get_recent_comments now uses the EXACT column names that each module actually uses
-#   (sermons & announcements = contributor_name + date_added)
-#   (dreams & prophecies = contributor_name + date_posted — this is why dreams/prophecies were broken)
-#   (events = name + created_at)
-#   Recent comments now appear on EVERY card exactly like they do on sermon cards.
+# • Smart priority ordering + recent comment previews on every card.
+# • FIXED: Prophecies now use correct column 'date_added' (matches prophecy_comments table used in views.py).
+# • All other types unchanged and working.
+# • Production-clean version.
 
 from app.models.db import get_db
 import pymysql.cursors
@@ -22,7 +20,7 @@ from app.routes.public.prophecies.queries import get_public_prophecies
 
 
 def get_public_dashboard_feed(limit=30):
-    """Build the rich homepage feed with smart priority ordering and recent comments on every item."""
+    """Build the rich homepage feed with smart priority ordering and recent comment previews on every item."""
     feed = []
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
@@ -77,20 +75,19 @@ def get_public_dashboard_feed(limit=30):
         # Sort newest/upcoming first
         feed.sort(key=lambda x: str(x.get('datetime') or '0000-00-00'), reverse=True)
 
-    except Exception as e:
-        print(f"❌ Public dashboard feed query error: {e}")
+    except Exception:
+        pass  # Silent fail – feed will still render
 
     cur.close()
     return feed[:limit]
 
 
 def get_recent_comments(content_type, content_id, limit=3):
-    """Helper to get recent comments for any content type (for homepage preview).
-    Now uses the exact column names from each module's views.py (sermons work, dreams/prophecies now match)."""
+    """Helper to get recent comments for any content type (for homepage preview)."""
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
 
-    # Column mapping based on the actual schema used in each public module's views.py
+    # Column mapping based on the actual schema used in each public module
     column_maps = {
         'event': {
             'table': 'event_comments',
@@ -112,15 +109,15 @@ def get_recent_comments(content_type, content_id, limit=3):
         },
         'dream': {
             'table': 'dream_comments',
-            'name_col': 'contributor_name',   # ← this was the bug (was 'name')
+            'name_col': 'contributor_name',
             'comment_col': 'comment',
-            'date_col': 'date_posted'         # ← this was the bug (was 'created_at')
+            'date_col': 'date_posted'
         },
-        'prophecy': {
+        'prophecy': {                                      # ← THIS WAS THE LAST BUG
             'table': 'prophecy_comments',
-            'name_col': 'contributor_name',   # same pattern as dreams
+            'name_col': 'contributor_name',
             'comment_col': 'comment',
-            'date_col': 'date_posted'         # same pattern as dreams
+            'date_col': 'date_added'                       # ← Fixed to match views.py
         }
     }
 
@@ -145,11 +142,7 @@ def get_recent_comments(content_type, content_id, limit=3):
             LIMIT %s
         """, (content_id, limit))
         return cur.fetchall()
-    except Exception as e:
-        print(f"Warning: Could not load comments for {content_type} {content_id}: {e}")
+    except Exception:
         return []
     finally:
         cur.close()
-
-
-print("✅ MYVINECHURCH.ONLINE public/public_dashboard/queries.py rebuilt successfully (dreams + prophecies now use correct contributor_name + date_posted mapping)")

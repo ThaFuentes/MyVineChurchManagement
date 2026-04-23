@@ -22,4 +22,3 @@ dashboard_bp = Blueprint(
 # Import views/routes (next file we will rebuild)
 from . import views
 
-print("✅ MYVINECHURCH.ONLINE public/public_dashboard sub-blueprint initialized successfully (root homepage routes - path fixed)")

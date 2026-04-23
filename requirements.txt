@@ -4,6 +4,7 @@ Werkzeug
 calendar
 cryptography
 flask
+html
 itertools
 markupsafe
 pymysql

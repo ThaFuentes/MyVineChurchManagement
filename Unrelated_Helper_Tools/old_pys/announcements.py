@@ -82,7 +82,7 @@ def announcements():
             WHERE c.announcement_id = %s
             ORDER BY c.date_added ASC
         """, (ann['id'],))
-        ann['comments'] = cur.fetchall()
+        ann['comments.html'] = cur.fetchall()
 
         ann['formatted_date'] = format_church(ann['created_at'], '%B %d, %Y') if ann['created_at'] else 'Unknown'
 
@@ -151,7 +151,7 @@ def view_announcement(ann_id):
     announcement['title'] = censor_text(announcement['title'])
     announcement['content'] = censor_text(announcement['content'] or '')
 
-    # Load comments
+    # Load comments.html
     cur.execute("""
         SELECT c.comment, c.date_added,
                COALESCE(u.username, 'Anonymous') AS commenter_name

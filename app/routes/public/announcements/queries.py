@@ -74,4 +74,3 @@ def get_public_announcement(ann_id):
     return announcement
 
 
-print("✅ MYVINECHURCH.ONLINE public/announcements/queries.py loaded successfully (a.* + creator_name fixed to match Events gold standard)")

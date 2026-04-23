@@ -15,7 +15,7 @@ def create_tables(cursor):
     """
     Creates/updates the tickets-related tables.
     Designed for both fresh DB creation and safe migration of existing databases.
-    Order: categories → managers → tickets → comments (to satisfy FK constraints).
+    Order: categories → managers → tickets → comments.html (to satisfy FK constraints).
     """
 
     # ----- TICKET_CATEGORIES TABLE -----

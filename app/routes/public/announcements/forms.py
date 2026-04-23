@@ -34,4 +34,3 @@ def validate_guest_comment_form(form_data):
     }
 
 
-print("✅ MYVINECHURCH.ONLINE public/announcements/forms.py loaded successfully (Events gold standard applied)")

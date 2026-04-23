@@ -120,7 +120,7 @@ def sermons():
         else:
             comments = []
 
-        sermon['comments'] = comments
+        sermon['comments.html'] = comments
 
     if user_id:
         log_change(user_id, 'view', change_details='Viewed sermons list')

@@ -55,7 +55,7 @@ def get_sermon_by_id(sermon_id):
 
 
 def get_sermon_comments(sermon_id):
-    """Fetch all comments for a sermon (with commenter username)."""
+    """Fetch all comments.html for a sermon (with commenter username)."""
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
     cur.execute("""

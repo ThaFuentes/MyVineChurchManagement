@@ -5,7 +5,7 @@
 # Tracks individual member check-ins for church services/events.
 # Core fields: user_id, service_date (DATE for weekly services), check_in/check_out timestamps.
 # Optional group_id for group check-ins (e.g., youth group attendance).
-# notes TEXT for manual comments.
+# notes TEXT for manual comments.html.
 # checked_in_by for staff manual check-in.
 # UNIQUE constraint prevents duplicate check-in for same user on same date.
 # Searchable via members directory (per member history) and groups (group attendance reports).
@@ -75,4 +75,3 @@ def create_tables(cursor):
         cursor.execute("CREATE INDEX idx_attendance_check_in ON attendance(check_in DESC)")
     except: pass
 
-    print("Attendance table synchronization complete (MariaDB). Ready for check-in/out tracking.")

@@ -343,11 +343,6 @@ def create_tables(cursor):
     safe_exec(cursor, "CREATE INDEX IF NOT EXISTS idx_vault_source_url ON pastoral_vault(source_url(191))")
     safe_exec(cursor, "CREATE INDEX IF NOT EXISTS idx_sermon_edits_sermon ON sermon_edits(sermon_id)")
 
-    print("FULL Pastoral Area database setup complete – all tables and columns preserved and migrated.")
-    print("Added service_templates + service_template_assignments for central recurring masters.")
-    print("Added forced_notes TEXT to service_templates for critical forced lines.")
-    print("service_plans preserved for dated overrides.")
-    print("Old 52-week seeding removed – now seeds one default Sunday template if none exist.\n")
 
     # NEW: Seed default Sunday template if none exist
     print("Seeding default Sunday template (if needed)...")

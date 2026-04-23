@@ -16,4 +16,3 @@ prophecies_bp = Blueprint(
 # Import views/routes (next file we will rebuild)
 from . import views
 
-print("✅ MYVINECHURCH.ONLINE public/prophecies sub-blueprint initialized successfully (url_prefix='/public-prophecies' — route conflict fixed)")

@@ -113,4 +113,3 @@ def public_prayer_detail(prayer_id):
                            responses=responses)
 
 
-print("✅ MYVINECHURCH.ONLINE public/prayers/views.py loaded successfully (Events gold standard applied)")

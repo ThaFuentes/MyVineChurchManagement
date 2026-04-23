@@ -121,7 +121,7 @@ def view_dream(dream_id):
     dream['description'] = censor_text(dream['description'] or '')
     dream['notes'] = censor_text(dream['notes'] or '')
 
-    # Load comments
+    # Load comments.html
     cur.execute("""
         SELECT dc.id, dc.comment, dc.date_posted, dc.user_id,
                COALESCE(u.username, dc.contributor_name, 'Anonymous') AS commenter_name

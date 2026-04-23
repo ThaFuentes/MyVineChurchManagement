@@ -32,7 +32,7 @@ public_bp.register_blueprint(announcements_bp)
 from .dreams import dreams_bp
 public_bp.register_blueprint(dreams_bp)
 
-# Events (potluck, signups, comments)
+# Events (potluck, signups, comments.html)
 from .events import events_bp
 public_bp.register_blueprint(events_bp)
 

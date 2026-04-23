@@ -16,4 +16,3 @@ announcements_bp = Blueprint(
 # Import views/routes (next file we will rebuild)
 from . import views
 
-print("✅ MYVINECHURCH.ONLINE public/announcements sub-blueprint initialized successfully (url_prefix='/public-announcements' — route conflict fixed)")

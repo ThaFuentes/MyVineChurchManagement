@@ -2,8 +2,8 @@
 # Full path: MyVineChurch/app/routes/events/event_detail.py
 # File name: event_detail.py
 # Brief, detailed purpose: Public single event detail page with full comment support.
-# • Guests (non-registered) can view events, add to potluck, and post comments.
-# • Logged-in users can post, edit, and delete their own comments.
+# • Guests (non-registered) can view events, add to potluck, and post comments.html.
+# • Logged-in users can post, edit, and delete their own comments.html.
 # • Admins / users with 'moderate_events' permission can edit/delete any comment.
 # • Strong anti-spam: censored word check + rate limiting for guests.
 # • All original potluck behavior preserved exactly.
@@ -115,7 +115,7 @@ def register_detail_routes(bp):
             # Rate limiting for guests
             if not is_logged_in:
                 if session.get('comment_submissions', 0) >= 5:
-                    flash('You have posted too many comments recently. Please wait a few minutes.', 'error')
+                    flash('You have posted too many comments.html recently. Please wait a few minutes.', 'error')
                     return redirect(url_for('events.view_event', event_id=event_id))
                 session['comment_submissions'] = session.get('comment_submissions', 0) + 1
 
@@ -145,7 +145,7 @@ def register_detail_routes(bp):
 
             return redirect(url_for('events.view_event', event_id=event_id))
 
-        # Fetch comments for display
+        # Fetch comments.html for display
         cur.execute("""
             SELECT *, created_at AS created_at_utc
             FROM event_comments
@@ -174,7 +174,7 @@ def register_detail_routes(bp):
     def delete_comment(event_id, comment_id):
         """Delete a comment – owner or moderate_events permission only."""
         if 'user_id' not in session:
-            flash('You must be logged in to delete comments.', 'error')
+            flash('You must be logged in to delete comments.html.', 'error')
             return redirect(url_for('events.view_event', event_id=event_id))
 
         user_id = session['user_id']
@@ -208,7 +208,7 @@ def register_detail_routes(bp):
     def edit_comment(event_id, comment_id):
         """Edit a comment – owner or moderate_events permission only."""
         if 'user_id' not in session:
-            flash('You must be logged in to edit comments.', 'error')
+            flash('You must be logged in to edit comments.html.', 'error')
             return redirect(url_for('events.view_event', event_id=event_id))
 
         user_id = session['user_id']

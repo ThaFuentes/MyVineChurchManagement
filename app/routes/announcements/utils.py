@@ -23,7 +23,7 @@ REQUIRED_ROLES = ['Staff', 'Admin', 'Owner']
 # Text Processing
 # ----------------------------------------------------------------------
 def censor_text(text):
-    """Apply server-side censorship to any text (title, content, comments).
+    """Apply server-side censorship to any text (title, content, comments.html).
     Currently passes through clean text (input validation already happened).
     Easy to upgrade later with word-masking or replacement logic.
     """

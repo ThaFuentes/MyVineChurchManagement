@@ -3,7 +3,7 @@
 # File name: prophecies.py
 # Brief, detailed purpose: Creates/updates the prophecies and prophecy_comments tables for MariaDB.
 # This is the 100% complete rebuild — every single column, table, index, migration step, and behavior is preserved exactly as you had it.
-# The only updates are: much clearer comments, better code organization, and explicit support for created_by / updated_by (this powers "Created by: [Name]" on the public prophecies page, just like events, announcements, dreams, and prayers).
+# The only updates are: much clearer comments.html, better code organization, and explicit support for created_by / updated_by (this powers "Created by: [Name]" on the public prophecies page, just like events, announcements, dreams, and prayers).
 # No new tables, no behavior changes.
 
 def create_tables(cursor):
@@ -169,4 +169,3 @@ def create_tables(cursor):
         cursor.execute("CREATE INDEX idx_prophecy_comments_parent ON prophecy_comments(parent_id)")
     except: pass
 
-    print("Prophecies tables synchronization complete (MariaDB). Ready for public/private/personal visibility with one-level replies.")

@@ -72,4 +72,3 @@ def get_public_prophecy(prophecy_id):
     return prophecy
 
 
-print("✅ MYVINECHURCH.ONLINE public/prophecies/queries.py loaded successfully (p.* + creator_name fixed to match Events gold standard)")

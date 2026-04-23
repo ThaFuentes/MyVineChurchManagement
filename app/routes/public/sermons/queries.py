@@ -38,7 +38,7 @@ def get_public_sermons():
 def get_public_sermon(sermon_id):
     """
     Retrieve a single public sermon by ID for the detail page (view_sermon.html).
-    Includes creator_name and all fields needed for comments/media.
+    Includes creator_name and all fields needed for comments.html/media.
     """
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)

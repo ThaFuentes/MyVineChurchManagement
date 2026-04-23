@@ -35,7 +35,7 @@ def get_public_events():
 def get_public_event(event_id):
     """
     Retrieve a single public event by ID for the detail page (event_detail.html).
-    Includes creator_name and all fields needed for potluck + comments.
+    Includes creator_name and all fields needed for potluck + comments.html.
     """
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
@@ -55,4 +55,3 @@ def get_public_event(event_id):
     return event
 
 
-print("✅ MYVINECHURCH.ONLINE public/events/queries.py loaded successfully")

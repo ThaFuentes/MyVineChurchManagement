@@ -57,4 +57,3 @@ def get_public_prayer(prayer_id):
     return prayer
 
 
-print("✅ MYVINECHURCH.ONLINE public/prayers/queries.py loaded successfully (creator_name fixed to match Events gold standard)")

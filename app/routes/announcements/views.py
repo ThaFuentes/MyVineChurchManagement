@@ -3,8 +3,8 @@
 # File name: views.py
 # Brief, detailed purpose: All route handlers (controllers) for the Announcements blueprint.
 # • Every single @announcements_bp.route from the old flat file lives here.
-# • 100% original behavior preserved: public/private visibility, family-ready templates, audit logging, censorship, comments, email tools, dashboard vs public view.
-# • Group permissions integrated: comment owner OR anyone with 'moderate_announcements' permission OR Admin/Owner can edit/delete comments.
+# • 100% original behavior preserved: public/private visibility, family-ready templates, audit logging, censorship, comments.html, email tools, dashboard vs public view.
+# • Group permissions integrated: comment owner OR anyone with 'moderate_announcements' permission OR Admin/Owner can edit/delete comments.html.
 # • This is the “HTTP layer” only – thin, readable, easy to grow.
 
 from flask import render_template, request, redirect, url_for, flash, session
@@ -91,7 +91,7 @@ def announcements():
             WHERE c.announcement_id = %s
             ORDER BY c.date_added ASC
         """, (ann['id'],))
-        ann['comments'] = cur.fetchall()
+        ann['comments.html'] = cur.fetchall()
 
         ann['formatted_date'] = format_church(ann['created_at'], '%B %d, %Y') if ann['created_at'] else 'Unknown'
 
@@ -160,7 +160,7 @@ def view_announcement(ann_id):
     announcement['title'] = censor_text(announcement['title'])
     announcement['content'] = censor_text(announcement['content'] or '')
 
-    # Load comments
+    # Load comments.html
     cur.execute("""
         SELECT c.comment, c.date_added,
                COALESCE(u.username, 'Anonymous') AS commenter_name

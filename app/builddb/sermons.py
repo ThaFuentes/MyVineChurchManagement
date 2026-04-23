@@ -3,7 +3,7 @@
 # File name: sermons.py
 # Brief, detailed purpose: Creates/updates the sermons and sermon_comments tables for MariaDB.
 # This is the 100% complete rebuild — every single column, table, index, migration step, and behavior is preserved exactly as you had it.
-# The only updates are: much clearer comments, better code organization, and explicit support for created_by / updated_by (this powers "Created by: [Name]" on the public sermons page, just like events, announcements, dreams, prayers, and prophecies).
+# The only updates are: much clearer comments.html, better code organization, and explicit support for created_by / updated_by (this powers "Created by: [Name]" on the public sermons page, just like events, announcements, dreams, prayers, and prophecies).
 # Kept uploaded_by because sermons already used it.
 
 def create_tables(cursor):

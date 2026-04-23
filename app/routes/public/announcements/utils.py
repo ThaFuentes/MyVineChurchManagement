@@ -32,4 +32,3 @@ def format_public_datetime(date_value):
     return 'Unknown date'
 
 
-print("✅ MYVINECHURCH.ONLINE public/announcements/utils.py loaded successfully (Events gold standard applied)")

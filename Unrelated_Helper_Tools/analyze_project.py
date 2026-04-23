@@ -143,7 +143,7 @@ project_data = {
         "static": set(),
     },
     "entry_points": [],
-    "comments": []
+    "comments.html": []
 }
 all_py_stems = set()
 
@@ -193,7 +193,7 @@ for dirpath, dirnames, filenames in os.walk(ROOT):
                 project_data["references"]["static"].add(s)
             formatted_block = extract_formatted_comments(content, rel_path_posix)
             if formatted_block:
-                project_data["comments"].append(formatted_block)
+                project_data["comments.html"].append(formatted_block)
             project_data["python"].append({
                 "rel_path": rel_path_posix,
                 "stem": stem,
@@ -360,7 +360,7 @@ clean_data = {
         "static": sorted(list(project_data["references"]["static"])),
     },
     "entry_points": project_data["entry_points"],
-    "comments": project_data["comments"]
+    "comments.html": project_data["comments.html"]
 }
 with open(ROOT / "analysis_data.json", "w", encoding="utf-8") as f:
     json.dump(clean_data, f, indent=2)
@@ -372,8 +372,8 @@ with open(ROOT / "project_structure.txt", "w", encoding="utf-8") as f:
         usage_report +
         req_report +
         structure +
-        ["\n\nFILE COMMENT BLOCKS (top-of-file # comments)", "=" * 60] +
-        project_data["comments"]
+        ["\n\nFILE COMMENT BLOCKS (top-of-file # comments.html)", "=" * 60] +
+        project_data["comments.html"]
     ))
 
 print("Analysis Complete!")

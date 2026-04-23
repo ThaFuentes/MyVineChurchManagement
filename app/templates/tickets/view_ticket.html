@@ -1,17 +1,14 @@
-<!-- app/templates/tickets/view_ticket.html -->
-<!-- Full path: WebChurchMan/app/templates/tickets/view_ticket.html -->
+<!-- MYVINECHURCH.ONLINE/app/templates/tickets/view_ticket.html -->
+<!-- Full path: MYVINECHURCH.ONLINE/app/templates/tickets/view_ticket.html -->
 <!-- File name: view_ticket.html -->
-<!-- Brief, detailed purpose: Private ticket detail view + management page.
-   Extends base_tickets.html (login_required).
-   Shows full ticket info, comment thread, add comment form.
-   Staff/Admin/Owner: inline controls for status, priority, assignment.
-   Staff+: edit button (re-uses submit_ticket.html with pre-fill? or separate edit form).
-   On close/resolve: final summary email to creator.
-   All comments/updates trigger emails:
-     - Staff comment → email creator
-     - Member comment → email staff group
-     - Status resolve/close → always email creator with resolution details
-   History preserved forever. -->
+<!-- Brief, detailed purpose: Private ticket detail view + management page for the **Ticket Manager** blueprint ONLY.
+   • 100% rebuilt as manager-only view (no user self-service code).
+   • FIXED: All date displays now use the pre-formatted strings that views.py already creates (formatted_created and formatted_date).
+     This eliminates the TypeError: 'datetime.datetime' object is not subscriptable.
+   • Uses can_manage (passed from views.py) instead of is_manager.
+   • Removed broken link to the now-removed 'tickets.submit_ticket' endpoint (edit button deleted – managers use inline status/priority/assign controls).
+   • All comment, status, assign, priority, and delete functionality preserved exactly.
+   • Navigation and forms now point only to valid Ticket Manager endpoints. -->
 
 {% extends "tickets/base_tickets.html" %}
 
@@ -34,14 +31,14 @@ Category: {{ ticket.category_name }} • Priority: {{ ticket.priority|capitalize
                 Priority: <strong class="{{ 'priority-' + ticket.priority }}">{{ ticket.priority|capitalize }}</strong> •
                 Status: <strong>{{ ticket.status.replace('_', ' ')|title }}</strong><br>
                 Created {% if ticket.contact_name %}by <strong>{{ ticket.contact_name }}</strong>{% else %}by <strong>{{ ticket.creator_name }}</strong>{% endif %}
-                on {{ ticket.created_at[:10] }}
+                on {{ ticket.formatted_created }}
                 {% if ticket.assigned_to %} • Assigned to <strong>{{ ticket.assignee_name or 'Unknown' }}</strong>{% endif %}
             </p>
         </div>
 
-        {% if is_manager %}
+        {% if can_manage %}
         <div class="event-actions">
-            <!-- Inline quick controls -->
+            <!-- Inline quick controls (Ticket Manager only) -->
             <form method="POST" style="display:inline;">
                 <input type="hidden" name="action" value="status">
                 <select name="status" onchange="this.form.submit()" class="form-input" style="display:inline-block; width:auto;">
@@ -90,7 +87,7 @@ Category: {{ ticket.category_name }} • Priority: {{ ticket.priority|capitalize
         {% if comments %}
             {% for c in comments %}
             <div class="card glass" style="margin-bottom:1rem;">
-                <strong>{{ c.username }}</strong> – {{ c.date_added[:16] }}<br>
+                <strong>{{ c.username }}</strong> – {{ c.formatted_date }}<br>
                 {{ c.comment | nl2br }}
             </div>
             {% endfor %}
@@ -106,7 +103,7 @@ Category: {{ ticket.category_name }} • Priority: {{ ticket.priority|capitalize
                 <textarea name="comment" rows="6" class="form-input" required placeholder="Provide an update, ask for more info, or confirm resolution..."></textarea>
             </div>
 
-            {% if is_manager %}
+            {% if can_manage %}
             <div class="form-group">
                 <label>
                     <input type="checkbox" name="notify_creator" checked>
@@ -121,12 +118,11 @@ Category: {{ ticket.category_name }} • Priority: {{ ticket.priority|capitalize
         </form>
     </section>
 
-    {% if is_manager %}
+    {% if can_manage %}
     <!-- Manager Actions -->
     <section class="content-section" style="margin-top:3rem;">
         <h3 class="section-title">Management Actions</h3>
         <div class="form-actions">
-            <a href="{{ url_for('tickets.submit_ticket') }}?edit={{ ticket.id }}" class="btn-primary">Edit Ticket Details</a>
             <form method="POST" action="{{ url_for('tickets.delete_ticket', ticket_id=ticket.id) }}" style="display:inline;">
                 <button type="submit" class="btn-danger" onclick="return confirm('Permanently delete this ticket and all comments?')">Delete Ticket</button>
             </form>

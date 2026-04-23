@@ -1,19 +1,20 @@
-<!-- app/templates/tickets/base_tickets.html -->
-<!-- Full path: WebChurchMan/app/templates/tickets/base_tickets.html -->
+<!-- MYVINECHURCH.ONLINE/app/templates/tickets/base_tickets.html -->
+<!-- Full path: MYVINECHURCH.ONLINE/app/templates/tickets/base_tickets.html -->
 <!-- File name: base_tickets.html -->
-<!-- Brief, detailed purpose: Common base template for ALL private Tickets module pages (dashboard, view, submit, manager).
-   Mirrors other module bases: glass wrapper, flash messages, sub-navigation menu with active state.
-   Menu: Tickets Dashboard (always), + New Ticket (always), Ticket Manager (if can_manage).
-   REMOVED: "Manage Ticket Managers" link – group membership is handled in the general Groups module only.
-   Pure global CSS – no tickets-specific styles.
-   Provides blocks: page_title, page_description, tickets_content. -->
+<!-- Brief, detailed purpose: Common base template for the **Ticket Manager** blueprint ONLY (routes/tickets/).
+   This file is now 100% isolated to administrative ticket management pages.
+   • The "Manage Ticket Managers Group" link has been COMPLETELY REMOVED (as you requested).
+   • You now manage who can access tickets using the existing Groups page at /groups/ (no duplicate link here).
+   • Menu is now extremely clean: only "All Tickets" (which is the main dashboard).
+   • No more unused routes or templates.
+   • Provides blocks: page_title, page_description, tickets_content. -->
 
 {% extends "base.html" %}
 
 {% block content %}
 <div class="form-page-wrapper">
     <div class="form-container">
-        <h1 class="page-title">{% block page_title %}Support Tickets{% endblock %}</h1>
+        <h1 class="page-title">{% block page_title %}Ticket Manager{% endblock %}</h1>
         <p class="page-description">{% block page_description %}{% endblock %}</p>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -26,20 +27,14 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Sub-navigation menu – consistent across all private Tickets pages -->
+        <!-- Sub-navigation menu – NOW SUPER CLEAN (only All Tickets) -->
         <div class="menu">
-            <a {% if request.endpoint == 'tickets.tickets' %}class="active"{% endif %}
-               href="{{ url_for('tickets.tickets') }}">Tickets Dashboard</a>
-            <a {% if request.endpoint == 'tickets.submit_ticket' %}class="active"{% endif %}
-               href="{{ url_for('tickets.submit_ticket') }}">+ New Ticket</a>
-
-            {% if can_manage %}
             <a {% if request.endpoint == 'tickets.manager_dashboard' %}class="active"{% endif %}
-               href="{{ url_for('tickets.manager_dashboard') }}">Ticket Manager</a>
-            {% endif %}
+               href="{{ url_for('tickets.manager_dashboard') }}">All Tickets</a>
         </div>
 
         {% block tickets_content %}{% endblock %}
     </div>
 </div>
 {% endblock %}
+

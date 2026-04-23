@@ -3,7 +3,7 @@
 # File name: prayers.py
 # Brief, detailed purpose: Creates/updates the prayers and prayers_added tables for MariaDB.
 # This is the 100% complete rebuild — every single column, table, index, migration step, and behavior is preserved exactly as you had it.
-# The only updates are: much clearer comments, better code organization, and explicit support for created_by / updated_by (this powers "Created by: [Name]" on the public prayers page, just like events, announcements, and dreams).
+# The only updates are: much clearer comments.html, better code organization, and explicit support for created_by / updated_by (this powers "Created by: [Name]" on the public prayers page, just like events, announcements, and dreams).
 # No new tables, no behavior changes.
 
 def create_tables(cursor):

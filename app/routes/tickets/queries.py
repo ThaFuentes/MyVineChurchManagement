@@ -1,9 +1,12 @@
-# app/routes/tickets/queries.py
-# Full path: myvinechurchonline/app/routes/tickets/queries.py
+# MYVINECHURCH.ONLINE/app/routes/tickets/queries.py
+# Full path: MYVINECHURCH.ONLINE/app/routes/tickets/queries.py
 # File name: queries.py
-# Brief, detailed purpose: All database operations (SELECT, INSERT, UPDATE, DELETE) for the tickets blueprint.
+# Brief, detailed purpose: All database operations (SELECT, INSERT, UPDATE, DELETE) for the **Ticket Manager** blueprint ONLY (routes/tickets/).
 # MariaDB/PyMySQL ready (%s placeholders). Every query from original tickets.py extracted here.
-# All timestamps (created_at/updated_at/date_added) expect UTC values. Behavior 100% identical.
+# This file is now 100% isolated to administrative ticket management (ticket_managers group + Admins/Owner).
+# • All user-facing queries (get_user_tickets, get_open_user_ticket_count, create_ticket for guests) have been removed.
+# • Only manager-specific queries remain: full queue, comments.html, status/priority/assignment updates, group management, notifications.
+# • All timestamps (created_at/updated_at/date_added) expect UTC values. Behavior 100% identical for managers.
 
 import pymysql.cursors
 import json
@@ -35,7 +38,7 @@ def user_has_manage_tickets_group_permission(user_id):
 
 
 def get_staff_emails():
-    """Return list of staff/admin/owner emails who accept emails."""
+    """Return list of staff/admin/owner emails who accept emails (Ticket Manager use)."""
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
     cur.execute("SELECT email FROM users WHERE role IN ('Staff', 'Admin', 'Owner') AND accepts_emails = 1")
@@ -51,33 +54,6 @@ def get_creator_email(ticket):
         row = cur.fetchone()
         return row['email'] if row and row.get('email') else None
     return ticket.get('contact_email')
-
-
-def get_user_tickets(user_id):
-    """Get all tickets created by user (for /tickets/ dashboard)."""
-    db = get_db()
-    cur = db.cursor(pymysql.cursors.DictCursor)
-    cur.execute("""
-        SELECT t.*, c.name AS category_name
-        FROM tickets t
-        JOIN ticket_categories c ON t.category_id = c.id
-        WHERE t.created_by = %s
-        ORDER BY t.updated_at DESC
-    """, (user_id,))
-    return cur.fetchall()
-
-
-def get_open_user_ticket_count(user_id):
-    """Count open tickets for a specific user."""
-    db = get_db()
-    cur = db.cursor(pymysql.cursors.DictCursor)
-    cur.execute("""
-        SELECT COUNT(*) AS cnt
-        FROM tickets
-        WHERE created_by = %s AND status NOT IN ('resolved', 'closed')
-    """, (user_id,))
-    row = cur.fetchone()
-    return row['cnt'] if row else 0
 
 
 def get_all_tickets():
@@ -114,7 +90,7 @@ def get_open_ticket_count():
 
 
 def get_staff_list():
-    """Get staff list for assignment dropdown."""
+    """Get staff list for assignment dropdown (Ticket Manager only)."""
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
     cur.execute("SELECT id, username FROM users WHERE role IN ('Staff', 'Admin', 'Owner') ORDER BY username")
@@ -122,7 +98,7 @@ def get_staff_list():
 
 
 def get_ticket(ticket_id):
-    """Get single ticket by ID (for view_ticket)."""
+    """Get single ticket by ID (for view_ticket - manager only)."""
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
     cur.execute("""
@@ -138,7 +114,7 @@ def get_ticket(ticket_id):
 
 
 def get_ticket_comments(ticket_id):
-    """Get all comments for a ticket."""
+    """Get all comments.html for a ticket (manager view)."""
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
     cur.execute("""
@@ -151,43 +127,20 @@ def get_ticket_comments(ticket_id):
     return cur.fetchall()
 
 
-def get_ticket_categories(allow_guest_only=False):
-    """Get ticket categories (filtered for guests if requested)."""
+def get_ticket_categories():
+    """Get ALL ticket categories for manager forms (full list - no guest filter)."""
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
-    if allow_guest_only:
-        cur.execute("""
-            SELECT id, name, default_priority 
-            FROM ticket_categories 
-            WHERE allow_guest_creation = 1 
-            ORDER BY sort_order, name
-        """)
-    else:
-        cur.execute("""
-            SELECT id, name, default_priority 
-            FROM ticket_categories 
-            ORDER BY sort_order, name
-        """)
+    cur.execute("""
+        SELECT id, name, default_priority 
+        FROM ticket_categories 
+        ORDER BY sort_order, name
+    """)
     return cur.fetchall()
 
 
-def create_ticket(title, description, category_id, priority, created_by=None,
-                  contact_name=None, contact_email=None, ip_address=None, created_at=None):
-    """Insert new ticket and return its ID."""
-    db = get_db()
-    cur = db.cursor()
-    cur.execute("""
-        INSERT INTO tickets (title, description, category_id, priority, status, created_by,
-                             contact_name, contact_email, ip_address, created_at)
-        VALUES (%s, %s, %s, %s, 'open', %s, %s, %s, %s, %s)
-    """, (title, description, category_id, priority, created_by,
-          contact_name, contact_email, ip_address, created_at))
-    db.commit()
-    return cur.lastrowid
-
-
 def get_ticket_for_notification(ticket_id):
-    """Get ticket + category for email notifications."""
+    """Get ticket + category for email notifications (Ticket Manager only)."""
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
     cur.execute("""
@@ -200,7 +153,7 @@ def get_ticket_for_notification(ticket_id):
 
 
 def add_ticket_comment(ticket_id, user_id, comment, notify_creator=False, date_added=None):
-    """Insert new comment."""
+    """Insert new comment (Ticket Manager only)."""
     db = get_db()
     cur = db.cursor()
     cur.execute("""
@@ -211,7 +164,7 @@ def add_ticket_comment(ticket_id, user_id, comment, notify_creator=False, date_a
 
 
 def update_ticket_status(ticket_id, new_status, updated_at):
-    """Update status and timestamp."""
+    """Update status and timestamp (Ticket Manager only)."""
     db = get_db()
     cur = db.cursor()
     cur.execute("UPDATE tickets SET status = %s, updated_at = %s WHERE id = %s",
@@ -220,7 +173,7 @@ def update_ticket_status(ticket_id, new_status, updated_at):
 
 
 def assign_ticket(ticket_id, assigned_to, updated_at):
-    """Assign ticket to staff member."""
+    """Assign ticket to staff member (Ticket Manager only)."""
     db = get_db()
     cur = db.cursor()
     cur.execute("UPDATE tickets SET assigned_to = %s, updated_at = %s WHERE id = %s",
@@ -229,7 +182,7 @@ def assign_ticket(ticket_id, assigned_to, updated_at):
 
 
 def update_ticket_priority(ticket_id, new_priority, updated_at):
-    """Update priority and timestamp."""
+    """Update priority and timestamp (Ticket Manager only)."""
     db = get_db()
     cur = db.cursor()
     cur.execute("UPDATE tickets SET priority = %s, updated_at = %s WHERE id = %s",
@@ -238,7 +191,7 @@ def update_ticket_priority(ticket_id, new_priority, updated_at):
 
 
 def get_ticket_title(ticket_id):
-    """Get title only (used before delete)."""
+    """Get title only (used before delete - Ticket Manager only)."""
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
     cur.execute("SELECT title FROM tickets WHERE id = %s", (ticket_id,))
@@ -247,7 +200,7 @@ def get_ticket_title(ticket_id):
 
 
 def delete_ticket(ticket_id):
-    """Permanently delete ticket."""
+    """Permanently delete ticket (Ticket Manager only)."""
     db = get_db()
     cur = db.cursor()
     cur.execute("DELETE FROM tickets WHERE id = %s", (ticket_id,))
@@ -282,8 +235,10 @@ def remove_from_ticket_managers(user_id):
 
 
 def get_all_users():
-    """Get all users for manage-group page."""
+    """Get all users for manage-group page (Admin/Owner only)."""
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
     cur.execute("SELECT id, username, first_name, last_name, role FROM users ORDER BY username")
     return cur.fetchall()
+
+

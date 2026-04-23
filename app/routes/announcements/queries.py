@@ -43,7 +43,7 @@ def get_announcements_list(is_logged_in=False):
 
 
 # ----------------------------------------------------------------------
-# Single announcement + comments + counts
+# Single announcement + comments.html + counts
 # ----------------------------------------------------------------------
 def get_announcement_by_id(ann_id):
     """Return one announcement or None."""
@@ -60,7 +60,7 @@ def get_announcement_by_id(ann_id):
 
 
 def get_announcement_comments(ann_id):
-    """Return all comments for one announcement."""
+    """Return all comments.html for one announcement."""
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
     cur.execute("""
@@ -164,7 +164,7 @@ def update_announcement(ann_id, title, content, visibility, is_active, comments_
 
 
 def delete_announcement(ann_id):
-    """Delete announcement + comments. Returns title for logging."""
+    """Delete announcement + comments.html. Returns title for logging."""
     db = get_db()
     cur = db.cursor(pymysql.cursors.DictCursor)
 

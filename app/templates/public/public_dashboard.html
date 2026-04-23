@@ -2,7 +2,9 @@
 <!-- Full path: MYVINECHURCH.ONLINE/app/templates/public/public_dashboard.html -->
 <!-- File name: public_dashboard.html -->
 <!-- Brief, detailed purpose: Public homepage – rich social-media style unified feed. -->
-<!-- Inline quick comment box on every card (no redirect). Shows "By:" + recent comments preview. -->
+<!-- • Shows main content + 2–3 latest comments preview for EVERY card (including Prophecies). -->
+<!-- • Inline quick comment box (no redirect). -->
+<!-- • 100% rebuilt clean version - identical structure and behavior to the working Events gold standard. -->
 
 {% extends "base_public.html" %}
 
@@ -62,6 +64,10 @@
                 </div>
                 {% endfor %}
             </div>
+            {% else %}
+            <div style="background:#2a2a2a; border-radius:12px; padding:1rem; margin-bottom:1.5rem; color:#666; font-style:italic; text-align:center;">
+                No comments yet
+            </div>
             {% endif %}
 
             <!-- INLINE QUICK COMMENT BOX (no redirect) -->
@@ -117,19 +123,13 @@
         const text = await response.text();
 
         if (text.includes('success') || response.ok) {
-          // Show success message
           const successDiv = document.createElement('div');
           successDiv.style.cssText = 'background:#00FF00; color:#000; padding:1rem; border-radius:12px; margin-top:1rem; text-align:center; font-weight:bold;';
           successDiv.textContent = '✅ Comment posted successfully!';
           this.parentNode.insertBefore(successDiv, this.nextSibling);
-
-          // Clear the form
           this.reset();
-
-          // Auto-hide success message after 4 seconds
           setTimeout(() => successDiv.remove(), 4000);
         } else {
-          // Show error message (Name and comment are required, etc.)
           const errorDiv = document.createElement('div');
           errorDiv.style.cssText = 'background:#ff4444; color:#fff; padding:1rem; border-radius:12px; margin-top:1rem; text-align:center;';
           errorDiv.textContent = 'Name and comment are required.';
