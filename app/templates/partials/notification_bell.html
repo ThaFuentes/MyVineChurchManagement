@@ -1,7 +1,7 @@
 {# Notification bell (top bar). Count comes from notif_unread(); list loads on open. #}
 {% if session.get('user_id') %}
 {% set _unread = notif_unread() if notif_unread is defined else 0 %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/global/notification_bell.css') }}?v=20261004">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/global/notification_bell.css') }}?v=20261012shade">
 <details class="notif-bell" data-feed-url="{{ url_for('church.notifications_feed') }}" data-open-base="{{ url_for('church.notifications_page') }}">
   <summary class="notif-bell-btn" aria-label="Notifications{% if _unread %} ({{ _unread }} unread){% endif %}" title="Notifications">
     <i class="fa-solid fa-bell" aria-hidden="true"></i>
@@ -22,5 +22,5 @@
     <a class="notif-see-all" href="{{ url_for('church.notifications_page') }}">See all notifications</a>
   </div>
 </details>
-<script src="{{ url_for('static', filename='js/notification_bell.js') }}?v=20261004" defer></script>
+<script src="{{ url_for('static', filename='js/notification_bell.js') }}?v=20261012shade" defer></script>
 {% endif %}
