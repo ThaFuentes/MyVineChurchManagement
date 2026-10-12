@@ -9,8 +9,28 @@
         bot signs in, and that key expires in 1 hour. Neither secret is shown here.
         Switches start off. The sermon builder switch covers illustrations, drafts,
         verses, research notes, and who is speaking on which day.
+        You choose the one account each bot acts as. The bot cannot pick a different person.
     </p>
     <p><a href="{{ url_for('bot_access.usage') }}">Bot usage</a> lists every call and the undo for each change.</p>
+
+    <form method="POST" class="styled-form">
+        {% include 'partials/csrf_field.html' %}
+        <input type="hidden" name="action" value="grants">
+        <div class="settings-card">
+            <h3 class="section-subtitle">Admins who may use a bot</h3>
+            <p class="help-text">Off until you allow that admin. Admins do not see this page. A bot you give an admin acts only as that admin, not as you and not as the church wall.</p>
+            {% if not admins %}
+            <p class="help-text">No admin accounts.</p>
+            {% endif %}
+            {% for admin in admins %}
+            <label style="display:block; margin:0.35rem 0;">
+                <input type="checkbox" name="admin_grant" value="{{ admin.id }}" {% if admin.id in grants %}checked{% endif %}>
+                {{ admin.label }}
+            </label>
+            {% endfor %}
+            <button class="btn btn-primary" type="submit">Save who may use a bot</button>
+        </div>
+    </form>
 
     <form method="POST" class="styled-form">
         {% include 'partials/csrf_field.html' %}
@@ -39,6 +59,9 @@
             <strong>{{ key.name }}</strong>
             · {{ key.key_prefix }}…
             · {% if key.active %}On{% else %}Off{% endif %}
+            {% for member in members if member.id == key.act_as_user_id %}
+            · acts as {{ member.label }}
+            {% endfor %}
         </summary>
         <p class="help-text">
             API key inbox: {{ key.email or "not set" }}
@@ -74,7 +97,22 @@
             {% endfor %}
             {% endfor %}
 
-            <h3 class="section-subtitle">Who it may post as</h3>
+            <h3 class="section-subtitle">This bot acts as</h3>
+            <label for="act-as-{{ key.id }}">One account</label>
+            <select id="act-as-{{ key.id }}" name="act_as" class="form-input" required>
+                <option value="">Choose one account</option>
+                {% for member in members %}
+                <option value="{{ member.id }}" {% if key.act_as_user_id == member.id %}selected{% endif %}>
+                    {{ member.label }}{% if member.role == 'Admin' %} — admin{% if member.id not in grants %} (not allowed yet){% endif %}{% elif member.role == 'Owner' %} — owner{% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            <p class="help-text">You choose the one account. The bot cannot act as someone else. An admin bot acts only as that admin, and only after you allow them above. If no account is chosen, sermon and office calls stay closed.</p>
+            {% if key.user_voice_ids|length > 1 %}
+            <p class="help-text">This bot still has more than one account saved. Choose one and save.</p>
+            {% endif %}
+
+            <h3 class="section-subtitle">Church wall</h3>
             <label style="display:block; margin:0.35rem 0;">
                 <input type="checkbox" name="voice_church" value="1" {% if key.church_user_id %}checked{% endif %}>
                 The church wall
@@ -86,15 +124,7 @@
                 <option value="{{ member.id }}" {% if key.church_user_id == member.id %}selected{% endif %}>{{ member.label }}</option>
                 {% endfor %}
             </select>
-            <p class="help-text">Church posts show on the church wall. The author is the member stored on the post.</p>
-
-            <label for="voice-users-{{ key.id }}">Also post as these people</label>
-            <select id="voice-users-{{ key.id }}" name="voice_user" class="form-input" multiple size="6">
-                {% for member in members %}
-                <option value="{{ member.id }}" {% if member.id in key.user_voice_ids %}selected{% endif %}>{{ member.label }}</option>
-                {% endfor %}
-            </select>
-            <p class="help-text">Hold Ctrl or Command to pick more than one. The bot sends as=user:ID for a person, or as=church.</p>
+            <p class="help-text">Only when this bot acts as an owner. Church posts show on the church wall. An admin bot cannot post as the church.</p>
 
             <button class="btn btn-primary" type="submit">Save this bot</button>
         </form>

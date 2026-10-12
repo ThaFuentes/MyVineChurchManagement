@@ -26,19 +26,25 @@ from app.utils.bot_sermon_common import (
     _tags_json,
     _too_big,
     _update_fields,
+    ILLUSTRATION_FIELDS,
     as_html,
     assignments_with_speaker,
     ensure_soft_columns,
+    illustration_visible_sql,
+    may_see_illustration_notes,
+    user_role,
     verse_span,
 )
 
-def _illustration_item(row: dict, preview: bool) -> dict:
+def _illustration_item(row: dict, preview: bool, actor_id: int | None = None, *, staff: bool | None = None) -> dict:
     item = _plain(row, (
         "id", "title", "source", "notes", "user_id", "created_at", "content",
     ))
     item["tags"] = _tags(row.get("tags"))
     item["visibility"] = "private" if row.get("user_id") else "pastoral_group"
     item["creator_name"] = _blank_name(row.get("creator_name"))
+    if not may_see_illustration_notes(actor_id, row.get("user_id"), staff=staff):
+        item["notes"] = None
     if preview:
         content = item.get("content") or ""
         item["content"] = content[:400]
@@ -47,12 +53,14 @@ def _illustration_item(row: dict, preview: bool) -> dict:
     return item
 
 
-def list_illustrations(search: str, limit, illus_id=None) -> dict:
+def list_illustrations(search: str, limit, illus_id=None, actor_id: int | None = None) -> dict:
     problem = ensure_soft_columns()
     if problem:
         return _fail(problem, 500, "illustration.list")
     try:
         cur = _db().cursor()
+        staff = user_role(int(actor_id)) in ("Owner", "Admin") if actor_id else False
+        visible_sql, visible_params = illustration_visible_sql(int(actor_id)) if actor_id else ("", [])
         if illus_id not in (None, ""):
             try:
                 wanted = int(illus_id)
@@ -65,21 +73,21 @@ def list_illustrations(search: str, limit, illus_id=None) -> dict:
                 FROM illustration_library il
                 LEFT JOIN users u ON u.id = il.user_id
                 WHERE il.id=%s AND il.removed_at IS NULL
-                """,
-                (wanted,),
+                """ + visible_sql,
+                (wanted, *visible_params),
             )
             row = cur.fetchone()
             if not row:
                 return _fail("That illustration is not in the library.", 404)
-            return _ok(_illustration_item(row, False))
+            return _ok(_illustration_item(row, False, actor_id, staff=staff))
         sql = """
             SELECT il.id, il.title, il.content, il.source, il.tags, il.notes,
                    il.user_id, il.created_at, u.username AS creator_name
             FROM illustration_library il
             LEFT JOIN users u ON u.id = il.user_id
             WHERE il.removed_at IS NULL
-        """
-        params = []
+        """ + visible_sql
+        params = list(visible_params)
         if (search or "").strip():
             sql += " AND (il.title LIKE %s OR il.content LIKE %s OR il.source LIKE %s OR il.tags LIKE %s)"
             like = _like(search)
@@ -87,7 +95,7 @@ def list_illustrations(search: str, limit, illus_id=None) -> dict:
         sql += " ORDER BY il.created_at DESC, il.id DESC LIMIT %s"
         params.append(_limit(limit))
         cur.execute(sql, params)
-        rows = [_illustration_item(row, True) for row in (cur.fetchall() or [])]
+        rows = [_illustration_item(row, True, actor_id, staff=staff) for row in (cur.fetchall() or [])]
         return _ok({"illustrations": rows, "count": len(rows)})
     except Exception as exc:
         print(f"bot illustrations: {exc}")
@@ -144,8 +152,8 @@ def update_illustration_item(actor_id: int | None, illus_id: int, body: dict) ->
             SELECT id, title, content, source, tags, notes, user_id
             FROM illustration_library
             WHERE id=%s AND removed_at IS NULL
-            """,
-            (int(illus_id),),
+            """ + (" AND (user_id=%s OR user_id IS NULL)" if actor_id else ""),
+            (int(illus_id), int(actor_id)) if actor_id else (int(illus_id),),
         )
         row = cur.fetchone()
         if not row:
@@ -167,6 +175,8 @@ def update_illustration_item(actor_id: int | None, illus_id: int, body: dict) ->
         if "tags" in body:
             changes["tags"] = _tags_json(body.get("tags"))
         if "notes" in body:
+            if not may_see_illustration_notes(actor_id, row.get("user_id")):
+                return _fail("Those private notes belong to someone else.", 403)
             changes["notes"] = _clip(body.get("notes"), TEXT_CAP)
         if "visibility" in body:
             visibility = str(body.get("visibility") or "").strip().lower()
@@ -199,6 +209,120 @@ def update_illustration_item(actor_id: int | None, illus_id: int, body: dict) ->
     except Exception as exc:
         print(f"bot illustration update: {exc}")
         return _fail("That illustration could not be saved.", 500, "illustration.update")
+
+
+def hide_illustration(actor_id: int, illus_id: int) -> dict:
+    """Soft-hide an illustration this person owns, or a shared one they can open."""
+    problem = ensure_soft_columns()
+    if problem:
+        return _fail(problem, 500, "illustration.hide")
+    if not actor_id:
+        return _fail("This key has no person assigned, so it cannot hide an illustration.", 400)
+    try:
+        cur = _db().cursor()
+        cur.execute(
+            """
+            SELECT id, title, user_id
+            FROM illustration_library
+            WHERE id=%s AND removed_at IS NULL AND (user_id=%s OR user_id IS NULL)
+            """,
+            (int(illus_id), int(actor_id)),
+        )
+        row = cur.fetchone()
+        if not row:
+            return _fail("That illustration is not in the library.", 404)
+        cur.execute(
+            "UPDATE illustration_library SET removed_at=NOW() WHERE id=%s AND removed_at IS NULL",
+            (int(illus_id),),
+        )
+        title = str(row.get("title") or "Illustration")[:180]
+        return _ok(
+            {"illustration_id": int(illus_id), "hidden": True, "title": title},
+            {
+                "action": "illustration.hide",
+                "target_type": "illustration",
+                "target_id": int(illus_id),
+                "detail": title,
+                "snapshot": {"illustration_id": int(illus_id)},
+            },
+        )
+    except Exception as exc:
+        print(f"bot illustration hide: {exc}")
+        return _fail("That illustration could not be hidden.", 500, "illustration.hide")
+
+
+def _load_illustration_for_actor(actor_id: int, illus_id: int) -> dict | None:
+    cur = _db().cursor()
+    visible_sql, visible_params = illustration_visible_sql(int(actor_id))
+    cur.execute(
+        """
+        SELECT il.id, il.title, il.content, il.source, il.tags, il.notes, il.user_id
+        FROM illustration_library il
+        WHERE il.id=%s AND il.removed_at IS NULL
+        """ + visible_sql,
+        (int(illus_id), *visible_params),
+    )
+    return cur.fetchone()
+
+
+def download_illustration(actor_id: int, illus_id: int, fmt: str, as_file: bool = False) -> dict:
+    """Markdown in the JSON envelope, or file bytes for docx and file=1."""
+    problem = ensure_soft_columns()
+    if problem:
+        return _fail(problem, 500, "illustration.download")
+    if not actor_id:
+        return _fail("This key has no person assigned, so it cannot download an illustration.", 400)
+    kind = (fmt or "md").strip().lower()
+    if kind in ("doc", "word"):
+        kind = "docx"
+    if kind not in ("md", "docx"):
+        return _fail("format must be md or docx.", 400)
+    try:
+        row = _load_illustration_for_actor(actor_id, illus_id)
+        if not row:
+            return _fail("That illustration is not in the library.", 404)
+        staff = user_role(int(actor_id)) in ("Owner", "Admin")
+        item = _illustration_item(row, False, actor_id, staff=staff)
+        item["source_url"] = item.get("source")
+        from app.models.pastoral.content_export import (
+            content_disposition_attachment,
+            docx_bytes,
+            format_illustration_markdown,
+            illustration_to_docx,
+            safe_filename,
+        )
+        base = safe_filename(item.get("title") or f"illustration_{int(illus_id)}")
+        title = str(item.get("title") or "Illustration")[:180]
+        detail = f"{kind}: {title}"[:180]
+        if kind == "md" and not as_file:
+            result = _ok({
+                "illustration_id": int(illus_id),
+                "format": "md",
+                "filename": f"{base}.md",
+                "markdown": format_illustration_markdown(item, kind="illustration"),
+            })
+            result["download_detail"] = detail
+            return result
+        if kind == "docx":
+            data = docx_bytes(illustration_to_docx(item, kind="illustration")).getvalue()
+            filename = f"{base}.docx"
+            mimetype = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        else:
+            data = format_illustration_markdown(item, kind="illustration").encode("utf-8")
+            filename = f"{base}.md"
+            mimetype = "text/markdown; charset=utf-8"
+        return {
+            "ok": True,
+            "download_detail": detail,
+            "download": {
+                "bytes": data,
+                "mimetype": mimetype,
+                "disposition": content_disposition_attachment(filename),
+            },
+        }
+    except Exception as exc:
+        print(f"bot illustration download: {exc}")
+        return _fail("That illustration could not be downloaded.", 500, "illustration.download")
 
 
 def _vault_visible_sql(actor_id):

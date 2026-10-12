@@ -5,10 +5,14 @@ The API key is emailed and does not expire. The 2FA key is emailed to the
 other inbox and expires. Work calls use the session from that exchange.
 """
 
-from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, Response, abort, flash, jsonify, redirect, render_template, request, session, url_for
 
 from app.models.users import get_user_by_id
+from app.utils import bot_areas as areas
+from app.utils import bot_comments as comments
+from app.utils import bot_desks as desks
 from app.utils import bot_login as login
+from app.utils import bot_office as office
 from app.utils import bot_policy as policy
 from app.utils import bot_sermons as sermons
 from app.utils import bot_store as store
@@ -59,6 +63,9 @@ def _require_key():
     if row:
         if not row.get("active"):
             return None, _json(False, error="The owner turned this key off.", status=403)
+        blocked = _acting_block(row)
+        if blocked:
+            return None, blocked
         return row, None
     permanent = store.find_key(raw)
     if permanent:
@@ -82,6 +89,18 @@ def _require_key():
             status=401,
         )
     return None, _json(False, error="That session is not open. Sign in again.", status=401)
+
+
+def _acting_block(row: dict):
+    """An admin uses a bot only after the owner allows that admin."""
+    people = policy.assigned_people(row.get("voices") or [])
+    if len(people) != 1:
+        return None
+    facts = store.account_facts(people[0])
+    if facts.get("role") == "Admin" and not facts.get("admin_granted"):
+        return _json(False, error="The owner has not allowed this admin to use a bot.", status=403)
+    row["acting"] = facts
+    return None
 
 
 def _need(row: dict, switch_id: str):
@@ -143,6 +162,10 @@ def _apply_reverse(entry: dict, actor: str) -> tuple[bool, str]:
         if not post_id:
             return False, "That entry has no post to hide or restore."
         ok, message = store.set_post_removed(int(post_id), plan == "hide")
+    elif action.startswith("desk."):
+        ok, message = desks.apply_undo(plan, entry)
+    elif (action.split(".", 1)[0] if action else "") in {"group", "worship", "bill", "inventory", "attendance"}:
+        ok, message = office.apply_undo(plan, entry)
     else:
         ok, message = sermons.apply_undo(plan, entry)
     if not ok:
@@ -151,14 +174,76 @@ def _apply_reverse(entry: dict, actor: str) -> tuple[bool, str]:
     return True, message
 
 
+def _token():
+    token = request.args.get("as")
+    if request.method != "GET":
+        body = _payload()
+        if isinstance(body, dict) and body.get("as") not in (None, ""):
+            token = body.get("as")
+    return token
+
+
+def _facts(row: dict) -> dict:
+    cached = row.get("acting")
+    if isinstance(cached, dict) and cached.get("user_id"):
+        return cached
+    people = policy.assigned_people(row.get("voices") or [])
+    if len(people) != 1:
+        return {"user_id": None, "role": None, "admin_granted": False}
+    return store.account_facts(people[0])
+
+
+def _sermon_person(row: dict):
+    """The one account the owner chose. The caller cannot name a different one."""
+    facts = _facts(row)
+    person, err = policy.resolve_sermon_user(
+        _token(),
+        row.get("voices") or [],
+        row.get("created_by"),
+        role=facts.get("role"),
+        admin_granted=bool(facts.get("admin_granted")),
+    )
+    if err:
+        return None, _json(False, error=err, status=400)
+    return person, None
+
+
+def _office_desk():
+    row, err = _require_key()
+    if err:
+        return None, None, err
+    denied = _need(row, "office")
+    if denied:
+        return None, None, denied
+    person, missing = _sermon_person(row)
+    if missing:
+        return None, None, missing
+    facts = _facts(row)
+    role_err = policy.office_blocked(facts.get("role"), bool(facts.get("admin_granted")))
+    if role_err:
+        return None, None, _json(False, error=role_err, status=403)
+    return row, person, None
+
+
 def _desk():
     row, err = _require_key()
     if err:
-        return None, err
+        return None, None, err
     denied = _need(row, "sermon_builder")
     if denied:
-        return None, denied
-    return row, None
+        return None, None, denied
+    person, missing = _sermon_person(row)
+    if missing:
+        return None, None, missing
+    return row, person, None
+
+
+def _finish_person(row: dict, result: dict, person: dict):
+    if result.get("ok") and person:
+        data = result.setdefault("data", {})
+        data["as"] = person["as"]
+        data["user_id"] = person["user_id"]
+    return _finish(row, result)
 
 
 def _actor_id(row: dict) -> int | None:
@@ -192,7 +277,8 @@ def _finish(row: dict, result: dict):
             snapshot=log.get("snapshot"),
         )
         data["log_id"] = log_id
-        data["undo"] = "POST /api/bot/reverse with this log_id."
+        if policy.undo_plan(log.get("action") or "", False):
+            data["undo"] = "POST /api/bot/reverse with this log_id."
     return _json(True, data)
 
 
@@ -227,8 +313,21 @@ def page():
                 key_id = 0
             ok, message = login.reset_bot(key_id)
             flash(message, "success" if ok else "error")
+        elif action == "grants":
+            member_rows = {int(row["id"]): row for row in store.list_members()}
+            chosen = []
+            for value in request.form.getlist("admin_grant"):
+                try:
+                    uid = int(value)
+                except (TypeError, ValueError):
+                    continue
+                member = member_rows.get(uid)
+                if member and member.get("role") == "Admin" and uid not in chosen:
+                    chosen.append(uid)
+            ok, note = store.save_admin_grants(chosen, owner.get("id"))
+            flash(note or "Admin bot access saved.", "success" if ok else "error")
         elif action == "save":
-            members = {int(row["id"]) for row in store.list_members()}
+            member_rows = {int(row["id"]): row for row in store.list_members()}
             try:
                 key_id = int(request.form.get("key_id") or 0)
             except (TypeError, ValueError):
@@ -245,28 +344,29 @@ def page():
             if not saved_inboxes:
                 flash(inbox_note or "Those inboxes could not be saved.", "error")
                 return redirect(url_for("bot_access.page"))
-            user_ids = []
-            for value in request.form.getlist("voice_user"):
-                try:
-                    uid = int(value)
-                except (TypeError, ValueError):
-                    continue
-                if uid in members and uid not in user_ids:
-                    user_ids.append(uid)
+            try:
+                picked_act = int(request.form.get("act_as") or 0)
+            except (TypeError, ValueError):
+                picked_act = 0
+            act_as = picked_act if picked_act in member_rows else None
+            act_role = (member_rows.get(act_as) or {}).get("role") if act_as else None
+            granted = act_role != "Admin" or act_as in store.admin_grant_ids()
             church_author = None
             try:
                 picked = int(request.form.get("church_author") or 0)
             except (TypeError, ValueError):
                 picked = 0
-            if picked in members:
+            if picked in member_rows:
                 church_author = picked
             ok, note = store.save_key(
                 key_id,
                 request.form.get("active") == "1",
                 controls,
                 church_author,
-                user_ids,
+                act_as,
                 request.form.get("voice_church") == "1",
+                act_role=act_role,
+                admin_granted=granted,
             )
             if not ok:
                 flash(note or "Could not save that bot.", "error")
@@ -285,10 +385,14 @@ def page():
                 flash(message, "success" if ok else "error")
         return redirect(url_for(dest))
     store.ensure_login_columns()
+    store.ensure_admin_grants()
+    members = store.list_members()
     return render_template(
         "settings/bot_access.html",
         keys=store.list_keys(),
-        members=store.list_members(),
+        members=members,
+        admins=[row for row in members if row.get("role") == "Admin"],
+        grants=store.admin_grant_ids(),
         groups=policy.switch_groups(),
         closed=policy.CLOSED,
     )
@@ -349,12 +453,25 @@ def api_whoami():
     row, err = _require_key()
     if err:
         return err
+    facts = _facts(row)
+    people = policy.assigned_people(row.get("voices") or [])
+    actor, actor_err = policy.resolve_sermon_user(
+        None,
+        row.get("voices") or [],
+        row.get("created_by"),
+        role=facts.get("role"),
+        admin_granted=bool(facts.get("admin_granted")),
+    )
     return _json(True, {
         "name": row.get("name"),
         "prefix": row.get("key_prefix"),
         "active": True,
         "switches": row.get("controls") or policy.default_controls(),
         "voices": policy.help_payload(row.get("controls"), row.get("voices"))["voices"],
+        "acts_as": actor,
+        "acts_as_error": actor_err,
+        "sermon_user": actor,
+        "sermon_people": [f"user:{people[0]}"] if len(people) == 1 else [],
         "help": "GET /api/bot/help",
     })
 
@@ -399,7 +516,13 @@ def api_posts():
         return denied
     payload = _payload()
     token = payload.get("as") or request.args.get("as") or ""
-    voice, voice_err = policy.resolve_voice(token, row.get("voices") or [])
+    facts = _facts(row)
+    voice, voice_err = policy.resolve_bot_post(
+        token,
+        row.get("voices") or [],
+        role=facts.get("role"),
+        admin_granted=bool(facts.get("admin_granted")),
+    )
     if voice_err:
         return _json(False, error=voice_err, status=403)
     if request.method == "GET":
@@ -487,7 +610,7 @@ def api_read(area: str):
 
 @bot_access_bp.route("/api/bot/sermons", methods=["GET", "POST"])
 def api_sermons():
-    row, err = _desk()
+    row, person, err = _desk()
     if err:
         return err
     if request.method == "GET":
@@ -496,95 +619,417 @@ def api_sermons():
                 sermon_id = int(request.args.get("id"))
             except (TypeError, ValueError):
                 return _json(False, error="Sermon id must be a number.", status=400)
-            return _finish(row, sermons.sermon_detail(sermon_id))
-        return _finish(row, sermons.list_builder_sermons(request.args.get("q") or "", request.args.get("limit")))
-    actor, missing = _needs_owner(row, "save a sermon")
-    if missing:
-        return missing
-    return _finish(row, sermons.create_builder_sermon(actor, _payload()))
+            return _finish_person(row, sermons.sermon_detail(sermon_id, person["user_id"]), person)
+        return _finish_person(
+            row,
+            sermons.list_builder_sermons(request.args.get("q") or "", request.args.get("limit"), person["user_id"]),
+            person,
+        )
+    return _finish_person(row, sermons.create_builder_sermon(person["user_id"], _payload()), person)
 
 
 @bot_access_bp.route("/api/bot/sermons/<int:sermon_id>", methods=["GET", "POST"])
 def api_sermon(sermon_id: int):
-    row, err = _desk()
+    row, person, err = _desk()
     if err:
         return err
     if request.method == "GET":
-        return _finish(row, sermons.sermon_detail(sermon_id))
-    return _finish(row, sermons.update_builder_sermon(sermon_id, _payload()))
+        return _finish_person(row, sermons.sermon_detail(sermon_id, person["user_id"]), person)
+    return _finish_person(row, sermons.update_builder_sermon(sermon_id, _payload(), person["user_id"]), person)
 
 
 @bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/sections", methods=["POST"])
 def api_sermon_sections(sermon_id: int):
-    row, err = _desk()
+    row, person, err = _desk()
     if err:
         return err
-    return _finish(row, sermons.save_section(sermon_id, _payload()))
+    return _finish_person(row, sermons.save_section(sermon_id, _payload(), person["user_id"]), person)
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/sections/hide", methods=["POST"])
+def api_sermon_section_hide(sermon_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, sermons.hide_section(sermon_id, _payload(), person["user_id"]), person)
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/sections/reorder", methods=["POST"])
+def api_sermon_section_reorder(sermon_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, sermons.reorder_sections(sermon_id, _payload(), person["user_id"]), person)
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/hide", methods=["POST"])
+def api_sermon_hide(sermon_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, sermons.hide_builder_sermon(sermon_id, person["user_id"]), person)
 
 
 @bot_access_bp.route("/api/bot/illustrations", methods=["GET", "POST"])
 def api_illustrations():
-    row, err = _desk()
+    row, person, err = _desk()
     if err:
         return err
     if request.method == "GET":
-        return _finish(row, sermons.list_illustrations(
-            request.args.get("q") or "", request.args.get("limit"), request.args.get("id"),
-        ))
-    actor, missing = _needs_owner(row, "save an illustration")
-    if missing:
-        return missing
-    return _finish(row, sermons.create_illustration_item(actor, _payload()))
+        return _finish_person(row, sermons.list_illustrations(
+            request.args.get("q") or "", request.args.get("limit"), request.args.get("id"), person["user_id"],
+        ), person)
+    return _finish_person(row, sermons.create_illustration_item(person["user_id"], _payload()), person)
 
 
 @bot_access_bp.route("/api/bot/illustrations/<int:illus_id>", methods=["POST"])
 def api_illustration(illus_id: int):
-    row, err = _desk()
+    row, person, err = _desk()
     if err:
         return err
-    return _finish(row, sermons.update_illustration_item(_actor_id(row), illus_id, _payload()))
+    return _finish_person(row, sermons.update_illustration_item(person["user_id"], illus_id, _payload()), person)
+
+
+def _log_download(row: dict, illus_id: int, detail: str):
+    store.write_log(
+        int(row["id"]),
+        "illustration.download",
+        ok=True,
+        detail=detail,
+        target_type="illustration",
+        target_id=int(illus_id),
+        snapshot={"illustration_id": int(illus_id)},
+    )
+
+
+@bot_access_bp.route("/api/bot/illustrations/<int:illus_id>/hide", methods=["POST"])
+def api_illustration_hide(illus_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, sermons.hide_illustration(person["user_id"], illus_id), person)
+
+
+@bot_access_bp.route("/api/bot/illustrations/<int:illus_id>/download", methods=["GET"])
+def api_illustration_download(illus_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    as_file = (request.args.get("file") or "") in ("1", "true", "yes")
+    result = sermons.download_illustration(
+        person["user_id"], illus_id, request.args.get("format") or "md", as_file,
+    )
+    if not result.get("ok"):
+        return _finish_person(row, result, person)
+    _log_download(row, illus_id, result.get("download_detail") or "illustration")
+    payload = result.get("download")
+    if payload:
+        data = payload["bytes"]
+        return Response(
+            data,
+            mimetype=payload["mimetype"],
+            headers={
+                "Content-Type": payload["mimetype"],
+                "Content-Disposition": payload["disposition"],
+                "Content-Length": str(len(data)),
+                "X-Content-Type-Options": "nosniff",
+                "Cache-Control": "no-store",
+            },
+        )
+    return _finish_person(row, result, person)
+
+
+@bot_access_bp.route("/api/bot/comments", methods=["GET"])
+def api_comments():
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "comments")
+    if denied:
+        return denied
+    return _finish(row, comments.list_comments(
+        request.args.get("area") or "",
+        request.args.get("parent") or request.args.get("parent_id"),
+        request.args.get("q") or "",
+        request.args.get("status") or "visible",
+        request.args.get("limit"),
+    ))
+
+
+@bot_access_bp.route("/api/bot/comments/<area>/<int:comment_id>", methods=["GET"])
+def api_comment(area: str, comment_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "comments")
+    if denied:
+        return denied
+    return _finish(row, comments.comment_detail(area, comment_id))
 
 
 @bot_access_bp.route("/api/bot/vault", methods=["GET", "POST"])
 def api_vault():
-    row, err = _desk()
+    row, person, err = _desk()
     if err:
         return err
     if request.method == "GET":
-        return _finish(row, sermons.list_vault(
-            _actor_id(row), request.args.get("q") or "", request.args.get("limit"), request.args.get("id"),
-        ))
-    actor, missing = _needs_owner(row, "save a research note")
-    if missing:
-        return missing
-    return _finish(row, sermons.create_vault_item(actor, _payload()))
+        return _finish_person(row, sermons.list_vault(
+            person["user_id"], request.args.get("q") or "", request.args.get("limit"), request.args.get("id"),
+        ), person)
+    return _finish_person(row, sermons.create_vault_item(person["user_id"], _payload()), person)
 
 
 @bot_access_bp.route("/api/bot/vault/<int:item_id>", methods=["POST"])
 def api_vault_item(item_id: int):
-    row, err = _desk()
+    row, person, err = _desk()
     if err:
         return err
-    return _finish(row, sermons.update_vault_item(_actor_id(row), item_id, _payload()))
+    return _finish_person(row, sermons.update_vault_item(person["user_id"], item_id, _payload()), person)
 
 
 @bot_access_bp.route("/api/bot/verses", methods=["GET"])
 def api_verses():
-    row, err = _desk()
+    row, person, err = _desk()
     if err:
         return err
     ref = request.args.get("ref") or request.args.get("reference") or ""
-    return _finish(row, sermons.lookup_reference(ref, request.args.get("translation")))
+    return _finish_person(row, sermons.lookup_reference(ref, request.args.get("translation")), person)
 
 
 @bot_access_bp.route("/api/bot/lineup", methods=["GET", "POST"])
 def api_lineup():
-    row, err = _desk()
+    row, person, err = _desk()
     if err:
         return err
     if request.method == "GET":
-        return _finish(row, sermons.lineup_for(request.args.get("days")))
-    actor, missing = _needs_owner(row, "set the lineup")
-    if missing:
-        return missing
-    return _finish(row, sermons.set_lineup(actor, _payload()))
+        return _finish_person(row, sermons.lineup_for(request.args.get("days")), person)
+    return _finish_person(row, sermons.set_lineup(person["user_id"], _payload()), person)
+
+
+@bot_access_bp.route("/api/bot/groups", methods=["GET"])
+def api_groups():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, office.list_groups(), person)
+
+
+@bot_access_bp.route("/api/bot/groups/<int:group_id>", methods=["GET"])
+def api_group(group_id: int):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, office.group_detail(group_id), person)
+
+
+@bot_access_bp.route("/api/bot/groups/<int:group_id>/members", methods=["POST"])
+def api_group_members(group_id: int):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, office.set_member(person["user_id"], group_id, _payload()), person)
+
+
+@bot_access_bp.route("/api/bot/worship/team", methods=["GET", "POST"])
+def api_worship_team():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    if request.method == "GET":
+        return _finish_person(row, office.worship_team(), person)
+    return _finish_person(row, office.set_worship_role(person["user_id"], _payload()), person)
+
+
+@bot_access_bp.route("/api/bot/worship/songs", methods=["GET", "POST"])
+def api_worship_songs():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    if request.method == "GET":
+        return _finish_person(row, office.list_songs(), person)
+    return _finish_person(row, office.save_song(person["user_id"], _payload()), person)
+
+
+@bot_access_bp.route("/api/bot/worship/defaults", methods=["GET", "POST"])
+def api_worship_defaults():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    if request.method == "GET":
+        return _finish_person(row, office.list_defaults(), person)
+    return _finish_person(row, office.save_defaults(person["user_id"], _payload()), person)
+
+
+@bot_access_bp.route("/api/bot/donations", methods=["POST"])
+def api_donations():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, office.record_donation(person["user_id"], _payload()), person)
+
+
+@bot_access_bp.route("/api/bot/bills/<int:bill_id>", methods=["POST"])
+def api_bill(bill_id: int):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, office.update_bill(person["user_id"], bill_id, _payload()), person)
+
+
+@bot_access_bp.route("/api/bot/accounting", methods=["GET"])
+def api_accounting():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, office.accounting_overview(), person)
+
+
+@bot_access_bp.route("/api/bot/accounting/expenses", methods=["POST"])
+def api_expense():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, office.record_expense(person["user_id"], _payload()), person)
+
+
+@bot_access_bp.route("/api/bot/inventory", methods=["GET"])
+def api_inventory():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, office.inventory_overview(), person)
+
+
+@bot_access_bp.route("/api/bot/inventory/adjust", methods=["POST"])
+def api_inventory_adjust():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, office.adjust_inventory(person["user_id"], _payload()), person)
+
+
+@bot_access_bp.route("/api/bot/attendance", methods=["POST"])
+def api_attendance():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, office.record_attendance(person["user_id"], _payload()), person)
+
+
+def _upload_file():
+    for name in ("file", "photo", "image", "hero_image", "media_file", "option_image", "chords_file"):
+        upload = request.files.get(name)
+        if upload and upload.filename:
+            return upload
+    return None
+
+
+@bot_access_bp.route("/api/bot/upload", methods=["POST"])
+def api_upload():
+    from app.utils import bot_uploads as uploads
+    place = (request.form.get("place") or "").strip().lower()
+    upload = _upload_file()
+    if place == "post":
+        row, err = _require_key()
+        if err:
+            return err
+        denied = _need(row, "posts")
+        if denied:
+            return denied
+        facts = _facts(row)
+        voice, voice_err = policy.resolve_bot_post(
+            request.form.get("as") or "",
+            row.get("voices") or [],
+            role=facts.get("role"),
+            admin_granted=bool(facts.get("admin_granted")),
+        )
+        if voice_err:
+            return _json(False, error=voice_err, status=403)
+        return _finish(
+            row,
+            uploads.save_upload(int(voice["user_id"]), place, upload, request.form, voice=voice),
+        )
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(
+        row,
+        uploads.save_upload(int(person["user_id"]), place, upload, request.form),
+        person,
+    )
+
+
+@bot_access_bp.route("/api/bot/courses", methods=["GET", "POST"])
+def api_courses():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    if request.method == "GET":
+        return _finish_person(row, areas.course_list(request.args), person)
+    return _finish_person(row, areas.course_save(person["user_id"], _payload()), person)
+
+
+@bot_access_bp.route("/api/bot/courses/<int:series_id>", methods=["GET"])
+def api_course(series_id: int):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, areas.course_open(series_id), person)
+
+
+@bot_access_bp.route("/api/bot/modules", methods=["GET", "POST"])
+def api_modules():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    if request.method == "GET":
+        return _finish_person(row, areas.modules_view(), person)
+    return _finish_person(row, areas.modules_save(_payload()), person)
+
+
+@bot_access_bp.route("/api/bot/moderation", methods=["GET", "POST"])
+def api_moderation():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    if request.method == "GET":
+        return _finish_person(row, areas.moderation_board(request.args), person)
+    facts = _facts(row)
+    return _finish_person(
+        row,
+        areas.moderation_act(person["user_id"], facts.get("role"), _payload()),
+        person,
+    )
+
+
+@bot_access_bp.route("/api/bot/insights", methods=["GET", "POST"])
+def api_insights():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    if request.method == "GET":
+        return _finish_person(row, areas.insights_view(), person)
+    return _finish_person(row, areas.insights_run(person["user_id"], _payload()), person)
+
+
+@bot_access_bp.route("/api/bot/desks", methods=["GET"])
+def api_desks():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, desks.catalog(), person)
+
+
+@bot_access_bp.route("/api/bot/desk/<area>", methods=["GET", "POST"])
+def api_desk(area: str):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    if request.method == "GET":
+        return _finish_person(row, desks.read_desk(area, request.args, person["user_id"]), person)
+    facts = _facts(row)
+    return _finish_person(
+        row,
+        desks.write_desk(person["user_id"], facts.get("role"), area, _payload()),
+        person,
+    )

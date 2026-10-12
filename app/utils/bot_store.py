@@ -65,6 +65,77 @@ def list_members() -> list[dict]:
         return []
 
 
+def ensure_admin_grants() -> None:
+    """Owner allow-list. Empty means no admin may use a bot."""
+    try:
+        cur = _cur()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bot_admin_grants (
+                user_id     INT UNSIGNED NOT NULL PRIMARY KEY,
+                granted_by  INT UNSIGNED NULL,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """
+        )
+    except Exception as exc:
+        print(f"bot admin grants: {exc}")
+
+
+def admin_grant_ids() -> set[int]:
+    try:
+        ensure_admin_grants()
+        cur = _cur()
+        cur.execute("SELECT user_id FROM bot_admin_grants")
+        return {int(row["user_id"]) for row in (cur.fetchall() or []) if row.get("user_id")}
+    except Exception as exc:
+        print(f"bot admin grant ids: {exc}")
+        return set()
+
+
+def save_admin_grants(user_ids: list[int], granted_by: int | None) -> tuple[bool, str]:
+    """Replace the allow-list with these admin ids. Anyone left off cannot use a bot."""
+    try:
+        ensure_admin_grants()
+        cur = _cur()
+        cur.execute("SELECT id FROM users WHERE role=%s", ("Admin",))
+        admins = {int(row["id"]) for row in (cur.fetchall() or [])}
+        chosen = []
+        for uid in user_ids:
+            if int(uid) in admins and int(uid) not in chosen:
+                chosen.append(int(uid))
+        cur.execute("DELETE FROM bot_admin_grants")
+        for uid in chosen:
+            cur.execute(
+                "INSERT INTO bot_admin_grants (user_id, granted_by) VALUES (%s, %s)",
+                (uid, int(granted_by) if granted_by else None),
+            )
+        return True, ""
+    except Exception as exc:
+        print(f"bot save admin grants: {exc}")
+        return False, "Could not save which admins may use a bot."
+
+
+def account_facts(user_id: int) -> dict:
+    """Role of the account the owner saved, and whether an admin is allowed."""
+    out = {"user_id": int(user_id), "role": None, "admin_granted": False}
+    try:
+        cur = _cur()
+        cur.execute("SELECT role FROM users WHERE id=%s", (int(user_id),))
+        row = cur.fetchone()
+        if not row:
+            return out
+        role = row.get("role") or ""
+        out["role"] = role
+        if role == "Owner":
+            out["admin_granted"] = True
+        elif role == "Admin":
+            out["admin_granted"] = int(user_id) in admin_grant_ids()
+    except Exception as exc:
+        print(f"bot account facts: {exc}")
+    return out
+
+
 def ensure_login_columns() -> None:
     """Add the two-inbox columns on a database created before this sign-in."""
     columns = (
@@ -395,9 +466,23 @@ def voices_for(key_id: int) -> list[dict]:
 
 
 def save_key(key_id: int, active: bool, controls: dict, church_user_id: int | None,
-             user_ids: list[int], church_requested: bool) -> tuple[bool, str | None]:
-    """Save switches and voices. The message is a warning when the save still worked."""
+             act_as_user_id: int | None, church_requested: bool, *,
+             act_role: str | None = None, admin_granted: bool = False) -> tuple[bool, str | None]:
+    """Save switches and the one account this bot acts as.
+
+    The message is a warning when the save still worked. An admin who is not
+    allowed is refused, and the previous voices stay.
+    """
     note = None
+    if not act_as_user_id:
+        return False, "Choose the one account this bot acts as."
+    if act_role == "Admin" and not admin_granted:
+        return False, "That admin cannot use a bot until you allow them above."
+    if act_role != "Owner":
+        if church_requested:
+            note = "This bot acts only as that account, so the church wall was left off."
+        church_requested = False
+        church_user_id = None
     try:
         cur = _cur()
         cur.execute("SELECT id FROM bot_access_keys WHERE id=%s", (int(key_id),))
@@ -422,10 +507,6 @@ def save_key(key_id: int, active: bool, controls: dict, church_user_id: int | No
                 church_requested = False
         elif not church_requested:
             church_user_id = None
-        seen = []
-        for uid in user_ids:
-            if uid and uid not in seen:
-                seen.append(int(uid))
         cur.execute("DELETE FROM bot_access_voices WHERE key_id=%s", (int(key_id),))
         if church_requested and church_user_id:
             cur.execute(
@@ -435,14 +516,13 @@ def save_key(key_id: int, active: bool, controls: dict, church_user_id: int | No
                 """,
                 (int(key_id), int(church_user_id)),
             )
-        for uid in seen:
-            cur.execute(
-                """
-                INSERT INTO bot_access_voices (key_id, voice_type, user_id, label)
-                VALUES (%s, 'user', %s, NULL)
-                """,
-                (int(key_id), int(uid)),
-            )
+        cur.execute(
+            """
+            INSERT INTO bot_access_voices (key_id, voice_type, user_id, label)
+            VALUES (%s, 'user', %s, NULL)
+            """,
+            (int(key_id), int(act_as_user_id)),
+        )
         return True, note
     except Exception as exc:
         print(f"bot save_key: {exc}")
@@ -515,6 +595,7 @@ def list_keys() -> list[dict]:
             int(v["user_id"]) for v in row["voices"]
             if v.get("voice_type") == "user" and v.get("user_id")
         ]
+        row["act_as_user_id"] = row["user_voice_ids"][0] if len(row["user_voice_ids"]) == 1 else None
     return keys
 
 

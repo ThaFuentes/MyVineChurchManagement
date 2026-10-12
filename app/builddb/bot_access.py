@@ -59,6 +59,14 @@ def create_tables(cursor):
             FOREIGN KEY (key_id) REFERENCES bot_access_keys(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bot_admin_grants (
+            user_id     INT UNSIGNED NOT NULL PRIMARY KEY,
+            granted_by  INT UNSIGNED NULL,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """)
     for column, definition in (
         ("email", "VARCHAR(160) NULL"),
         ("twofa_email", "VARCHAR(160) NULL"),

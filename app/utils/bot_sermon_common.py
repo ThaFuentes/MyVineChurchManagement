@@ -56,9 +56,21 @@ VAULT_FIELDS = (
 )
 HIDE_TABLES = {
     "sermon.create": "pastoral_sermons",
+    "sermon.hide": "pastoral_sermons",
     "illustration.create": "illustration_library",
+    "illustration.hide": "illustration_library",
     "section.add": "sermon_sections",
+    "section.hide": "sermon_sections",
     "vault.create": "pastoral_vault",
+}
+HIDE_SNAPSHOT_KEY = {
+    "sermon.create": "sermon_id",
+    "sermon.hide": "sermon_id",
+    "illustration.create": "illustration_id",
+    "illustration.hide": "illustration_id",
+    "section.add": "section_id",
+    "section.hide": "section_id",
+    "vault.create": "vault_id",
 }
 _SOFT_TABLES = (
     "pastoral_sermons",
@@ -293,6 +305,71 @@ def _person(token):
 def _blank_name(value):
     text = str(value or "").strip()
     return text or None
+
+
+def visible_sermon_filter(user_id: int, alias: str = "ps") -> tuple[str, list]:
+    """Same draft list the sermon builder shows that person.
+
+    Own drafts, collaborator drafts, and pastoral-group drafts. Private
+    drafts of other people stay out. Campus rules match the pastoral page.
+    """
+    sql = f""" AND ({alias}.created_by = %s
+               OR ({alias}.visibility = 'collaborators' AND EXISTS (
+                   SELECT 1 FROM sermon_collaborators sc
+                   WHERE sc.sermon_id = {alias}.id AND sc.user_id = %s
+               ))
+               OR {alias}.visibility = 'pastoral_group')"""
+    params: list = [int(user_id), int(user_id)]
+    try:
+        from app.models.campuses import content_campus_filter_sql
+        frag, extra = content_campus_filter_sql(
+            f"{alias}.campus_id", user_id=int(user_id), owner_column=f"{alias}.created_by",
+        )
+        sql += frag
+        params.extend(extra)
+    except Exception:
+        pass
+    return sql, params
+
+
+def user_role(user_id: int) -> str:
+    try:
+        cur = _db().cursor()
+        cur.execute("SELECT role FROM users WHERE id=%s", (int(user_id),))
+        row = cur.fetchone() or {}
+        return str(row.get("role") or "")
+    except Exception:
+        return ""
+
+
+def illustration_visible_sql(user_id: int, alias: str = "il") -> tuple[str, list]:
+    """Shared illustrations plus that person's private ones."""
+    sql = f" AND ({alias}.user_id = %s OR {alias}.user_id IS NULL)"
+    params: list = [int(user_id)]
+    try:
+        from app.models.campuses import content_campus_filter_sql
+        frag, extra = content_campus_filter_sql(
+            f"{alias}.campus_id", user_id=int(user_id), owner_column=f"{alias}.user_id",
+        )
+        sql += frag
+        params.extend(extra)
+    except Exception:
+        pass
+    return sql, params
+
+
+def may_see_illustration_notes(actor_id: int | None, owner_id, *, staff: bool | None = None) -> bool:
+    """Private notes follow the illustration page: owner of the item, or Owner/Admin."""
+    if actor_id is None:
+        return True
+    try:
+        if owner_id is not None and int(owner_id) == int(actor_id):
+            return True
+    except (TypeError, ValueError):
+        pass
+    if staff is None:
+        staff = user_role(int(actor_id)) in ("Owner", "Admin")
+    return bool(staff)
 
 
 def _sermon_exists(sermon_id: int) -> bool:

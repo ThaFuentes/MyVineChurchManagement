@@ -9,6 +9,7 @@ from __future__ import annotations
 import html
 
 from app.utils.bot_sermon_common import (
+    HIDE_SNAPSHOT_KEY,
     HIDE_TABLES,
     SECTION_FIELDS,
     SECTION_TYPES,
@@ -29,14 +30,15 @@ from app.utils.bot_sermon_common import (
     _parse_date,
     _person,
     _plain,
-    _sermon_exists,
     _sermon_row,
     _too_big,
     _update_fields,
     as_html,
     assignments_with_speaker,
     ensure_soft_columns,
+    illustration_visible_sql,
     verse_span,
+    visible_sermon_filter,
 )
 from app.utils.bot_sermon_library import (
     create_illustration_item,
@@ -46,6 +48,8 @@ from app.utils.bot_sermon_library import (
     list_vault,
     lookup_reference,
     set_lineup,
+    download_illustration,
+    hide_illustration,
     update_illustration_item,
     update_vault_item,
     _load_verses,
@@ -73,7 +77,21 @@ __all__ = [
     "update_vault_item",
 ]
 
-def list_builder_sermons(search: str, limit) -> dict:
+def _guard_sermon(sermon_id: int, actor_id: int | None, *, write: bool):
+    """Open a draft the assigned person can see. Writes stay on drafts they created."""
+    if actor_id:
+        from app.models.pastoral.sermons import get_sermon_by_id
+        if not get_sermon_by_id(int(sermon_id), int(actor_id)):
+            return None, _fail("That sermon is not in the builder.", 404)
+    row = _sermon_row(sermon_id)
+    if not row:
+        return None, _fail("That sermon is not in the builder.", 404)
+    if write and actor_id and int(row.get("created_by") or 0) != int(actor_id):
+        return None, _fail("That sermon belongs to someone else, so this person cannot change it.", 403)
+    return row, None
+
+
+def list_builder_sermons(search: str, limit, actor_id: int | None = None) -> dict:
     problem = ensure_soft_columns()
     if problem:
         return _fail(problem, 500, "sermon.list")
@@ -90,6 +108,10 @@ def list_builder_sermons(search: str, limit) -> dict:
             WHERE ps.removed_at IS NULL
         """
         params = []
+        if actor_id:
+            frag, extra = visible_sermon_filter(int(actor_id))
+            sql += frag
+            params.extend(extra)
         if (search or "").strip():
             sql += " AND (ps.title LIKE %s OR ps.primary_passage LIKE %s)"
             like = _like(search)
@@ -110,11 +132,14 @@ def list_builder_sermons(search: str, limit) -> dict:
         return _fail("The sermon drafts could not be read.", 500, "sermon.list")
 
 
-def sermon_detail(sermon_id: int) -> dict:
+def sermon_detail(sermon_id: int, actor_id: int | None = None) -> dict:
     problem = ensure_soft_columns()
     if problem:
         return _fail(problem, 500, "sermon.detail")
     try:
+        _row, denied = _guard_sermon(sermon_id, actor_id, write=False)
+        if denied:
+            return denied
         cur = _db().cursor()
         cur.execute(
             """
@@ -210,14 +235,14 @@ def create_builder_sermon(actor_id: int, body: dict) -> dict:
     )
 
 
-def update_builder_sermon(sermon_id: int, body: dict) -> dict:
+def update_builder_sermon(sermon_id: int, body: dict, actor_id: int | None = None) -> dict:
     problem = ensure_soft_columns()
     if problem:
         return _fail(problem, 500, "sermon.update")
     try:
-        row = _sermon_row(sermon_id)
-        if not row:
-            return _fail("That sermon is not in the builder.", 404)
+        row, denied = _guard_sermon(sermon_id, actor_id, write=True)
+        if denied:
+            return denied
         changes, error = _sermon_changes(body or {}, row)
         if error:
             return _fail(error, 400)
@@ -285,18 +310,19 @@ def _sermon_changes(body: dict, row: dict):
     return changes, None
 
 
-def save_section(sermon_id: int, body: dict) -> dict:
+def save_section(sermon_id: int, body: dict, actor_id: int | None = None) -> dict:
     problem = ensure_soft_columns()
     if problem:
         return _fail(problem, 500, "section.add")
     try:
-        if not _sermon_exists(sermon_id):
-            return _fail("That sermon is not in the builder.", 404)
+        _row, denied = _guard_sermon(sermon_id, actor_id, write=True)
+        if denied:
+            return denied
         body = body or {}
         if body.get("section_id") not in (None, "", 0, "0"):
             return _update_section(int(sermon_id), body)
         if body.get("illustration_id") not in (None, "", 0, "0"):
-            return _add_illustration_section(int(sermon_id), body)
+            return _add_illustration_section(int(sermon_id), body, actor_id)
         if (body.get("reference") or body.get("ref")):
             return _add_verse_section(int(sermon_id), body)
         return _add_text_section(int(sermon_id), body)
@@ -375,20 +401,23 @@ def _add_text_section(sermon_id: int, body: dict) -> dict:
     return _section_log(sermon_id, section_id, title, section_type)
 
 
-def _add_illustration_section(sermon_id: int, body: dict) -> dict:
+def _add_illustration_section(sermon_id: int, body: dict, actor_id: int | None = None) -> dict:
     try:
         illus_id = int(body.get("illustration_id"))
     except (TypeError, ValueError):
         return _fail("illustration_id must be a number.", 400)
     cur = _db().cursor()
-    cur.execute(
-        """
-        SELECT id, title, content, source
-        FROM illustration_library
-        WHERE id=%s AND removed_at IS NULL
-        """,
-        (illus_id,),
-    )
+    sql = """
+        SELECT il.id, il.title, il.content, il.source
+        FROM illustration_library il
+        WHERE il.id=%s AND il.removed_at IS NULL
+    """
+    params = [illus_id]
+    if actor_id:
+        frag, extra = illustration_visible_sql(int(actor_id))
+        sql += frag
+        params.extend(extra)
+    cur.execute(sql, params)
     row = cur.fetchone()
     if not row:
         return _fail("That illustration is not in the library.", 404)
@@ -489,6 +518,153 @@ def _update_section(sermon_id: int, body: dict) -> dict:
     )
 
 
+def hide_builder_sermon(sermon_id: int, actor_id: int | None) -> dict:
+    problem = ensure_soft_columns()
+    if problem:
+        return _fail(problem, 500, "sermon.hide")
+    try:
+        row, denied = _guard_sermon(sermon_id, actor_id, write=True)
+        if denied:
+            return denied
+        cur = _db().cursor()
+        cur.execute(
+            "UPDATE pastoral_sermons SET removed_at=NOW() WHERE id=%s AND removed_at IS NULL",
+            (int(sermon_id),),
+        )
+        title = str(row.get("title") or "Sermon")[:180]
+        return _ok(
+            {"sermon_id": int(sermon_id), "hidden": True, "title": title},
+            {
+                "action": "sermon.hide",
+                "target_type": "pastoral_sermon",
+                "target_id": int(sermon_id),
+                "detail": title,
+                "snapshot": {"sermon_id": int(sermon_id)},
+            },
+        )
+    except Exception as exc:
+        print(f"bot sermon hide: {exc}")
+        return _fail("That sermon could not be hidden.", 500, "sermon.hide")
+
+
+def hide_section(sermon_id: int, body: dict, actor_id: int | None) -> dict:
+    problem = ensure_soft_columns()
+    if problem:
+        return _fail(problem, 500, "section.hide")
+    try:
+        _row, denied = _guard_sermon(sermon_id, actor_id, write=True)
+        if denied:
+            return denied
+        try:
+            section_id = int((body or {}).get("section_id"))
+        except (TypeError, ValueError):
+            return _fail("section_id must be a number.", 400)
+        cur = _db().cursor()
+        cur.execute(
+            """
+            SELECT id, title, section_type
+            FROM sermon_sections
+            WHERE id=%s AND sermon_id=%s AND removed_at IS NULL
+            """,
+            (section_id, int(sermon_id)),
+        )
+        sec = cur.fetchone()
+        if not sec:
+            return _fail("That section is not on this sermon.", 404)
+        cur.execute(
+            "UPDATE sermon_sections SET removed_at=NOW() WHERE id=%s AND removed_at IS NULL",
+            (section_id,),
+        )
+        title = str(sec.get("title") or sec.get("section_type") or "Section")[:180]
+        return _ok(
+            {"sermon_id": int(sermon_id), "section_id": section_id, "hidden": True},
+            {
+                "action": "section.hide",
+                "target_type": "sermon_section",
+                "target_id": section_id,
+                "detail": title,
+                "snapshot": {"section_id": section_id, "sermon_id": int(sermon_id)},
+            },
+        )
+    except Exception as exc:
+        print(f"bot section hide: {exc}")
+        return _fail("That section could not be hidden.", 500, "section.hide")
+
+
+def reorder_sections(sermon_id: int, body: dict, actor_id: int | None) -> dict:
+    """Put every live section of a draft this person created into a new order."""
+    problem = ensure_soft_columns()
+    if problem:
+        return _fail(problem, 500, "section.reorder")
+    try:
+        _row, denied = _guard_sermon(sermon_id, actor_id, write=True)
+        if denied:
+            return denied
+        raw_ids = (body or {}).get("ids")
+        if raw_ids is None:
+            raw_ids = (body or {}).get("section_ids")
+        if not isinstance(raw_ids, list) or not raw_ids:
+            return _fail("Send ids as a list of every section on this sermon.", 400)
+        try:
+            wanted = [int(item) for item in raw_ids]
+        except (TypeError, ValueError):
+            return _fail("Each section id must be a number.", 400)
+        if len(wanted) != len(set(wanted)):
+            return _fail("Each section id can appear only once.", 400)
+        cur = _db().cursor()
+        cur.execute(
+            """
+            SELECT id, sort_order
+            FROM sermon_sections
+            WHERE sermon_id=%s AND removed_at IS NULL
+            ORDER BY sort_order, id
+            """,
+            (int(sermon_id),),
+        )
+        rows = cur.fetchall() or []
+        current = [int(row["id"]) for row in rows]
+        if sorted(wanted) != sorted(current):
+            return _fail("Send every section id for this sermon, in the new order.", 400)
+        before = [{"id": int(row["id"]), "sort_order": int(row.get("sort_order") or 0)} for row in rows]
+        after = [{"id": section_id, "sort_order": index} for index, section_id in enumerate(wanted, start=1)]
+        for item in after:
+            cur.execute(
+                "UPDATE sermon_sections SET sort_order=%s WHERE id=%s AND sermon_id=%s",
+                (item["sort_order"], item["id"], int(sermon_id)),
+            )
+        return _ok(
+            {"sermon_id": int(sermon_id), "ids": wanted},
+            {
+                "action": "section.reorder",
+                "target_type": "pastoral_sermon",
+                "target_id": int(sermon_id),
+                "detail": "Reordered sections",
+                "snapshot": {"sermon_id": int(sermon_id), "before": before, "after": after},
+            },
+        )
+    except Exception as exc:
+        print(f"bot section reorder: {exc}")
+        return _fail("Those sections could not be reordered.", 500, "section.reorder")
+
+
+def _apply_section_order(plan: str, snapshot: dict):
+    side = snapshot.get("before") if plan == "restore" else snapshot.get("after")
+    sermon_id = snapshot.get("sermon_id")
+    if not sermon_id or not isinstance(side, list) or not side:
+        return False, "That change has nothing to put back."
+    cur = _db().cursor()
+    for item in side:
+        if not isinstance(item, dict) or item.get("id") is None:
+            continue
+        cur.execute(
+            "UPDATE sermon_sections SET sort_order=%s WHERE id=%s AND sermon_id=%s",
+            (int(item.get("sort_order") or 0), int(item["id"]), int(sermon_id)),
+        )
+    if plan == "restore":
+        return True, "Put the previous order back."
+    return True, "Applied that order again."
+
+
 def _set_removed(table: str, row_id: int, hide: bool):
     cur = _db().cursor()
     cur.execute(f"SELECT id FROM {table} WHERE id=%s", (int(row_id),))
@@ -529,15 +705,12 @@ def apply_undo(plan: str, entry: dict):
         snapshot = {}
     try:
         if action in HIDE_TABLES:
-            row_id = entry.get("target_id") or snapshot.get({
-                "sermon.create": "sermon_id",
-                "illustration.create": "illustration_id",
-                "section.add": "section_id",
-                "vault.create": "vault_id",
-            }[action])
+            row_id = entry.get("target_id") or snapshot.get(HIDE_SNAPSHOT_KEY.get(action) or "")
             if not row_id:
                 return False, "That entry has nothing to hide or put back."
             return _set_removed(HIDE_TABLES[action], int(row_id), plan == "hide")
+        if action == "section.reorder":
+            return _apply_section_order(plan, snapshot)
         if action == "sermon.update":
             return _restore_fields(
                 "pastoral_sermons",

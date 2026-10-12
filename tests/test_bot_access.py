@@ -2,8 +2,11 @@
 
 import unittest
 
+from app.utils.bot_comments import AREAS as COMMENT_AREAS
+from app.utils.bot_comments import area_names
 from app.utils.bot_policy import (
     CLOSED,
+    READ_ABOUT,
     READS,
     SWITCHES,
     default_controls,
@@ -11,12 +14,17 @@ from app.utils.bot_policy import (
     help_payload,
     new_key_material,
     normalize_controls,
+    assigned_people,
+    office_blocked,
+    resolve_bot_post,
+    resolve_sermon_user,
     resolve_voice,
     switch_on,
     undo_label,
     undo_plan,
     validate_post,
 )
+from app.utils.bot_sermon_common import may_see_illustration_notes, visible_sermon_filter
 from app.utils.bot_sermons import as_html, assignments_with_speaker, verse_span
 
 
@@ -60,6 +68,69 @@ class BotPolicyTests(unittest.TestCase):
         self.assertEqual(one["user_id"], 8)
         self.assertIsNone(other)
         self.assertIn("cannot post as that person", err)
+
+    def test_sermon_builder_uses_the_assigned_person(self):
+        voices = [
+            {"voice_type": "church", "user_id": 2},
+            {"voice_type": "user", "user_id": 8},
+        ]
+        person, err = resolve_sermon_user(None, voices, 1)
+        self.assertIsNone(err)
+        self.assertEqual(person["user_id"], 8)
+        self.assertEqual(person["as"], "user:8")
+        self.assertEqual(assigned_people(voices), [8])
+        church, err = resolve_sermon_user("church", voices, 1)
+        self.assertIsNone(church)
+        self.assertIn("church wall", err)
+        other, err = resolve_sermon_user("user:3", voices, 1)
+        self.assertIsNone(other)
+        self.assertIn("only as the account", err)
+        named, err = resolve_sermon_user("user:8", voices, 1)
+        self.assertIsNone(err)
+        self.assertEqual(named["user_id"], 8)
+
+    def test_owner_picks_one_account_and_an_admin_stays_that_admin(self):
+        many = [
+            {"voice_type": "user", "user_id": 8},
+            {"voice_type": "user", "user_id": 9},
+        ]
+        person, err = resolve_sermon_user("user:9", many, 1)
+        self.assertIsNone(person)
+        self.assertIn("one account", err)
+        untouched, err = resolve_sermon_user(None, [{"voice_type": "church", "user_id": 2}], 419)
+        self.assertIsNone(untouched)
+        self.assertIn("has not chosen", err)
+        voices = [
+            {"voice_type": "user", "user_id": 4},
+            {"voice_type": "church", "user_id": 1},
+        ]
+        blocked, err = resolve_sermon_user(None, voices, 1, role="Admin", admin_granted=False)
+        self.assertIsNone(blocked)
+        self.assertIn("not allowed", err)
+        allowed, err = resolve_sermon_user(None, voices, 1, role="Admin", admin_granted=True)
+        self.assertEqual(allowed["user_id"], 4)
+        church, err = resolve_bot_post("church", voices, role="Admin", admin_granted=True)
+        self.assertIsNone(church)
+        self.assertIn("church", err.lower())
+        other, err = resolve_bot_post("user:1", voices, role="Admin", admin_granted=True)
+        self.assertIsNone(other)
+        self.assertIn("only as the account", err)
+        own, err = resolve_bot_post("", voices, role="Admin", admin_granted=True)
+        self.assertEqual(own["user_id"], 4)
+        self.assertEqual(own["posted_as"], "member")
+        wall, err = resolve_bot_post("church", voices, role="Owner", admin_granted=True)
+        self.assertIsNone(err)
+        self.assertEqual(wall["as"], "church")
+        self.assertIn("not allowed", office_blocked("Admin", False))
+        self.assertIsNone(office_blocked("Admin", True))
+        self.assertIsNone(office_blocked("Owner", False))
+        self.assertIn("only for an owner", office_blocked("Staff", True))
+        frag, params = visible_sermon_filter(8)
+        self.assertIn("created_by = %s", frag)
+        self.assertEqual(params[:2], [8, 8])
+        self.assertFalse(may_see_illustration_notes(8, 3, staff=False))
+        self.assertTrue(may_see_illustration_notes(8, 8, staff=False))
+        self.assertTrue(may_see_illustration_notes(1, 3, staff=True))
 
     def test_verse_needs_a_body_and_reverse_is_soft(self):
         bad, err = validate_post("verse", "Psalm 23", "", "public")
@@ -132,6 +203,13 @@ class BotPolicyTests(unittest.TestCase):
         self.assertEqual(undo_plan("sermon.update", False), "restore")
         self.assertEqual(undo_plan("sermon.update", True), "reapply")
         self.assertEqual(undo_plan("section.add", False), "hide")
+        self.assertEqual(undo_plan("illustration.hide", False), "hide")
+        self.assertEqual(undo_plan("illustration.hide", True), "show")
+        self.assertEqual(undo_plan("sermon.hide", False), "hide")
+        self.assertEqual(undo_plan("section.hide", False), "hide")
+        self.assertEqual(undo_plan("section.reorder", False), "restore")
+        self.assertEqual(undo_plan("section.reorder", True), "reapply")
+        self.assertIsNone(undo_plan("illustration.download", False))
         self.assertEqual(undo_plan("lineup.set", False), "restore")
         self.assertEqual(undo_label("lineup.set", False), "Undo")
         self.assertEqual(undo_label("lineup.set", True), "Redo")
@@ -142,6 +220,10 @@ class BotPolicyTests(unittest.TestCase):
             "GET /api/bot/sermons",
             "POST /api/bot/sermons",
             "POST /api/bot/illustrations",
+            "POST /api/bot/illustrations/<id>/hide",
+            "GET /api/bot/illustrations/<id>/download",
+            "POST /api/bot/sermons/<id>/hide",
+            "POST /api/bot/sermons/<id>/sections/reorder",
             "GET /api/bot/vault",
             "GET /api/bot/verses",
             "GET /api/bot/lineup",
@@ -150,6 +232,40 @@ class BotPolicyTests(unittest.TestCase):
             self.assertIn(path, on)
         self.assertIn("GET /api/bot/sermons [off]", off)
         self.assertIn("GET /api/bot/sermons [on]", on)
+        self.assertIn("the owner chose", on)
+        self.assertNotIn("more than one person", on)
+        self.assertIn("GET /api/bot/comments [off]", off)
+        self.assertIn("GET /api/bot/desks [off]", off)
+        self.assertIn("GET /api/bot/groups [off]", off)
+        self.assertIn("POST /api/bot/worship/team [off]", off)
+        self.assertIn("POST /api/bot/donations [off]", off)
+        self.assertIn("POST /api/bot/attendance [off]", off)
+        office_on = "\n".join(help_payload({"office": True})["lines"])
+        self.assertIn("POST /api/bot/groups/<id>/members [on]", office_on)
+        self.assertIn("POST /api/bot/accounting/expenses [on]", office_on)
+        self.assertIn("GET /api/bot/desk/<area> [on]", office_on)
+        self.assertIn("remove=true", office_on)
+        self.assertIn("worship lyrics", office_on)
+        self.assertEqual(undo_plan("desk.update", False), "restore")
+        self.assertEqual(undo_plan("desk.hide", True), "reapply")
+        self.assertIsNone(undo_plan("desk.create", False))
+        self.assertFalse(default_controls()["comments"])
+        self.assertFalse(default_controls()["office"])
+        self.assertEqual(undo_plan("group.role", False), "restore")
+        self.assertEqual(undo_plan("group.remove", True), "reapply")
+        self.assertEqual(undo_plan("worship.defaults", False), "restore")
+        self.assertEqual(undo_plan("attendance.checkin", False), "restore")
+        self.assertEqual(undo_plan("bill.update", True), "reapply")
+        self.assertIsNone(undo_plan("donation.create", False))
+        self.assertIsNone(undo_plan("expense.create", False))
+        self.assertIsNone(undo_plan("worship.song", False))
+        self.assertEqual(
+            set(area_names()),
+            {"event", "sermon", "prayer", "dream", "prophecy", "announcement", "photo", "post", "ticket"},
+        )
+        for spec in COMMENT_AREAS.values():
+            self.assertNotIn("ip", spec["text_col"])
+            self.assertNotIn("password", spec["table"])
         self.assertEqual(as_html("John 3:16"), "<p>John 3:16</p>")
         self.assertIn("&lt;script&gt;", as_html("<script>alert(1)</script>"))
         self.assertTrue(as_html("<p>Already</p>").startswith("<p>Already"))
@@ -250,7 +366,12 @@ class BotPolicyTests(unittest.TestCase):
         self.assertNotIn("issued_key", page)
         self.assertNotIn("Copy this key", page)
         self.assertIn('name="twofa_email"', page)
+        self.assertIn('name="act_as"', page)
+        self.assertIn('name="admin_grant"', page)
+        self.assertIn("only as that admin", page)
+        self.assertNotIn('name="voice_user"', page)
         self.assertIn("Bot usage", page)
+        self.assertIn('!= "Owner"', routes)
         self.assertIn("bot_name", usage)
         self.assertIn('name="next" value="usage"', usage)
         self.assertIn("bot_access.usage", nav)
@@ -265,8 +386,11 @@ class BotPolicyTests(unittest.TestCase):
             "app/utils/bot_sermon_library.py",
             "app/utils/bot_sermon_common.py",
             "app/routes/bot_access.py",
+            "app/utils/bot_office.py",
+            "app/utils/bot_desks.py",
         )
         blobs = [(root / name).read_text() for name in names]
+        routes = blobs[3]
         for blob in blobs:
             self.assertNotIn("delete_sermon", blob)
             self.assertNotIn("delete_illustration", blob)
@@ -276,9 +400,228 @@ class BotPolicyTests(unittest.TestCase):
             self.assertNotIn("DELETE FROM illustration_library", blob)
             self.assertNotIn("DELETE FROM sermon_sections", blob)
             self.assertNotIn("DELETE FROM pastoral_vault", blob)
-        routes = blobs[-1]
         self.assertIn('"/api/bot/sermons"', routes)
         self.assertIn('"/api/bot/verses"', routes)
         self.assertIn('"/api/bot/lineup"', routes)
         self.assertIn("sermons.apply_undo", routes)
         self.assertIn("DELETE FROM service_plans", blobs[1])
+        office_src = (root / "app/utils/bot_office.py").read_text()
+        worship = (root / "app/models/worship/shared.py").read_text()
+        self.assertNotIn("site_staff", worship)
+        self.assertIn("DELETE FROM user_groups", office_src)
+        self.assertNotIn("DELETE FROM worship_songs", office_src)
+        self.assertNotIn("delete_song", office_src)
+        sql_lines = "\n".join(
+            line for line in office_src.splitlines()
+            if "SELECT" in line or "INSERT" in line or "UPDATE" in line
+        )
+        self.assertNotIn("account_number", sql_lines)
+        self.assertNotIn("encrypted_", sql_lines)
+        self.assertNotIn("tax_id", sql_lines)
+        self.assertIn('"account_number"', office_src)
+        self.assertIn('"encrypted_password"', office_src)
+        self.assertIn('name="act_as"', (root / "app/templates/settings/bot_access.html").read_text())
+
+    def test_desks_cover_the_church_and_leave_secrets_closed(self):
+        from app.utils.bot_desks import CLOSED_TABLES, DESKS, desk_ids, safe_columns, secret_column
+        ids = desk_ids()
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertGreaterEqual(len(DESKS), 100)
+        needed = (
+            "users", "groups", "user_groups", "events", "potluck_signups", "event_registrations",
+            "announcements", "prayers", "dreams", "prophecies", "sermons",
+            "pastoral_sermons", "sermon_sections", "illustration_library", "pastoral_vault",
+            "service_plans", "service_plan_assignments", "pastoral_care_requests", "pastoral_care_notes",
+            "curriculum_series", "curriculum_lessons", "curriculum_blocks",
+            "worship_songs", "worship_setlists", "worship_setlist_songs", "worship_setlist_assignments",
+            "worship_weekly_templates", "worship_weekly_template_songs", "worship_member_notes",
+            "donations", "donation_recurring", "recurring_bills", "bill_payment_history",
+            "acct_accounts", "acct_journal_entries", "acct_journal_lines", "acct_expenses", "acct_budgets",
+            "categories", "items", "item_kit_components", "inventory_batches", "inventory_transactions",
+            "attendance", "tickets", "ticket_comments",
+            "vol_teams", "vol_roles", "vol_events", "vol_assignments",
+            "church_pages", "member_spaces", "community_posts", "page_photos",
+            "legal_notices", "help_articles", "custom_modules", "settings", "banned_ips",
+            "child_classrooms", "child_profiles", "child_guardians", "child_checkins",
+            "user_widgets", "bible_notes", "bible_highlights", "moderation_actions",
+            "security_area_grants", "access_templates", "worship_user_prefs",
+            "pbt_device_bans", "pbt_security_events", "pbt_reputation",
+        )
+        missing = [name for name in needed if name not in ids]
+        self.assertEqual(missing, [])
+        by_id = {row["id"]: row for row in DESKS}
+        self.assertEqual(by_id["user_groups"]["keys"], ("user_id", "group_id"))
+        self.assertTrue(by_id["user_groups"]["link"])
+        self.assertTrue(by_id["worship_setlist_songs"]["link"])
+        self.assertTrue(by_id["vol_team_members"]["link"])
+        self.assertTrue(by_id["sermon_collaborators"]["link"])
+        self.assertEqual(by_id["sermon_collaborators"]["keys"], ("sermon_id", "user_id"))
+        self.assertEqual(by_id["bible_translations"]["keys"], ("code",))
+        self.assertTrue(by_id["bible_translations"]["read_only"])
+        self.assertFalse(by_id["worship_songs"]["link"])
+        self.assertFalse(by_id["pastoral_sermons"]["link"])
+        self.assertFalse(by_id["users"]["link"])
+        self.assertFalse(by_id["donations"]["link"])
+        self.assertFalse(by_id["acct_expenses"]["link"])
+        self.assertTrue(by_id["comm_campaigns"]["read_only"])
+        self.assertTrue(by_id["banned_ips"]["keep_ips"])
+        self.assertEqual(by_id["banned_ips"]["keys"], ("ip_address",))
+        self.assertEqual(by_id["bible_notes"]["own"], "user_id")
+        self.assertTrue(by_id["campus_staff"]["link"])
+        self.assertEqual(by_id["campus_staff"]["keys"], ("campus_id", "user_id"))
+        self.assertEqual(by_id["content_posting"]["keys"], ("content_type", "content_id"))
+        self.assertEqual(by_id["church_pages"]["keys"], ("campus_id",))
+        self.assertFalse(by_id["church_pages"]["link"])
+        self.assertEqual(by_id["member_spaces"]["keys"], ("user_id",))
+        self.assertFalse(by_id["member_spaces"]["link"])
+        self.assertIn("kiosk_sessions", CLOSED_TABLES)
+        for name in ("child_classrooms", "child_profiles", "child_guardians", "child_checkins"):
+            self.assertNotIn(name, CLOSED_TABLES)
+        for name in CLOSED_TABLES:
+            self.assertNotIn(name, ids)
+        self.assertTrue(secret_column("password"))
+        self.assertTrue(secret_column("email_password"))
+        self.assertTrue(secret_column("checkin_pin"))
+        self.assertTrue(secret_column("account_number"))
+        self.assertTrue(secret_column("ai_api_key"))
+        self.assertTrue(secret_column("body_enc"))
+        self.assertTrue(secret_column("ip_address"))
+        self.assertTrue(secret_column("login_url"))
+        self.assertTrue(secret_column("payment_url"))
+        self.assertTrue(secret_column("bank_account"))
+        self.assertFalse(secret_column("lyrics_raw"))
+        self.assertFalse(secret_column("sections_json"))
+        self.assertFalse(secret_column("title"))
+        self.assertFalse(secret_column("payment_method"))
+        self.assertFalse(secret_column("last_login"))
+        self.assertFalse(secret_column("pinned_by"))
+        self.assertTrue(secret_column("pin_code"))
+        self.assertTrue(secret_column("family_pin"))
+        self.assertTrue(secret_column("pickup_code"))
+        self.assertTrue(secret_column("security_code"))
+        self.assertEqual(
+            safe_columns(["title", "password", "lyrics_raw", "ip_address", "email"]),
+            ["title", "lyrics_raw", "email"],
+        )
+        self.assertEqual(
+            safe_columns(["ip_address", "reason", "encrypted_password"], keep_ips=True),
+            ["ip_address", "reason"],
+        )
+
+    def test_every_live_table_is_a_desk_or_closed(self):
+        import re
+        from pathlib import Path
+        from app.utils.bot_desks import CLOSED_TABLES, desk_ids
+        root = Path(__file__).resolve().parents[1]
+        folders = [
+            root / "app" / "builddb",
+            root / "app" / "models",
+            root / "app" / "utils",
+            root / "app" / "routes",
+            root / "poweredbytop" / "security_build_db",
+        ]
+        names = set()
+        for folder in folders:
+            for path in folder.rglob("*.py"):
+                if "MyChurch" in path.parts:
+                    continue
+                names.update(re.findall(r"CREATE TABLE IF NOT EXISTS ([a-z0-9_]+)", path.read_text()))
+        known = set(desk_ids()) | set(CLOSED_TABLES)
+        self.assertEqual(sorted(names - known), [])
+        self.assertEqual(sorted(set(desk_ids()) & set(CLOSED_TABLES)), [])
+
+    def test_named_areas_are_on_the_office_key(self):
+        from pathlib import Path
+        from app.utils.bot_areas import course_save, covers, moderation_act, modules_save
+        from app.utils.bot_desks import _child_checkin_codes, desk_ids
+        from app.utils.bot_policy import UNDO_STEPS
+        named = covers()
+        for key in (
+            "my_page", "church_page", "notes", "find_people", "events", "prayers",
+            "sermons", "announcements", "dreams", "prophecies", "bible", "study_courses",
+            "members", "donations", "bills", "accounting", "inventory", "attendance",
+            "child_checkin", "volunteers", "communications", "pastoral", "worship",
+            "gathering", "site_moderation", "mod_reviews", "ai_insights", "settings",
+            "church_apps_menu", "modules_and_apps", "help",
+        ):
+            self.assertIn(key, named)
+        self.assertEqual(named["study_courses"]["path"], "/api/bot/courses")
+        self.assertIn("body_md", named["help"]["about"])
+        self.assertIn("PIN", named["child_checkin"]["about"])
+        self.assertIn("pickup", named["child_checkin"]["about"].lower())
+        self.assertTrue(named["still_closed"])
+        ids = set(desk_ids())
+        for area in named.values():
+            if not isinstance(area, dict):
+                continue
+            for desk in area.get("desks") or []:
+                self.assertIn(desk, ids)
+        calls = {row["path"]: row for row in help_payload({})["calls"]}
+        for path in (
+            "/api/bot/courses",
+            "/api/bot/courses/<id>",
+            "/api/bot/upload",
+            "/api/bot/modules",
+            "/api/bot/moderation",
+            "/api/bot/insights",
+        ):
+            self.assertEqual(calls[path]["switch"], "office")
+            self.assertFalse(calls[path]["allowed"])
+        text = "\n".join(help_payload({"office": True})["lines"])
+        self.assertIn("help_articles", text)
+        self.assertIn("body_md", text)
+        self.assertIn("study course", text.lower())
+        self.assertNotIn("course.create", UNDO_STEPS)
+        self.assertNotIn("modules.update", UNDO_STEPS)
+        self.assertNotIn("insights.run", UNDO_STEPS)
+        self.assertFalse(any(action.startswith("moderation.") for action in UNDO_STEPS))
+        self.assertFalse(course_save(1, {})["ok"])
+        self.assertFalse(course_save(1, {"title": "x", "status": "live"})["ok"])
+        self.assertFalse(modules_save({})["ok"])
+        self.assertFalse(modules_save({"not_a_module": True})["ok"])
+        self.assertFalse(moderation_act(1, "Owner", {"action": "nope"})["ok"])
+        self.assertFalse(moderation_act(1, "Admin", {"action": "warn"})["ok"])
+        filled = _child_checkin_codes("child_checkins", ["pickup_code", "security_code", "notes"])
+        self.assertEqual(set(filled), {"pickup_code", "security_code"})
+        self.assertEqual(len(filled["pickup_code"]), 8)
+        self.assertEqual(_child_checkin_codes("users", ["pickup_code"]), {})
+        root = Path(__file__).resolve().parents[1]
+        areas_src = (root / "app/utils/bot_areas.py").read_text()
+        desks_src = (root / "app/utils/bot_desks.py").read_text()
+        routes = (root / "app/routes/bot_access.py").read_text()
+        self.assertNotIn("DELETE FROM", areas_src)
+        self.assertNotIn("DELETE FROM pastoral_sermons", desks_src)
+        self.assertNotIn("DELETE FROM child_checkins", desks_src)
+        self.assertNotIn("DELETE FROM help_articles", desks_src)
+        self.assertIn("token_hex", desks_src)
+        self.assertNotIn("user_has_permission", areas_src)
+        self.assertNotIn("can_edit_church_page", areas_src)
+        self.assertNotIn("has_key", areas_src)
+        self.assertIn('"/api/bot/courses"', routes)
+        self.assertIn('"/api/bot/upload"', routes)
+        upload_src = (root / "app/utils/bot_uploads.py").read_text()
+        self.assertNotIn("DELETE FROM", upload_src)
+        self.assertNotIn("upload.course", UNDO_STEPS)
+        self.assertNotIn("upload.page", UNDO_STEPS)
+        self.assertIn('"/api/bot/modules"', routes)
+        self.assertIn('"/api/bot/moderation"', routes)
+        self.assertIn('"/api/bot/insights"', routes)
+        self.assertIn("GET /api/bot/helper", text)
+        self.assertIn("GET /api/bot/me", text)
+        self.assertIn("GET /api/bot/sermons/<id>", text)
+        self.assertIn("GET /api/bot/groups/<id>", text)
+        self.assertIn("banner_x", text)
+        self.assertIn("lesson_id", text)
+        self.assertIn("media_url", text)
+        for place in ("course", "page", "post", "login", "partner", "giving", "song"):
+            self.assertIn(f"place={place}" if place != "page" else "place=page", text)
+        payload = help_payload({"office": True})
+        area_ids = {row["id"] for row in payload["areas"]}
+        for key, area in named.items():
+            if key == "still_closed":
+                self.assertTrue(area)
+                continue
+            self.assertIn(key, area_ids)
+            self.assertTrue(area.get("about"), key)
+            self.assertIn(f"AREA {key} ", text)
+        self.assertEqual(set(READ_ABOUT), set(READS))
