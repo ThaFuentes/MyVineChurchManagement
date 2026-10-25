@@ -22,11 +22,27 @@ def create_tables(cursor):
             twofa_attempts INT NOT NULL DEFAULT 0,
             session_hash  CHAR(64) NULL,
             session_expires DATETIME NULL,
+            prev_key_hash CHAR(64) NULL,
+            prev_key_expires DATETIME NULL,
             created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             UNIQUE KEY uq_bot_access_hash (key_hash),
             KEY idx_bot_access_active (active),
             FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bot_sessions (
+            id            INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+            key_id        INT UNSIGNED NOT NULL,
+            session_hash  CHAR(64) NOT NULL,
+            created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at    DATETIME NOT NULL,
+            last_used_at  DATETIME NULL,
+            client_label  VARCHAR(80) NULL,
+            UNIQUE KEY uq_bot_session_hash (session_hash),
+            KEY idx_bot_session_key (key_id, id),
+            FOREIGN KEY (key_id) REFERENCES bot_access_keys(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """)
     cursor.execute("""
@@ -75,6 +91,8 @@ def create_tables(cursor):
         ("twofa_attempts", "INT NOT NULL DEFAULT 0"),
         ("session_hash", "CHAR(64) NULL"),
         ("session_expires", "DATETIME NULL"),
+        ("prev_key_hash", "CHAR(64) NULL"),
+        ("prev_key_expires", "DATETIME NULL"),
     ):
         cursor.execute(
             """

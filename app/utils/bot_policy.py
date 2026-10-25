@@ -321,6 +321,34 @@ def new_session_material() -> tuple[str, str, str]:
 
 TWOFA_TTL_SECONDS = 3600
 SESSION_TTL_SECONDS = 3600
+# Only the replaced API key expires, and only for this long. The new key does not.
+PREV_KEY_GRACE_SECONDS = 15 * 60
+MAX_OPEN_SESSIONS = 5
+RESET_LIMIT_PER_HOUR = 3
+RESET_WINDOW_SECONDS = 3600
+RESET_REQUEST_REPLY = "If that inbox belongs to a bot, a new API key is on its way."
+ADMIN_NOT_GRANTED = "The owner has not allowed this admin to use a bot."
+
+# A bearer the church already issued. An expired one is a retry, not an attack.
+_KNOWN_BOT_BEARERS = frozenset({
+    "live_session",
+    "live_key",
+    "grace_key",
+    "expired_session",
+    "expired_prev",
+    "key_off",
+})
+
+
+def should_penalize_bot_bearer(kind: str) -> bool:
+    """True when this bearer should count as a bad bot key.
+
+    A live session, a live key, a previous key still in its grace window,
+    an expired session, an expired previous key, and a key the owner turned
+    off are all credentials this church issued. Retrying one of those must
+    not push the caller's IP toward the reputation jail.
+    """
+    return (kind or "") not in _KNOWN_BOT_BEARERS
 
 
 def normalize_email(value: str) -> str:
@@ -468,7 +496,7 @@ def _one_account(voices: list[dict] | None) -> tuple[int | None, str | None]:
 
 def _admin_blocked(role, admin_granted: bool) -> str | None:
     if role == "Admin" and not admin_granted:
-        return "The owner has not allowed this admin to use a bot."
+        return ADMIN_NOT_GRANTED
     return None
 
 
@@ -543,7 +571,7 @@ def office_blocked(role, admin_granted: bool) -> str | None:
     if role == "Admin" and admin_granted:
         return None
     if role == "Admin":
-        return "The owner has not allowed this admin to use a bot."
+        return ADMIN_NOT_GRANTED
     return "Church office is only for an owner, or an admin the owner allowed to use a bot."
 
 
@@ -629,7 +657,11 @@ def call_map(controls) -> list[dict]:
         {"method": "POST", "path": "/api/bot/login/exchange", "switch": None,
          "about": "Send the permanent API key as Authorization: Bearer and the emailed 2FA key as X-Bot-2FA. Returns a session token that expires in 1 hour."},
         {"method": "POST", "path": "/api/bot/password-reset", "switch": None,
-         "about": "While the session is open, email a new API key to the API-key inbox only. The old key and this session stop working."},
+         "about": "Send a live session, or the current API key, as Authorization: Bearer. Emails a new API key to the main inbox and a 2FA key to the other inbox. The old key stops working in 15 minutes. Sessions that are already open stay open. POST /api/bot/key/reset is the same call."},
+        {"method": "POST", "path": "/api/bot/key/reset", "switch": None,
+         "about": "Same as POST /api/bot/password-reset. The API key or a live session is enough. The new API key goes to the main inbox. The 2FA key goes to the other inbox. The old key stops working in 15 minutes."},
+        {"method": "POST", "path": "/api/bot/key/reset-request", "switch": None,
+         "about": "No working API key is required. Body: {\"email\": \"the main API-key inbox\"}. If that inbox is saved on a bot, a new API key is emailed there and a 2FA key is emailed to the other inbox. The reply is the same either way."},
         {"method": "GET", "path": "/api/bot/whoami", "switch": None,
          "about": "Which switches are on, the one account this bot acts as, and the voices on the key. GET /api/bot/me is the same. Session bearer."},
         {"method": "GET", "path": "/api/bot/me", "switch": None,
@@ -809,10 +841,11 @@ def help_payload(controls, voices: list[dict] | None = None) -> dict:
         "closed": list(CLOSED),
         "undo": "POST /api/bot/reverse with {\"log_id\": N} hides a post, sermon draft, illustration, or section, or puts the previous text, group role, worship defaults, bill, stock change, attendance check-in, or desk edit back. A recorded gift or expense is not voided. A study course, an uploaded file, an apps-menu change, a moderation action, and an insight run are not reversed.",
         "sign_in": {
-            "api_key": "Does not expire. Emailed only to the API-key inbox. Never shown on the dashboard.",
-            "twofa_key": "Expires in 1 hour. Emailed only to the other inbox by POST /api/bot/login.",
-            "session": "POST /api/bot/login/exchange returns session. Send it as Authorization: Bearer on every other call. It expires in 1 hour.",
+            "api_key": "Does not expire. Emailed only to the API-key inbox. Never shown on the dashboard. After a reset, the previous key works for 15 minutes.",
+            "twofa_key": "Expires in 1 hour. Emailed only to the other inbox by POST /api/bot/login, and again when a new API key is issued. Asking for one does not close an open session.",
+            "session": "POST /api/bot/login/exchange returns a session. Several sessions can be open at once. Send one as Authorization: Bearer on work calls. Each session expires in 1 hour. A new sign-in does not close the others.",
             "twofa_header": "X-Bot-2FA",
             "expires_in": TWOFA_TTL_SECONDS,
+            "reset": "If the API key does not work, POST /api/bot/key/reset-request with the main inbox. A new API key is emailed there. A 2FA key is emailed to the other inbox. The old key stops working in 15 minutes.",
         },
     }

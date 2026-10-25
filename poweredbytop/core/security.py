@@ -400,25 +400,50 @@ def validate_csrf(token: str) -> bool:
     return ok
 
 # ====================== CHURCH BOT API ======================
-def _bot_bearer_valid() -> bool:
-    """True only when the request carries an active bot session or API key."""
+def _bot_raw_bearer() -> str:
     try:
         header = request.headers.get("Authorization") or ""
         raw = header[7:].strip() if header.lower().startswith("bearer ") else ""
         raw = raw or (request.headers.get("X-Bot-Key") or "").strip()
         if not raw or len(raw) > 200:
-            return False
+            return ""
+        return raw
+    except Exception:
+        return ""
+
+
+def _bot_bearer_kind() -> str:
+    """live_session, live_key, grace_key, expired_session, expired_prev, key_off, unknown, or missing."""
+    raw = _bot_raw_bearer()
+    if not raw:
+        return "missing"
+    try:
         from app.utils import bot_store
-        row = bot_store.find_session(raw) if raw.startswith("mvos_s_") else bot_store.find_key(raw)
-        return bool(row and row.get("active"))
+        return bot_store.bearer_kind(raw) or "unknown"
     except Exception as exc:
-        logger("bot key check failed (treating as unverified): " + str(exc))
-        return False
+        logger("bot key check failed (treating as unverified): " + type(exc).__name__)
+        return "unknown"
+
+
+def _bot_bearer_valid() -> bool:
+    """True only when the request carries an active bot session or API key."""
+    return _bot_bearer_kind() in ("live_session", "live_key", "grace_key")
 
 
 def _bot_request_allowed(ip) -> bool:
     """/api/bot/*: skip CSRF/UA checks (bearer API), keep limits for unverified callers."""
-    if _bot_bearer_valid():
+    path = (request.path or "").rstrip("/")
+    # A dead API key recovers here. The body is only an inbox address. Do not
+    # treat the old bearer as an attack, and do not let an earlier jail block it.
+    if request.method == "POST" and path == "/api/bot/key/reset-request":
+        if not check_rate_limit(ip):
+            g.rate_limited = True
+            log_security_event("rate_limit_exceeded", "Unverified /api/bot caller exceeded rate limit")
+            increment_attack_stat("ddos_attempts")
+            return False
+        return True
+    kind = _bot_bearer_kind()
+    if kind in ("live_session", "live_key", "grace_key"):
         g.pbt_bot_verified = True
         return True
     if not check_rate_limit(ip):
@@ -436,10 +461,13 @@ def _bot_request_allowed(ip) -> bool:
         log_security_event("low_reputation", f"/api/bot reputation score {score} below threshold {rep_floor}")
         increment_attack_stat("reputation_block", penalize=False)
         return False
-    # A bearer was sent but did not validate: count it toward the reputation jail.
+    # A stranger's bearer counts. A session or key this church issued does not,
+    # even after it expires, so a retry cannot jail the caller's own IP.
     try:
-        if (request.headers.get("Authorization") or request.headers.get("X-Bot-Key")):
-            record_bad_behavior(ip, "bad_bot_key")
+        if request.headers.get("Authorization") or request.headers.get("X-Bot-Key"):
+            from app.utils.bot_policy import should_penalize_bot_bearer
+            if should_penalize_bot_bearer(kind):
+                record_bad_behavior(ip, "bad_bot_key")
     except Exception:
         pass
     # Let the route answer 401 with its own help text. No vetting for this session.

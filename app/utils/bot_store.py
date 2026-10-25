@@ -36,7 +36,7 @@ def _clean(row: dict | None) -> dict:
 
 def _key_view(row: dict) -> dict:
     out = _clean(row)
-    for secret in ("key_hash", "twofa_hash", "session_hash"):
+    for secret in ("key_hash", "twofa_hash", "session_hash", "prev_key_hash"):
         out.pop(secret, None)
     out["active"] = bool(row.get("active"))
     out["controls"] = policy.normalize_controls(row.get("controls_json"))
@@ -146,6 +146,8 @@ def ensure_login_columns() -> None:
         ("twofa_attempts", "INT NOT NULL DEFAULT 0"),
         ("session_hash", "CHAR(64) NULL"),
         ("session_expires", "DATETIME NULL"),
+        ("prev_key_hash", "CHAR(64) NULL"),
+        ("prev_key_expires", "DATETIME NULL"),
     )
     try:
         cur = _cur()
@@ -160,8 +162,73 @@ def ensure_login_columns() -> None:
             if cur.fetchone():
                 continue
             cur.execute(f"ALTER TABLE bot_access_keys ADD COLUMN {column} {definition}")
+        ensure_sessions()
     except Exception as exc:
-        print(f"bot login columns: {exc}")
+        print(f"bot login columns: {type(exc).__name__}")
+
+
+def ensure_sessions() -> None:
+    """Many sessions per bot. A still-live single slot is copied across once."""
+    try:
+        cur = _cur()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bot_sessions (
+                id            INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                key_id        INT UNSIGNED NOT NULL,
+                session_hash  CHAR(64) NOT NULL,
+                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at    DATETIME NOT NULL,
+                last_used_at  DATETIME NULL,
+                client_label  VARCHAR(80) NULL,
+                UNIQUE KEY uq_bot_session_hash (session_hash),
+                KEY idx_bot_session_key (key_id, id),
+                FOREIGN KEY (key_id) REFERENCES bot_access_keys(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """
+        )
+        cur.execute(
+            """
+            SELECT id, session_hash, session_expires
+            FROM bot_access_keys
+            WHERE session_hash IS NOT NULL AND session_expires > NOW()
+            """
+        )
+        legacy = list(cur.fetchall() or [])
+        cur.execute("SELECT session_hash FROM bot_sessions")
+        have = {row.get("session_hash") for row in (cur.fetchall() or []) if row.get("session_hash")}
+        for row in legacy:
+            digest = row.get("session_hash")
+            if not digest or digest in have:
+                continue
+            cur.execute(
+                """
+                INSERT INTO bot_sessions
+                    (key_id, session_hash, expires_at, last_used_at, client_label)
+                VALUES (%s, %s, %s, NOW(), 'legacy')
+                """,
+                (int(row["id"]), digest, row.get("session_expires")),
+            )
+            have.add(digest)
+        cur.execute(
+            """
+            SELECT id, session_hash FROM bot_access_keys
+            WHERE session_hash IS NOT NULL
+            """
+        )
+        for row in cur.fetchall() or []:
+            if row.get("session_hash") not in have:
+                continue
+            cur.execute(
+                """
+                UPDATE bot_access_keys
+                SET session_hash=NULL, session_expires=NULL
+                WHERE id=%s
+                """,
+                (int(row["id"]),),
+            )
+    except Exception as exc:
+        print(f"bot sessions: {type(exc).__name__}")
 
 
 def set_inboxes(key_id: int, key_email: str, twofa_email: str) -> tuple[bool, str]:
@@ -209,62 +276,84 @@ def insert_bot(name: str, key_email: str, twofa_email: str, created_by: int | No
 
 
 def replace_api_key(key_id: int, digest: str, prefix: str) -> tuple[bool, str]:
-    """New permanent key. Clears the open session and any unused 2FA key."""
+    """Point the bot at a new key. The previous key keeps working for 15 minutes.
+
+    Open sessions and a pending 2FA key stay valid. A second rotation drops
+    the older previous key and keeps only the newest one in that window.
+    """
     try:
         ensure_login_columns()
         cur = _cur()
         cur.execute(
             """
             UPDATE bot_access_keys
-            SET key_hash=%s, key_prefix=%s,
-                twofa_hash=NULL, twofa_expires=NULL, twofa_attempts=0,
-                session_hash=NULL, session_expires=NULL
+            SET prev_key_hash=key_hash,
+                prev_key_expires=DATE_ADD(NOW(), INTERVAL %s SECOND),
+                key_hash=%s, key_prefix=%s
             WHERE id=%s
             """,
-            (digest, prefix, int(key_id)),
+            (int(policy.PREV_KEY_GRACE_SECONDS), digest, prefix, int(key_id)),
         )
         if not cur.rowcount:
             return False, "That bot was not found."
         return True, ""
     except Exception as exc:
-        print(f"bot replace_api_key: {exc}")
+        print(f"bot replace_api_key: {type(exc).__name__}")
         return False, "That API key could not be saved."
 
 
 def store_twofa(key_id: int, digest: str) -> bool:
+    """Store a 2FA key. This does not close any open session."""
     try:
         ensure_login_columns()
         cur = _cur()
         cur.execute(
             """
             UPDATE bot_access_keys
-            SET twofa_hash=%s, twofa_expires=DATE_ADD(NOW(), INTERVAL %s SECOND),
-                twofa_attempts=0, session_hash=NULL, session_expires=NULL
+            SET twofa_hash=%s,
+                twofa_expires=DATE_ADD(NOW(), INTERVAL %s SECOND),
+                twofa_attempts=0
             WHERE id=%s
             """,
             (digest, int(policy.TWOFA_TTL_SECONDS), int(key_id)),
         )
         return True
     except Exception as exc:
-        print(f"bot store_twofa: {exc}")
+        print(f"bot store_twofa: {type(exc).__name__}")
         return False
 
 
-def open_session(key_id: int, digest: str) -> bool:
+def open_session(key_id: int, digest: str, client_label: str = "") -> bool:
+    """Open one more session. Other sessions for this bot stay open."""
     try:
+        ensure_login_columns()
         cur = _cur()
+        label = (client_label or "").strip()[:80] or None
+        cur.execute(
+            """
+            INSERT INTO bot_sessions (key_id, session_hash, expires_at, last_used_at, client_label)
+            VALUES (%s, %s, DATE_ADD(NOW(), INTERVAL %s SECOND), NOW(), %s)
+            """,
+            (int(key_id), digest, int(policy.SESSION_TTL_SECONDS), label),
+        )
+        cur.execute(
+            "SELECT id FROM bot_sessions WHERE key_id=%s ORDER BY id DESC",
+            (int(key_id),),
+        )
+        ids = [int(row["id"]) for row in (cur.fetchall() or []) if row.get("id")]
+        for old in ids[int(policy.MAX_OPEN_SESSIONS):]:
+            cur.execute("DELETE FROM bot_sessions WHERE id=%s", (old,))
         cur.execute(
             """
             UPDATE bot_access_keys
-            SET session_hash=%s, session_expires=DATE_ADD(NOW(), INTERVAL %s SECOND),
-                twofa_hash=NULL, twofa_expires=NULL, twofa_attempts=0
+            SET twofa_hash=NULL, twofa_expires=NULL, twofa_attempts=0
             WHERE id=%s
             """,
-            (digest, int(policy.SESSION_TTL_SECONDS), int(key_id)),
+            (int(key_id),),
         )
         return True
     except Exception as exc:
-        print(f"bot open_session: {exc}")
+        print(f"bot open_session: {type(exc).__name__}")
         return False
 
 
@@ -301,6 +390,90 @@ def clear_twofa(key_id: int) -> None:
         print(f"bot clear_twofa: {exc}")
 
 
+def _flag(value) -> bool:
+    if value in (None, False, 0, "0"):
+        return False
+    return bool(value)
+
+
+def _session_kind(digest: str) -> str:
+    cur = _cur()
+    cur.execute(
+        """
+        SELECT (s.expires_at > NOW()) AS live, k.active
+        FROM bot_sessions s
+        JOIN bot_access_keys k ON k.id = s.key_id
+        WHERE s.session_hash=%s
+        LIMIT 1
+        """,
+        (digest,),
+    )
+    row = cur.fetchone()
+    if not row:
+        cur.execute(
+            """
+            SELECT (session_expires > NOW()) AS live, active
+            FROM bot_access_keys
+            WHERE session_hash=%s
+            LIMIT 1
+            """,
+            (digest,),
+        )
+        row = cur.fetchone()
+    if not row:
+        return "unknown"
+    if not _flag(row.get("live")):
+        return "expired_session"
+    if not _flag(row.get("active")):
+        return "key_off"
+    return "live_session"
+
+
+def _api_key_kind(digest: str) -> str:
+    cur = _cur()
+    cur.execute(
+        """
+        SELECT active,
+               (key_hash=%s) AS current_match,
+               (prev_key_hash=%s) AS prev_match,
+               (prev_key_expires > NOW()) AS prev_live
+        FROM bot_access_keys
+        WHERE key_hash=%s OR prev_key_hash=%s
+        ORDER BY (key_hash=%s) DESC
+        LIMIT 1
+        """,
+        (digest, digest, digest, digest, digest),
+    )
+    row = cur.fetchone()
+    if not row:
+        return "unknown"
+    if _flag(row.get("current_match")):
+        return "live_key" if _flag(row.get("active")) else "key_off"
+    if _flag(row.get("prev_match")) and _flag(row.get("prev_live")):
+        return "grace_key" if _flag(row.get("active")) else "key_off"
+    if _flag(row.get("prev_match")):
+        return "expired_prev"
+    return "unknown"
+
+
+def bearer_kind(raw: str) -> str:
+    """What this bearer is, including expired credentials this church issued."""
+    raw = (raw or "").strip()
+    if not raw or len(raw) > 200:
+        return "unknown"
+    digest = policy.hash_key(raw)
+    if not digest:
+        return "unknown"
+    try:
+        ensure_login_columns()
+        if raw.startswith("mvos_s_"):
+            return _session_kind(digest)
+        return _api_key_kind(digest)
+    except Exception as exc:
+        print(f"bot bearer_kind: {type(exc).__name__}")
+        return "unknown"
+
+
 def find_session(raw: str) -> dict | None:
     digest = policy.hash_key(raw or "")
     if not raw or not digest or not str(raw).startswith("mvos_s_"):
@@ -310,20 +483,45 @@ def find_session(raw: str) -> dict | None:
         cur = _cur()
         cur.execute(
             """
-            SELECT * FROM bot_access_keys
-            WHERE session_hash=%s AND session_expires > NOW()
+            SELECT k.id, k.name, k.key_hash, k.key_prefix, k.active, k.controls_json,
+                   k.created_by, k.email, k.twofa_email, k.created_at, k.updated_at,
+                   s.id AS session_row_id
+            FROM bot_sessions s
+            JOIN bot_access_keys k ON k.id = s.key_id
+            WHERE s.session_hash=%s AND s.expires_at > NOW()
             LIMIT 1
             """,
             (digest,),
         )
         row = cur.fetchone()
+        session_row_id = row.get("session_row_id") if row else None
+        if not row:
+            cur.execute(
+                """
+                SELECT id, name, key_hash, key_prefix, active, controls_json, created_by,
+                       email, twofa_email, created_at, updated_at
+                FROM bot_access_keys
+                WHERE session_hash=%s AND session_expires > NOW()
+                LIMIT 1
+                """,
+                (digest,),
+            )
+            row = cur.fetchone()
         if not row:
             return None
+        if session_row_id:
+            try:
+                cur.execute(
+                    "UPDATE bot_sessions SET last_used_at=NOW() WHERE id=%s",
+                    (int(session_row_id),),
+                )
+            except Exception as exc:
+                print(f"bot session touch: {type(exc).__name__}")
         view = _key_view(row)
         view["voices"] = voices_for(int(view["id"]))
         return view
     except Exception as exc:
-        print(f"bot find_session: {exc}")
+        print(f"bot find_session: {type(exc).__name__}")
         return None
 
 
@@ -404,12 +602,22 @@ def issue_key(name: str, created_by: int | None) -> tuple[dict | None, str | Non
 
 
 def find_key(raw: str) -> dict | None:
+    """The current API key, or the previous key while its 15 minutes are left."""
     digest = policy.hash_key(raw or "")
     if not raw or not digest:
         return None
     try:
+        ensure_login_columns()
         cur = _cur()
-        cur.execute("SELECT * FROM bot_access_keys WHERE key_hash=%s LIMIT 1", (digest,))
+        cur.execute(
+            """
+            SELECT * FROM bot_access_keys
+            WHERE key_hash=%s OR (prev_key_hash=%s AND prev_key_expires > NOW())
+            ORDER BY (key_hash=%s) DESC
+            LIMIT 1
+            """,
+            (digest, digest, digest),
+        )
         row = cur.fetchone()
         if not row:
             return None
@@ -417,8 +625,49 @@ def find_key(raw: str) -> dict | None:
         view["voices"] = voices_for(int(view["id"]))
         return view
     except Exception as exc:
-        print(f"bot find_key: {exc}")
+        print(f"bot find_key: {type(exc).__name__}")
         return None
+
+
+def recent_reset_count(key_id: int) -> int:
+    """Successful self-service resets for this bot in the last hour.
+
+    A lookup failure counts as the limit, so a broken log cannot mail forever.
+    """
+    try:
+        cur = _cur()
+        cur.execute(
+            """
+            SELECT COUNT(*) AS n
+            FROM bot_access_log
+            WHERE key_id=%s AND action=%s AND ok=1
+              AND created_at > DATE_SUB(NOW(), INTERVAL %s SECOND)
+            """,
+            (int(key_id), "key_reset", int(policy.RESET_WINDOW_SECONDS)),
+        )
+        row = cur.fetchone() or {}
+        return int(row.get("n") or 0)
+    except Exception as exc:
+        print(f"bot recent_reset_count: {type(exc).__name__}")
+        return int(policy.RESET_LIMIT_PER_HOUR)
+
+
+def key_ids_for_inbox(email: str) -> list[int]:
+    """Active bots whose API-key inbox is this address. The 2FA inbox does not match."""
+    email = policy.normalize_email(email)
+    if not email:
+        return []
+    try:
+        ensure_login_columns()
+        cur = _cur()
+        cur.execute(
+            "SELECT id FROM bot_access_keys WHERE email=%s AND active=1",
+            (email,),
+        )
+        return [int(row["id"]) for row in (cur.fetchall() or []) if row.get("id")]
+    except Exception as exc:
+        print(f"bot key_ids_for_inbox: {type(exc).__name__}")
+        return []
 
 
 def get_key(key_id: int) -> dict | None:

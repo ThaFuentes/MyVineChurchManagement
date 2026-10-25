@@ -2,7 +2,9 @@
 
 The owner names a bot, gives it two inboxes, and turns each switch on or off.
 The API key is emailed and does not expire. The 2FA key is emailed to the
-other inbox and expires. Work calls use the session from that exchange.
+other inbox and expires. A bot can hold several sessions. Work calls use
+one of those sessions. Reset accepts the API key or a live session, and
+the previous key keeps working for 15 minutes.
 """
 
 from flask import Blueprint, Response, abort, flash, jsonify, redirect, render_template, request, session, url_for
@@ -21,10 +23,16 @@ from app.utils.decorators import login_required
 bot_access_bp = Blueprint("bot_access", __name__)
 
 
-def _json(ok: bool, data=None, error: str | None = None, status: int = 200):
+def _json(ok: bool, data=None, error: str | None = None, status: int = 200, code: str | None = None):
     body = {"ok": ok, "greeting": policy.GREETING}
     if error:
         body["error"] = error
+    if code:
+        body["code"] = code
+    elif error == policy.ADMIN_NOT_GRANTED:
+        body["code"] = "admin_not_granted"
+    elif error == "The owner turned this key off.":
+        body["code"] = "key_off"
     if data is not None:
         body["data"] = data
     return jsonify(body), status
@@ -48,7 +56,7 @@ def _owner_user():
 
 
 def _require_key():
-    """Work calls take the session from exchange, not the permanent API key."""
+    """Work calls take a live session, not the permanent API key."""
     raw = _bearer()
     if not raw:
         return None, _json(
@@ -58,19 +66,24 @@ def _require_key():
                 "POST /api/bot/login with the API key, then POST /api/bot/login/exchange with X-Bot-2FA."
             ),
             status=401,
+            code="session_unknown",
         )
-    row = store.find_session(raw)
-    if row:
+    kind = store.bearer_kind(raw)
+    if kind == "live_session":
+        row = store.find_session(raw)
+        if not row:
+            return None, _json(False, error="That session is not open. Sign in again.", status=401, code="session_unknown")
         if not row.get("active"):
-            return None, _json(False, error="The owner turned this key off.", status=403)
+            return None, _json(False, error="The owner turned this key off.", status=403, code="key_off")
         blocked = _acting_block(row)
         if blocked:
             return None, blocked
         return row, None
-    permanent = store.find_key(raw)
-    if permanent:
-        if not permanent.get("active"):
-            return None, _json(False, error="The owner turned this key off.", status=403)
+    if kind == "expired_session":
+        return None, _json(False, error="That session expired. Sign in again.", status=401, code="session_expired")
+    if kind == "key_off":
+        return None, _json(False, error="The owner turned this key off.", status=403, code="key_off")
+    if kind in ("live_key", "grace_key"):
         return None, _json(
             False,
             error=(
@@ -88,7 +101,45 @@ def _require_key():
             ),
             status=401,
         )
-    return None, _json(False, error="That session is not open. Sign in again.", status=401)
+    if raw.startswith("mvos_s_"):
+        return None, _json(False, error="That session is not open. Sign in again.", status=401, code="session_unknown")
+    return None, _json(False, error="That API key is not recognized.", status=401, code="key_unknown")
+
+
+def _require_reset():
+    """A live session or the current API key, including the 15-minute previous key."""
+    raw = _bearer()
+    if not raw:
+        return None, _json(
+            False,
+            error="Send the API key or a live session as Authorization: Bearer.",
+            status=401,
+            code="key_unknown",
+        )
+    kind = store.bearer_kind(raw)
+    if kind == "live_session":
+        row = store.find_session(raw)
+    elif kind in ("live_key", "grace_key"):
+        row = store.find_key(raw)
+    elif kind == "expired_session":
+        return None, _json(
+            False,
+            error="That session expired. Sign in again, or send the API key.",
+            status=401,
+            code="session_expired",
+        )
+    elif kind == "key_off":
+        return None, _json(False, error="The owner turned this key off.", status=403, code="key_off")
+    elif raw.startswith("mvos_s_"):
+        return None, _json(False, error="That session is not open. Sign in again.", status=401, code="session_unknown")
+    else:
+        return None, _json(False, error="That API key is not recognized.", status=401, code="key_unknown")
+    if not row or not row.get("active"):
+        code = "key_off" if row and not row.get("active") else "key_unknown"
+        error = "The owner turned this key off." if code == "key_off" else "That API key is not recognized."
+        status = 403 if code == "key_off" else 401
+        return None, _json(False, error=error, status=status, code=code)
+    return row, None
 
 
 def _acting_block(row: dict):
@@ -98,7 +149,7 @@ def _acting_block(row: dict):
         return None
     facts = store.account_facts(people[0])
     if facts.get("role") == "Admin" and not facts.get("admin_granted"):
-        return _json(False, error="The owner has not allowed this admin to use a bot.", status=403)
+        return _json(False, error=policy.ADMIN_NOT_GRANTED, status=403, code="admin_not_granted")
     row["acting"] = facts
     return None
 
@@ -408,12 +459,17 @@ def usage():
     return render_template("settings/bot_usage.html", entries=store.list_usage(120))
 
 
+def _from_login(result):
+    data, error, status = result[0], result[1], result[2]
+    code = result[3] if len(result) > 3 else None
+    if error:
+        return _json(False, error=error, status=status, code=code)
+    return _json(True, data)
+
+
 @bot_access_bp.route("/api/bot/login", methods=["POST"])
 def api_login():
-    data, error, status = login.present(_bearer())
-    if error:
-        return _json(False, error=error, status=status)
-    return _json(True, data)
+    return _from_login(login.present(_bearer()))
 
 
 @bot_access_bp.route("/api/bot/login/exchange", methods=["POST"])
@@ -421,21 +477,51 @@ def api_exchange():
     twofa = (request.headers.get("X-Bot-2FA") or "").strip()
     if not twofa:
         twofa = str(_payload().get("twofa_key") or "").strip()
-    data, error, status = login.exchange(_bearer(), twofa)
-    if error:
-        return _json(False, error=error, status=status)
-    return _json(True, data)
+    label = str(_payload().get("client") or "")
+    return _from_login(login.exchange(_bearer(), twofa, label))
 
 
+@bot_access_bp.route("/api/bot/key/reset", methods=["POST"])
 @bot_access_bp.route("/api/bot/password-reset", methods=["POST"])
 def api_password_reset():
-    row, err = _require_key()
+    row, err = _require_reset()
     if err:
         return err
+    if store.recent_reset_count(int(row["id"])) >= policy.RESET_LIMIT_PER_HOUR:
+        return _json(
+            False,
+            error="This key already reset itself 3 times this hour. Try again later.",
+            status=429,
+        )
     ok, message = login.reset_bot(int(row["id"]))
     if not ok:
         return _json(False, error=message, status=502)
-    return _json(True, {"step": "reset", "sent": True, "message": message})
+    store.write_log(
+        int(row["id"]),
+        "key_reset",
+        ok=True,
+        detail="A new API key was emailed to the main inbox. A 2FA key goes to the other inbox.",
+    )
+    return _json(True, {
+        "step": "reset",
+        "sent": True,
+        "twofa_sent": "A 2FA key was emailed" in (message or ""),
+        "message": message,
+    })
+
+
+@bot_access_bp.route("/api/bot/key/reset-request", methods=["POST"])
+def api_key_reset_request():
+    """Always the same reply. A matching inbox is mailed. A miss sends nothing."""
+    try:
+        email = str(_payload().get("email") or "")
+    except Exception:
+        email = ""
+    try:
+        login.reset_by_inbox(email)
+    except Exception as exc:
+        print(f"bot reset-request: {type(exc).__name__}")
+    return _json(True, {"step": "reset-request", "message": policy.RESET_REQUEST_REPLY})
 
 
 @bot_access_bp.route("/api/bot/help", methods=["GET"])

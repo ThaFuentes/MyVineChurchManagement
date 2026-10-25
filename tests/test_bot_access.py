@@ -1,6 +1,7 @@
 """Rules for the church bot. No database."""
 
 import unittest
+import unittest.mock
 
 from app.utils.bot_comments import AREAS as COMMENT_AREAS
 from app.utils.bot_comments import area_names
@@ -625,3 +626,901 @@ class BotPolicyTests(unittest.TestCase):
             self.assertTrue(area.get("about"), key)
             self.assertIn(f"AREA {key} ", text)
         self.assertEqual(set(READ_ABOUT), set(READS))
+
+
+class BotKeyRuleTests(unittest.TestCase):
+    """The rotation rule: only the previous key expires, and an old session is not an attack."""
+
+    def test_known_bearers_are_not_attacks(self):
+        from app.utils.bot_policy import (
+            PREV_KEY_GRACE_SECONDS,
+            RESET_LIMIT_PER_HOUR,
+            should_penalize_bot_bearer,
+        )
+        self.assertEqual(PREV_KEY_GRACE_SECONDS, 15 * 60)
+        self.assertEqual(RESET_LIMIT_PER_HOUR, 3)
+        for kind in ("live_session", "live_key", "grace_key", "expired_session", "expired_prev", "key_off"):
+            self.assertFalse(should_penalize_bot_bearer(kind), kind)
+        self.assertTrue(should_penalize_bot_bearer("unknown"))
+        self.assertTrue(should_penalize_bot_bearer("missing"))
+        self.assertTrue(should_penalize_bot_bearer(""))
+
+    def test_help_says_the_old_key_is_the_only_thing_that_expires(self):
+        text = "\n".join(help_payload({})["lines"])
+        sign = help_payload({})["sign_in"]
+        self.assertIn("POST /api/bot/key/reset", text)
+        self.assertIn("POST /api/bot/key/reset-request", text)
+        self.assertIn("15 minutes", text)
+        self.assertIn("Does not expire", sign["api_key"])
+        self.assertIn("A 2FA key is emailed to the other inbox", sign["reset"])
+        self.assertIn("main inbox", sign["reset"])
+        self.assertNotIn("this session stop working", text)
+
+
+class _Clock:
+    def __init__(self):
+        from datetime import datetime
+        self.now = datetime(2026, 10, 25, 12, 0, 0)
+        self.keys = {}
+        self.sessions = []
+        self.logs = []
+        self.voices = []
+        self.users = {}
+        self.grants = set()
+        self.session_seq = 1
+        self.log_seq = 1
+        self.unhandled = []
+
+    def cursor(self):
+        return _Cursor(self)
+
+
+def _alive(moment, now):
+    return moment is not None and moment > now
+
+
+class _Cursor:
+    """Just enough of the bot SQL for these tests. No MariaDB."""
+
+    def __init__(self, db):
+        self.db = db
+        self.rowcount = 0
+        self.lastrowid = 0
+        self._rows = []
+
+    def execute(self, sql, params=None):
+        self._rows = []
+        self.rowcount = 0
+        text = " ".join(sql.split())
+        params = tuple(params or ())
+        handler = self._handler(text)
+        if handler is None:
+            self.db.unhandled.append(text)
+            return
+        handler(params)
+
+    def _handler(self, text):
+        if text.startswith("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS"):
+            return self._schema
+        if text.startswith("CREATE TABLE"):
+            return self._noop
+        if "session_expires > NOW()" in text and text.startswith("SELECT id, session_hash, session_expires"):
+            return self._legacy_live
+        if text.startswith("SELECT session_hash FROM bot_sessions"):
+            return self._session_hashes
+        if "NOW(), 'legacy'" in text:
+            return self._insert_legacy
+        if text.startswith("SELECT id, session_hash FROM bot_access_keys"):
+            return self._legacy_left
+        if "SET session_hash=NULL, session_expires=NULL" in text:
+            return self._clear_legacy
+        if "prev_key_hash=key_hash" in text:
+            return self._replace
+        if "SET twofa_hash=%s" in text:
+            return self._store_twofa
+        if "twofa_hash=NULL" in text:
+            return self._clear_twofa
+        if "DATE_ADD(NOW(), INTERVAL %s SECOND), NOW(), %s" in text:
+            return self._insert_session
+        if text.startswith("SELECT id FROM bot_sessions WHERE key_id"):
+            return self._session_ids
+        if text.startswith("DELETE FROM bot_sessions WHERE id"):
+            return self._delete_session
+        if text.startswith("UPDATE bot_sessions SET last_used_at"):
+            return self._touch
+        if "twofa_expires > NOW() AS live" in text:
+            return self._twofa
+        if "AS live, k.active" in text:
+            return self._session_state
+        if text.startswith("SELECT (session_expires > NOW()) AS live"):
+            return self._legacy_state
+        if "AS session_row_id" in text:
+            return self._live_session
+        if "session_expires > NOW()" in text and "session_hash=%s" in text:
+            return self._legacy_session
+        if "AS current_match" in text:
+            return self._key_state
+        if text.startswith("SELECT * FROM bot_access_keys") and "prev_key_hash=%s" in text:
+            return self._find_key
+        if text.startswith("SELECT * FROM bot_access_keys WHERE id=%s"):
+            return self._get_key
+        if text.startswith("SELECT COUNT(*)"):
+            return self._count_resets
+        if text.startswith("INSERT INTO bot_access_log"):
+            return self._insert_log
+        if text.startswith("SELECT id FROM bot_access_keys WHERE email"):
+            return self._inbox
+        if "FROM bot_access_voices" in text:
+            return self._voices
+        if text.startswith("SELECT role FROM users"):
+            return self._role
+        if text.startswith("SELECT user_id FROM bot_admin_grants"):
+            return self._grants
+        return None
+
+    def _schema(self, _params):
+        self._rows = [{"1": 1}]
+
+    def _noop(self, _params):
+        return None
+
+    def _legacy_live(self, _params):
+        self._rows = [
+            {"id": key["id"], "session_hash": key["session_hash"], "session_expires": key["session_expires"]}
+            for key in self.db.keys.values()
+            if key.get("session_hash") and _alive(key.get("session_expires"), self.db.now)
+        ]
+
+    def _session_hashes(self, _params):
+        self._rows = [{"session_hash": row["session_hash"]} for row in self.db.sessions]
+
+    def _insert_legacy(self, params):
+        self._add_session(int(params[0]), params[1], params[2], "legacy")
+
+    def _legacy_left(self, _params):
+        self._rows = [
+            {"id": key["id"], "session_hash": key.get("session_hash")}
+            for key in self.db.keys.values() if key.get("session_hash")
+        ]
+
+    def _clear_legacy(self, params):
+        key = self.db.keys.get(params[0])
+        if not key:
+            return
+        key["session_hash"] = None
+        key["session_expires"] = None
+        self.rowcount = 1
+
+    def _replace(self, params):
+        grace, digest, prefix, key_id = params
+        key = self.db.keys.get(key_id)
+        if not key:
+            return
+        from datetime import timedelta
+        key["prev_key_hash"] = key.get("key_hash")
+        key["prev_key_expires"] = self.db.now + timedelta(seconds=int(grace))
+        key["key_hash"] = digest
+        key["key_prefix"] = prefix
+        self.rowcount = 1
+
+    def _store_twofa(self, params):
+        from datetime import timedelta
+        digest, seconds, key_id = params
+        key = self.db.keys.get(key_id)
+        if not key:
+            return
+        key["twofa_hash"] = digest
+        key["twofa_expires"] = self.db.now + timedelta(seconds=int(seconds))
+        key["twofa_attempts"] = 0
+        self.rowcount = 1
+
+    def _clear_twofa(self, params):
+        key = self.db.keys.get(params[0])
+        if not key:
+            return
+        key["twofa_hash"] = None
+        key["twofa_expires"] = None
+        key["twofa_attempts"] = 0
+        self.rowcount = 1
+
+    def _insert_session(self, params):
+        from datetime import timedelta
+        key_id, digest, seconds, label = params
+        expires = self.db.now + timedelta(seconds=int(seconds))
+        self._add_session(int(key_id), digest, expires, label)
+
+    def _add_session(self, key_id, digest, expires, label):
+        sid = self.db.session_seq
+        self.db.session_seq += 1
+        self.db.sessions.append({
+            "id": sid,
+            "key_id": key_id,
+            "session_hash": digest,
+            "expires_at": expires,
+            "last_used_at": self.db.now,
+            "client_label": label,
+        })
+        self.lastrowid = sid
+        self.rowcount = 1
+
+    def _session_ids(self, params):
+        rows = [row for row in self.db.sessions if row["key_id"] == params[0]]
+        rows.sort(key=lambda row: row["id"], reverse=True)
+        self._rows = [{"id": row["id"]} for row in rows]
+
+    def _delete_session(self, params):
+        before = len(self.db.sessions)
+        self.db.sessions = [row for row in self.db.sessions if row["id"] != params[0]]
+        self.rowcount = before - len(self.db.sessions)
+
+    def _touch(self, params):
+        for row in self.db.sessions:
+            if row["id"] == params[0]:
+                row["last_used_at"] = self.db.now
+                self.rowcount = 1
+
+    def _twofa(self, params):
+        key = self.db.keys.get(params[0])
+        if not key:
+            return
+        self._rows = [{
+            "twofa_hash": key.get("twofa_hash"),
+            "live": 1 if _alive(key.get("twofa_expires"), self.db.now) else 0,
+        }]
+
+    def _session_state(self, params):
+        for row in self.db.sessions:
+            if row["session_hash"] != params[0]:
+                continue
+            key = self.db.keys.get(row["key_id"]) or {}
+            self._rows = [{
+                "live": 1 if _alive(row["expires_at"], self.db.now) else 0,
+                "active": key.get("active", 0),
+            }]
+            return
+
+    def _legacy_state(self, params):
+        for key in self.db.keys.values():
+            if key.get("session_hash") != params[0]:
+                continue
+            self._rows = [{
+                "live": 1 if _alive(key.get("session_expires"), self.db.now) else 0,
+                "active": key.get("active", 0),
+            }]
+            return
+
+    def _key_row(self, key, session_id=None):
+        row = {
+            "id": key["id"],
+            "name": key.get("name"),
+            "key_hash": key.get("key_hash"),
+            "key_prefix": key.get("key_prefix"),
+            "active": key.get("active"),
+            "controls_json": key.get("controls_json"),
+            "created_by": key.get("created_by"),
+            "email": key.get("email"),
+            "twofa_email": key.get("twofa_email"),
+            "created_at": key.get("created_at"),
+            "updated_at": key.get("updated_at"),
+        }
+        if session_id is not None:
+            row["session_row_id"] = session_id
+        return row
+
+    def _live_session(self, params):
+        for row in self.db.sessions:
+            if row["session_hash"] == params[0] and _alive(row["expires_at"], self.db.now):
+                key = self.db.keys.get(row["key_id"])
+                if key:
+                    self._rows = [self._key_row(key, row["id"])]
+                    return
+
+    def _legacy_session(self, params):
+        for key in self.db.keys.values():
+            if key.get("session_hash") == params[0] and _alive(key.get("session_expires"), self.db.now):
+                self._rows = [self._key_row(key)]
+                return
+
+    def _matching_key(self, digest, grace_only_if_live):
+        found = []
+        for key in self.db.keys.values():
+            current = key.get("key_hash") == digest
+            prev = key.get("prev_key_hash") == digest
+            prev_live = _alive(key.get("prev_key_expires"), self.db.now)
+            if current or (prev and (prev_live or not grace_only_if_live)):
+                found.append((0 if current else 1, key, current, prev, prev_live))
+        found.sort(key=lambda item: item[0])
+        return found[0] if found else None
+
+    def _key_state(self, params):
+        digest = params[0]
+        hit = self._matching_key(digest, grace_only_if_live=False)
+        if not hit:
+            return
+        _order, key, current, prev, prev_live = hit
+        self._rows = [{
+            "active": key.get("active"),
+            "current_match": 1 if current else 0,
+            "prev_match": 1 if prev else 0,
+            "prev_live": 1 if prev_live else 0,
+        }]
+
+    def _find_key(self, params):
+        hit = self._matching_key(params[0], grace_only_if_live=True)
+        if not hit:
+            return
+        self._rows = [dict(hit[1])]
+
+    def _get_key(self, params):
+        key = self.db.keys.get(params[0])
+        if key:
+            self._rows = [dict(key)]
+
+    def _count_resets(self, params):
+        from datetime import timedelta
+        key_id, action, seconds = params
+        cutoff = self.db.now - timedelta(seconds=int(seconds))
+        count = 0
+        for row in self.db.logs:
+            if row["key_id"] == key_id and row["action"] == action and row["ok"] in (1, True) and row["created_at"] > cutoff:
+                count += 1
+        self._rows = [{"n": count}]
+
+    def _insert_log(self, params):
+        self.db.logs.append({
+            "id": self.db.log_seq,
+            "key_id": params[0],
+            "action": params[1],
+            "ok": params[4],
+            "detail": params[5],
+            "created_at": self.db.now,
+        })
+        self.lastrowid = self.db.log_seq
+        self.db.log_seq += 1
+        self.rowcount = 1
+
+    def _inbox(self, params):
+        self._rows = [
+            {"id": key["id"]}
+            for key in self.db.keys.values()
+            if key.get("email") == params[0] and key.get("active") in (1, True)
+        ]
+
+    def _voices(self, params):
+        key_id = params[0] if params else None
+        self._rows = [
+            dict(row) for row in self.db.voices
+            if key_id is None or row.get("key_id") == key_id
+        ]
+
+    def _role(self, params):
+        user = self.db.users.get(params[0])
+        if user:
+            self._rows = [{"role": user["role"]}]
+
+    def _grants(self, _params):
+        self._rows = [{"user_id": uid} for uid in self.db.grants]
+
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+
+    def fetchall(self):
+        return list(self._rows)
+
+
+class BotKeyStoreTests(unittest.TestCase):
+    def setUp(self):
+        from app.utils import bot_store as store
+        self.store = store
+        self.db = _Clock()
+        self._patch = unittest.mock.patch.object(store, "_cur", self.db.cursor)
+        self._patch.start()
+        self.raw = "mvos_church_bot_key_test_value_123456"
+        self.db.keys[1] = {
+            "id": 1,
+            "name": "Helper",
+            "key_hash": hash_key(self.raw),
+            "key_prefix": self.raw[:14],
+            "active": 1,
+            "controls_json": "{}",
+            "created_by": 1,
+            "email": "keys@example.com",
+            "twofa_email": "codes@example.com",
+            "twofa_hash": "pending",
+            "twofa_expires": None,
+            "twofa_attempts": 0,
+            "session_hash": None,
+            "session_expires": None,
+            "prev_key_hash": None,
+            "prev_key_expires": None,
+            "created_at": self.db.now,
+            "updated_at": self.db.now,
+        }
+
+    def tearDown(self):
+        self._patch.stop()
+        if self.db.unhandled:
+            self.fail("unhandled SQL:\n" + "\n".join(self.db.unhandled))
+
+    def _open(self, label):
+        from app.utils.bot_policy import new_session_material
+        raw, digest, _prefix = new_session_material()
+        self.assertTrue(self.store.open_session(1, digest, label))
+        return raw
+
+    def test_two_sessions_stay_open_and_a_twofa_request_keeps_them(self):
+        from app.utils.bot_policy import hash_key as digest_of
+        first = self._open("vine")
+        second = self._open("church")
+        self.assertTrue(self.store.store_twofa(1, digest_of("mvos_2fa_pending")))
+        self.assertIsNotNone(self.store.find_session(first))
+        self.assertIsNotNone(self.store.find_session(second))
+        self.assertEqual(len(self.db.sessions), 2)
+
+    def test_a_live_legacy_slot_moves_into_the_session_table(self):
+        from datetime import timedelta
+        from app.utils.bot_policy import new_session_material
+        raw, digest, _prefix = new_session_material()
+        self.db.keys[1]["session_hash"] = digest
+        self.db.keys[1]["session_expires"] = self.db.now + timedelta(minutes=30)
+        self.assertIsNotNone(self.store.find_session(raw))
+        self.assertIsNone(self.db.keys[1]["session_hash"])
+
+    def test_the_sixth_session_drops_the_oldest(self):
+        opened = [self._open(f"client-{number}") for number in range(6)]
+        self.assertIsNone(self.store.find_session(opened[0]))
+        for raw in opened[1:]:
+            self.assertIsNotNone(self.store.find_session(raw))
+        self.assertEqual(len(self.db.sessions), 5)
+
+    def test_rotation_expires_only_the_previous_key(self):
+        from datetime import timedelta
+        from app.utils.bot_policy import PREV_KEY_GRACE_SECONDS, new_key_material
+        session = self._open("vine")
+        self.db.keys[1]["twofa_hash"] = "pending-code"
+        self.db.keys[1]["twofa_expires"] = self.db.now + timedelta(minutes=10)
+        pending = self.db.keys[1]["twofa_hash"]
+        second, second_hash, second_prefix = new_key_material()
+        third, third_hash, third_prefix = new_key_material()
+        self.assertEqual(self.store.replace_api_key(1, second_hash, second_prefix), (True, ""))
+        self.assertEqual(self.db.keys[1]["twofa_hash"], pending)
+        self.assertIsNotNone(self.store.find_key(self.raw))
+        self.assertIsNotNone(self.store.find_key(second))
+        self.assertIsNotNone(self.store.find_session(session))
+        self.db.now += timedelta(seconds=PREV_KEY_GRACE_SECONDS + 1)
+        self.assertIsNone(self.store.find_key(self.raw))
+        self.assertIsNotNone(self.store.find_key(second))
+        self.assertIsNotNone(self.store.find_session(session))
+        self.assertEqual(self.store.replace_api_key(1, third_hash, third_prefix), (True, ""))
+        self.assertIsNone(self.store.find_key(self.raw))
+        self.assertIsNotNone(self.store.find_key(second))
+        self.assertIsNotNone(self.store.find_key(third))
+        self.db.now += timedelta(seconds=PREV_KEY_GRACE_SECONDS + 1)
+        self.assertIsNone(self.store.find_key(second))
+        self.assertIsNotNone(self.store.find_key(third))
+        self.assertIsNotNone(self.store.find_session(session))
+
+
+class BotKeyRouteTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from flask import Flask
+        from app.routes.bot_access import bot_access_bp
+        cls.app = Flask(__name__)
+        cls.app.config["SECRET_KEY"] = "bot-key-tests"
+        cls.app.register_blueprint(bot_access_bp)
+
+    def setUp(self):
+        from app.utils import bot_login as login_mod
+        from app.utils import bot_store as store
+        self.store = store
+        self.login_mod = login_mod
+        self.db = _Clock()
+        self.sent = []
+        self.mail_error = None
+        self.fail_after = None
+        self.raw = "mvos_church_bot_key_test_value_123456"
+        self.db.keys[1] = {
+            "id": 1,
+            "name": "Helper",
+            "key_hash": hash_key(self.raw),
+            "key_prefix": self.raw[:14],
+            "active": 1,
+            "controls_json": "{}",
+            "created_by": 1,
+            "email": "keys@example.com",
+            "twofa_email": "codes@example.com",
+            "twofa_hash": None,
+            "twofa_expires": None,
+            "twofa_attempts": 0,
+            "session_hash": None,
+            "session_expires": None,
+            "prev_key_hash": None,
+            "prev_key_expires": None,
+            "created_at": self.db.now,
+            "updated_at": self.db.now,
+        }
+        self._cur = unittest.mock.patch.object(store, "_cur", self.db.cursor)
+        self._mail = unittest.mock.patch.object(login_mod, "_send", self._send)
+        self._cur.start()
+        self._mail.start()
+        self.client = self.app.test_client()
+
+    def tearDown(self):
+        self._cur.stop()
+        self._mail.stop()
+        if self.db.unhandled:
+            self.fail("unhandled SQL:\n" + "\n".join(self.db.unhandled))
+
+    def _send(self, to_email, subject, body):
+        self.sent.append({"to": to_email, "subject": subject, "body": body})
+        if self.fail_after and len(self.sent) > self.fail_after:
+            return "The email did not send."
+        return self.mail_error
+
+    def _line(self, body, prefix):
+        for line in body.splitlines():
+            if line.startswith(prefix):
+                return line.split(":", 1)[1].strip()
+        self.fail(prefix)
+
+    def _split_pair(self, batch):
+        """The API-key mail is first. The 2FA mail is second. They use different inboxes."""
+        self.assertEqual(len(batch), 2, batch)
+        api_mail, twofa_mail = batch
+        self.assertEqual(api_mail["to"], "keys@example.com")
+        self.assertEqual(twofa_mail["to"], "codes@example.com")
+        new_key = self._line(api_mail["body"], "api_key:")
+        twofa = self._line(twofa_mail["body"], "twofa_key:")
+        self.assertIn("expires: never", api_mail["body"])
+        self.assertNotIn("twofa_key:", api_mail["body"])
+        self.assertNotIn("codes@example.com", api_mail["body"])
+        self.assertNotIn(twofa, api_mail["body"])
+        self.assertNotIn("api_key:", twofa_mail["body"])
+        self.assertNotIn("keys@example.com", twofa_mail["body"])
+        self.assertNotIn(new_key, twofa_mail["body"])
+        return new_key, twofa
+
+    def _login(self, raw):
+        res = self.client.post("/api/bot/login", headers={"Authorization": "Bearer " + raw})
+        return res
+
+    def _exchange(self, raw, twofa):
+        return self.client.post(
+            "/api/bot/login/exchange",
+            headers={"Authorization": "Bearer " + raw, "X-Bot-2FA": twofa},
+        )
+
+    def test_two_clients_both_stay_signed_in(self):
+        first = self._login(self.raw)
+        self.assertEqual(first.status_code, 200, first.get_data(as_text=True))
+        twofa = self._line(self.sent[-1]["body"], "twofa_key:")
+        self.assertEqual(self.sent[-1]["to"], "codes@example.com")
+        opened = self._exchange(self.raw, twofa)
+        self.assertEqual(opened.status_code, 200, opened.get_data(as_text=True))
+        session_a = opened.get_json()["data"]["session"]
+        again = self._login(self.raw)
+        self.assertEqual(again.status_code, 200)
+        still = self.client.get("/api/bot/whoami", headers={"Authorization": "Bearer " + session_a})
+        self.assertEqual(still.status_code, 200, still.get_data(as_text=True))
+        twofa_b = self._line(self.sent[-1]["body"], "twofa_key:")
+        opened_b = self._exchange(self.raw, twofa_b)
+        session_b = opened_b.get_json()["data"]["session"]
+        for token in (session_a, session_b):
+            res = self.client.get("/api/bot/whoami", headers={"Authorization": "Bearer " + token})
+            self.assertEqual(res.status_code, 200, res.get_data(as_text=True))
+
+    def test_old_key_works_during_grace_then_returns_key_unknown(self):
+        from datetime import timedelta
+        from app.utils.bot_policy import PREV_KEY_GRACE_SECONDS, new_session_material
+        raw_session, digest, _prefix = new_session_material()
+        self.assertTrue(self.store.open_session(1, digest, "vine"))
+        res = self.client.post("/api/bot/key/reset", headers={"Authorization": "Bearer " + self.raw})
+        self.assertEqual(res.status_code, 200, res.get_data(as_text=True))
+        body = res.get_data(as_text=True)
+        data = res.get_json()["data"]
+        self.assertTrue(data["twofa_sent"])
+        new_key, twofa = self._split_pair(self.sent)
+        self.assertNotIn(new_key, body)
+        self.assertNotIn(twofa, body)
+        self.assertNotIn(self.raw, body)
+        self.assertNotIn("codes@example.com", body)
+        self.assertIn("15 minutes", body)
+        opened = self._exchange(new_key, twofa)
+        self.assertEqual(opened.status_code, 200, opened.get_data(as_text=True))
+        fresh_session = opened.get_json()["data"]["session"]
+        signed_in = self.client.get(
+            "/api/bot/whoami", headers={"Authorization": "Bearer " + fresh_session},
+        )
+        self.assertEqual(signed_in.status_code, 200, signed_in.get_data(as_text=True))
+        during = self._login(self.raw)
+        self.assertEqual(during.status_code, 200, during.get_data(as_text=True))
+        self.assertNotEqual(during.get_json().get("code"), "key_unknown")
+        who = self.client.get("/api/bot/whoami", headers={"Authorization": "Bearer " + raw_session})
+        self.assertEqual(who.status_code, 200, who.get_data(as_text=True))
+        self.db.now += timedelta(seconds=PREV_KEY_GRACE_SECONDS + 1)
+        expired = self._login(self.raw)
+        self.assertEqual(expired.status_code, 401)
+        self.assertEqual(expired.get_json()["code"], "key_unknown")
+        fresh = self._login(new_key)
+        self.assertEqual(fresh.status_code, 200, fresh.get_data(as_text=True))
+        who_later = self.client.get("/api/bot/whoami", headers={"Authorization": "Bearer " + raw_session})
+        self.assertEqual(who_later.status_code, 200, who_later.get_data(as_text=True))
+        still_fresh = self.client.get(
+            "/api/bot/whoami", headers={"Authorization": "Bearer " + fresh_session},
+        )
+        self.assertEqual(still_fresh.status_code, 200, still_fresh.get_data(as_text=True))
+
+    def test_failed_mail_leaves_the_old_key(self):
+        self.mail_error = "The email did not send."
+        before = self.db.keys[1]["key_hash"]
+        res = self.client.post("/api/bot/password-reset", headers={"Authorization": "Bearer " + self.raw})
+        self.assertEqual(res.status_code, 502)
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.sent[0]["to"], "keys@example.com")
+        self.assertEqual(self.db.keys[1]["key_hash"], before)
+        self.assertIsNone(self.db.keys[1]["prev_key_hash"])
+        self.assertIsNone(self.db.keys[1]["twofa_hash"])
+        self.assertFalse(any(row["action"] == "key_reset" and row["ok"] in (1, True) for row in self.db.logs))
+        offered = self._line(self.sent[-1]["body"], "api_key:")
+        self.assertIsNone(self.store.find_key(offered))
+        self.assertIsNotNone(self.store.find_key(self.raw))
+
+    def test_a_failed_twofa_mail_keeps_the_new_api_key(self):
+        self.fail_after = 1
+        res = self.client.post("/api/bot/key/reset", headers={"Authorization": "Bearer " + self.raw})
+        self.assertEqual(res.status_code, 200, res.get_data(as_text=True))
+        data = res.get_json()["data"]
+        self.assertFalse(data["twofa_sent"])
+        self.assertIn("did not send", data["message"])
+        self.assertIn("POST /api/bot/login", data["message"])
+        self.assertEqual(len(self.sent), 2)
+        new_key = self._line(self.sent[0]["body"], "api_key:")
+        self.assertEqual(self.sent[1]["to"], "codes@example.com")
+        self.assertNotIn(new_key, res.get_data(as_text=True))
+        self.assertNotIn(self._line(self.sent[1]["body"], "twofa_key:"), res.get_data(as_text=True))
+        self.assertIsNotNone(self.store.find_key(new_key))
+        self.assertIsNone(self.db.keys[1]["twofa_hash"])
+        self.fail_after = None
+        fresh = self._login(new_key)
+        self.assertEqual(fresh.status_code, 200, fresh.get_data(as_text=True))
+        self.assertEqual(self.sent[-1]["to"], "codes@example.com")
+        code = self._line(self.sent[-1]["body"], "twofa_key:")
+        opened = self._exchange(new_key, code)
+        self.assertEqual(opened.status_code, 200, opened.get_data(as_text=True))
+
+    def test_fourth_reset_in_an_hour_is_refused(self):
+        from app.utils.bot_policy import new_session_material
+        raw_session, digest, _prefix = new_session_material()
+        self.assertTrue(self.store.open_session(1, digest))
+        header = {"Authorization": "Bearer " + raw_session}
+        for _number in range(3):
+            before = len(self.sent)
+            res = self.client.post("/api/bot/key/reset", headers=header)
+            self.assertEqual(res.status_code, 200, res.get_data(as_text=True))
+            self.assertTrue(res.get_json()["data"]["twofa_sent"])
+            new_key, twofa = self._split_pair(self.sent[before:])
+            text = res.get_data(as_text=True)
+            self.assertNotIn(new_key, text)
+            self.assertNotIn(twofa, text)
+        self.assertEqual(len(self.sent), 6)
+        blocked = self.client.post("/api/bot/key/reset", headers=header)
+        self.assertEqual(blocked.status_code, 429)
+        self.assertEqual(len(self.sent), 6)
+
+    def test_reset_request_with_the_wrong_email_sends_nothing(self):
+        from app.utils.bot_policy import RESET_REQUEST_REPLY
+        wrong = self.client.post("/api/bot/key/reset-request", json={"email": "nobody@example.com"})
+        self.assertEqual(wrong.status_code, 200)
+        self.assertEqual(wrong.get_json()["data"]["message"], RESET_REQUEST_REPLY)
+        self.assertEqual(self.sent, [])
+        twofa_inbox = self.client.post("/api/bot/key/reset-request", json={"email": "codes@example.com"})
+        self.assertEqual(twofa_inbox.status_code, 200)
+        self.assertEqual(self.sent, [])
+        self.assertEqual(self.db.keys[1]["key_hash"], hash_key(self.raw))
+        right = self.client.post("/api/bot/key/reset-request", json={"email": "keys@example.com"})
+        self.assertEqual(right.status_code, 200)
+        self.assertEqual(right.get_json()["data"]["message"], RESET_REQUEST_REPLY)
+        self.assertNotIn("twofa_sent", right.get_json()["data"])
+        new_key, twofa = self._split_pair(self.sent)
+        text = right.get_data(as_text=True)
+        self.assertNotIn(new_key, text)
+        self.assertNotIn(twofa, text)
+        opened = self._exchange(new_key, twofa)
+        self.assertEqual(opened.status_code, 200, opened.get_data(as_text=True))
+        session = opened.get_json()["data"]["session"]
+        who = self.client.get("/api/bot/whoami", headers={"Authorization": "Bearer " + session})
+        self.assertEqual(who.status_code, 200, who.get_data(as_text=True))
+        for _extra in range(2):
+            again = self.client.post("/api/bot/key/reset-request", json={"email": "keys@example.com"})
+            self.assertEqual(again.status_code, 200)
+            self.assertEqual(again.get_json()["data"]["message"], RESET_REQUEST_REPLY)
+        self.assertEqual(len(self.sent), 6)
+        quiet = self.client.post("/api/bot/key/reset-request", json={"email": "keys@example.com"})
+        self.assertEqual(quiet.status_code, 200)
+        self.assertEqual(quiet.get_json()["data"]["message"], RESET_REQUEST_REPLY)
+        self.assertEqual(len(self.sent), 6)
+        still = self.client.get("/api/bot/whoami", headers={"Authorization": "Bearer " + session})
+        self.assertEqual(still.status_code, 200, still.get_data(as_text=True))
+
+    def test_a_dead_api_key_mails_a_new_key_and_a_twofa(self):
+        from datetime import timedelta
+        from app.utils.bot_policy import PREV_KEY_GRACE_SECONDS, RESET_REQUEST_REPLY, new_key_material
+        current, current_hash, current_prefix = new_key_material()
+        self.assertEqual(self.store.replace_api_key(1, current_hash, current_prefix), (True, ""))
+        self.db.now += timedelta(seconds=PREV_KEY_GRACE_SECONDS + 1)
+        self.assertIsNone(self.store.find_key(self.raw))
+        dead = self._login(self.raw)
+        self.assertEqual(dead.status_code, 401)
+        self.assertEqual(dead.get_json()["code"], "key_unknown")
+        self.assertEqual(self.sent, [])
+        res = self.client.post(
+            "/api/bot/key/reset-request",
+            json={"email": "keys@example.com"},
+            headers={"Authorization": "Bearer " + self.raw},
+        )
+        self.assertEqual(res.status_code, 200, res.get_data(as_text=True))
+        payload = res.get_json()["data"]
+        self.assertEqual(payload["message"], RESET_REQUEST_REPLY)
+        self.assertNotIn("twofa_sent", payload)
+        text = res.get_data(as_text=True)
+        self.assertNotIn(self.raw, text)
+        new_key, twofa = self._split_pair(self.sent)
+        self.assertNotIn(new_key, text)
+        self.assertNotIn(twofa, text)
+        opened = self._exchange(new_key, twofa)
+        self.assertEqual(opened.status_code, 200, opened.get_data(as_text=True))
+        session = opened.get_json()["data"]["session"]
+        who = self.client.get("/api/bot/whoami", headers={"Authorization": "Bearer " + session})
+        self.assertEqual(who.status_code, 200, who.get_data(as_text=True))
+        still_dead = self._login(self.raw)
+        self.assertEqual(still_dead.status_code, 401)
+        self.assertEqual(still_dead.get_json()["code"], "key_unknown")
+        during = self._login(current)
+        self.assertEqual(during.status_code, 200, during.get_data(as_text=True))
+        self.assertEqual(during.get_json().get("code"), None)
+        still = self.client.get("/api/bot/whoami", headers={"Authorization": "Bearer " + session})
+        self.assertEqual(still.status_code, 200, still.get_data(as_text=True))
+
+    def test_admin_without_a_grant_has_its_own_code(self):
+        from app.utils.bot_policy import new_session_material
+        raw_session, digest, _prefix = new_session_material()
+        self.assertTrue(self.store.open_session(1, digest))
+        self.db.users[4] = {"role": "Admin"}
+        self.db.voices.append({
+            "id": 1,
+            "key_id": 1,
+            "voice_type": "user",
+            "user_id": 4,
+            "label": None,
+            "username": "ada",
+            "first_name": "Ada",
+            "last_name": "Admin",
+        })
+        header = {"Authorization": "Bearer " + raw_session}
+        blocked = self.client.get("/api/bot/whoami", headers=header)
+        self.assertEqual(blocked.status_code, 403)
+        self.assertEqual(blocked.get_json()["code"], "admin_not_granted")
+        self.db.grants.add(4)
+        allowed = self.client.get("/api/bot/whoami", headers=header)
+        self.assertEqual(allowed.status_code, 200, allowed.get_data(as_text=True))
+        self.assertTrue(allowed.get_json()["ok"])
+
+    def test_an_expired_session_on_a_work_call_says_so(self):
+        from datetime import timedelta
+        from app.utils.bot_policy import new_session_material
+        raw, digest, _prefix = new_session_material()
+        self.db.sessions.append({
+            "id": 77,
+            "key_id": 1,
+            "session_hash": digest,
+            "expires_at": self.db.now - timedelta(minutes=1),
+            "last_used_at": self.db.now,
+            "client_label": None,
+        })
+        res = self.client.get("/api/bot/whoami", headers={"Authorization": "Bearer " + raw})
+        self.assertEqual(res.status_code, 401)
+        self.assertEqual(res.get_json()["code"], "session_expired")
+
+
+class BotBearerPenaltyTests(unittest.TestCase):
+    def setUp(self):
+        from app.utils import bot_store as store
+        self.store = store
+        self.db = _Clock()
+        self.raw = "mvos_church_bot_key_test_value_123456"
+        self.db.keys[1] = {
+            "id": 1,
+            "name": "Helper",
+            "key_hash": hash_key(self.raw),
+            "key_prefix": self.raw[:14],
+            "active": 1,
+            "controls_json": "{}",
+            "created_by": 1,
+            "email": "keys@example.com",
+            "twofa_email": "codes@example.com",
+            "twofa_hash": None,
+            "twofa_expires": None,
+            "twofa_attempts": 0,
+            "session_hash": None,
+            "session_expires": None,
+            "prev_key_hash": None,
+            "prev_key_expires": None,
+            "created_at": self.db.now,
+            "updated_at": self.db.now,
+        }
+        self._patch = unittest.mock.patch.object(store, "_cur", self.db.cursor)
+        self._patch.start()
+
+    def tearDown(self):
+        self._patch.stop()
+        if self.db.unhandled:
+            self.fail("unhandled SQL:\n" + "\n".join(self.db.unhandled))
+
+    def _allowed(self, raw, path="/api/bot/whoami", method="GET", score=100, locked_out=False, rate_ok=True):
+        from flask import Flask
+        import poweredbytop.core.security as sec
+        app = Flask(__name__)
+        header = {"Authorization": "Bearer " + raw} if raw else {}
+        with app.test_request_context(path, method=method, headers=header):
+            with unittest.mock.patch.object(sec, "record_bad_behavior") as bad, \
+                    unittest.mock.patch.object(sec, "check_rate_limit", return_value=rate_ok) as limited, \
+                    unittest.mock.patch.object(sec, "is_locked_out", return_value=locked_out) as locked, \
+                    unittest.mock.patch.object(sec, "get_reputation_score", return_value=score):
+                allowed = sec._bot_request_allowed("203.0.113.8")
+        return allowed, bad, limited, locked
+
+    def test_an_expired_session_does_not_count_as_bad_behavior(self):
+        from datetime import timedelta
+        from app.utils.bot_policy import new_session_material
+        raw, digest, _prefix = new_session_material()
+        self.db.sessions.append({
+            "id": 50,
+            "key_id": 1,
+            "session_hash": digest,
+            "expires_at": self.db.now - timedelta(minutes=5),
+            "last_used_at": self.db.now,
+            "client_label": None,
+        })
+        allowed, bad, _limited, _locked = self._allowed(raw)
+        self.assertTrue(allowed)
+        bad.assert_not_called()
+
+    def test_an_unknown_bearer_still_counts(self):
+        allowed, bad, _limited, _locked = self._allowed("mvos_not_a_key_this_church_issued")
+        self.assertTrue(allowed)
+        bad.assert_called_once_with("203.0.113.8", "bad_bot_key")
+
+    def test_a_live_session_skips_the_reputation_path(self):
+        from app.utils.bot_policy import new_session_material
+        raw, digest, _prefix = new_session_material()
+        self.assertTrue(self.store.open_session(1, digest))
+        allowed, bad, limited, _locked = self._allowed(raw)
+        self.assertTrue(allowed)
+        bad.assert_not_called()
+        limited.assert_not_called()
+
+    def test_a_dead_bearer_on_reset_request_is_not_an_attack(self):
+        for raw in ("mvos_not_a_key_this_church_issued", ""):
+            allowed, bad, limited, locked = self._allowed(
+                raw,
+                path="/api/bot/key/reset-request",
+                method="POST",
+                score=0,
+                locked_out=True,
+            )
+            self.assertTrue(allowed, raw or "missing")
+            bad.assert_not_called()
+            locked.assert_not_called()
+            limited.assert_called()
+
+    def test_reset_request_still_stops_when_the_ip_is_too_fast(self):
+        allowed, bad, _limited, _locked = self._allowed(
+            "mvos_not_a_key_this_church_issued",
+            path="/api/bot/key/reset-request",
+            method="POST",
+            score=0,
+            rate_ok=False,
+        )
+        self.assertFalse(allowed)
+        bad.assert_not_called()

@@ -256,6 +256,7 @@ CLOSED_TABLES = (
     "bot_access_keys",
     "bot_access_voices",
     "bot_access_log",
+    "bot_sessions",
     "bot_admin_grants",
     "api_keys",
     "ai_providers",
