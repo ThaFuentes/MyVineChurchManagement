@@ -493,6 +493,7 @@ def page():
                 picked = 0
             if picked in member_rows:
                 church_author = picked
+            author_role = (member_rows.get(church_author) or {}).get("role") if church_author else None
             ok, note = store.save_key(
                 key_id,
                 request.form.get("active") == "1",
@@ -502,6 +503,7 @@ def page():
                 request.form.get("voice_church") == "1",
                 act_role=act_role,
                 admin_granted=granted,
+                author_role=author_role,
             )
             if not ok:
                 flash(note or "Could not save that bot.", "error")

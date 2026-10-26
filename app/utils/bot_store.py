@@ -920,22 +920,17 @@ def voices_for(key_id: int) -> list[dict]:
 
 def save_key(key_id: int, active: bool, controls: dict, church_user_id: int | None,
              act_as_user_id: int | None, church_requested: bool, *,
-             act_role: str | None = None, admin_granted: bool = False) -> tuple[bool, str | None]:
+             act_role: str | None = None, admin_granted: bool = False,
+             author_role: str | None = None) -> tuple[bool, str | None]:
     """Save switches and the one account this bot acts as.
 
     The message is a warning when the save still worked. An admin who is not
     allowed is refused, and the previous voices stay.
     """
-    note = None
     if not act_as_user_id:
         return False, "Choose the one account this bot acts as."
     if act_role == "Admin" and not admin_granted:
         return False, "That admin cannot use a bot until you allow them above."
-    if act_role != "Owner":
-        if church_requested:
-            note = "This bot acts only as that account, so the church wall was left off."
-        church_requested = False
-        church_user_id = None
     try:
         cur = _cur()
         cur.execute("SELECT id FROM bot_access_keys WHERE id=%s", (int(key_id),))
@@ -951,15 +946,9 @@ def save_key(key_id: int, active: bool, controls: dict, church_user_id: int | No
         )
         existing = voices_for(int(key_id))
         prior_church = next((v.get("user_id") for v in existing if v.get("voice_type") == "church"), None)
-        if church_requested and not church_user_id:
-            if prior_church:
-                note = "Church posts need an author. The previous church author was kept."
-                church_user_id = int(prior_church)
-            else:
-                note = "Church posts need an author, so the church voice was not added."
-                church_requested = False
-        elif not church_requested:
-            church_user_id = None
+        church_requested, church_user_id, note = policy.church_save(
+            act_role, author_role, act_as_user_id, church_user_id, church_requested, prior_church,
+        )
         cur.execute("DELETE FROM bot_access_voices WHERE key_id=%s", (int(key_id),))
         if church_requested and church_user_id:
             cur.execute(
@@ -1040,10 +1029,11 @@ def list_keys() -> list[dict]:
     for row in keys:
         row["voices"] = voice_map.get(int(row["id"]), [])
         row["logs"] = log_map.get(int(row["id"]), [])
-        row["church_user_id"] = next(
+        church_id = next(
             (v.get("user_id") for v in row["voices"] if v.get("voice_type") == "church"),
             None,
         )
+        row["church_user_id"] = int(church_id) if church_id else None
         row["user_voice_ids"] = [
             int(v["user_id"]) for v in row["voices"]
             if v.get("voice_type") == "user" and v.get("user_id")

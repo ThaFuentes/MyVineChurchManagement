@@ -17,6 +17,7 @@ from app.utils.bot_policy import (
     normalize_controls,
     assigned_people,
     office_blocked,
+    church_save,
     resolve_bot_post,
     resolve_sermon_user,
     resolve_voice,
@@ -111,7 +112,14 @@ class BotPolicyTests(unittest.TestCase):
         allowed, err = resolve_sermon_user(None, voices, 1, role="Admin", admin_granted=True)
         self.assertEqual(allowed["user_id"], 4)
         church, err = resolve_bot_post("church", voices, role="Admin", admin_granted=True)
-        self.assertIsNone(church)
+        self.assertIsNone(err)
+        self.assertEqual(church["as"], "church")
+        self.assertEqual(church["user_id"], 1)
+        missing, err = resolve_bot_post("church", [{"voice_type": "user", "user_id": 4}], role="Admin", admin_granted=True)
+        self.assertIsNone(missing)
+        self.assertIn("church", err.lower())
+        staff, err = resolve_bot_post("church", voices, role="Member", admin_granted=True)
+        self.assertIsNone(staff)
         self.assertIn("church", err.lower())
         other, err = resolve_bot_post("user:1", voices, role="Admin", admin_granted=True)
         self.assertIsNone(other)
@@ -132,6 +140,26 @@ class BotPolicyTests(unittest.TestCase):
         self.assertFalse(may_see_illustration_notes(8, 3, staff=False))
         self.assertTrue(may_see_illustration_notes(8, 8, staff=False))
         self.assertTrue(may_see_illustration_notes(1, 3, staff=True))
+
+    def test_church_author_stays_when_the_owner_is_chosen(self):
+        kept, author, note = church_save("Admin", "Owner", 4, 1, False, None)
+        self.assertTrue(kept)
+        self.assertEqual(author, 1)
+        self.assertIsNone(note)
+        kept, author, note = church_save("Owner", None, 1, None, True, None)
+        self.assertTrue(kept)
+        self.assertEqual(author, 1)
+        self.assertIsNone(note)
+        kept, author, note = church_save("Admin", None, 4, None, True, None)
+        self.assertFalse(kept)
+        self.assertIsNone(author)
+        self.assertIn("owner", note)
+        kept, author, note = church_save("Admin", "Member", 4, 8, True, None)
+        self.assertFalse(kept)
+        self.assertIn("owner", note)
+        kept, author, note = church_save("Owner", "Member", 1, 8, True, None)
+        self.assertTrue(kept)
+        self.assertEqual(author, 8)
 
     def test_verse_needs_a_body_and_reverse_is_soft(self):
         bad, err = validate_post("verse", "Psalm 23", "", "public")

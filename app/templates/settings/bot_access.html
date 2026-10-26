@@ -18,7 +18,7 @@
         <input type="hidden" name="action" value="grants">
         <div class="settings-card">
             <h3 class="section-subtitle">Admins who may use a bot</h3>
-            <p class="help-text">Off until you allow that admin. Admins do not see this page. A bot you give an admin acts only as that admin, not as you and not as the church wall.</p>
+            <p class="help-text">Off until you allow that admin. Admins do not see this page. A bot you give an admin acts only as that admin. Church wall posts use the owner you pick below.</p>
             {% if not admins %}
             <p class="help-text">No admin accounts.</p>
             {% endif %}
@@ -136,7 +136,7 @@
                 <option value="{{ member.id }}" {% if key.church_user_id == member.id %}selected{% endif %}>{{ member.label }}</option>
                 {% endfor %}
             </select>
-            <p class="help-text">Only when this bot acts as an owner. Church posts show on the church wall. An admin bot cannot post as the church.</p>
+            <p class="help-text">Choose yourself. The post is filed under that account and shows on the church wall. If this bot acts as an owner and you leave this blank, that owner is the author. Picking a person saves the church wall even if the box is unchecked.</p>
 
             <button class="btn btn-primary" type="submit">Save this bot</button>
         </form>

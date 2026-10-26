@@ -591,9 +591,33 @@ def resolve_sermon_user(token, voices: list[dict] | None, created_by, *,
     return {"user_id": uid, "as": f"user:{uid}", "role": role}, None
 
 
+def church_save(act_role, author_role, act_as_id, author_id, requested, prior_author):
+    """Whether the church wall stays on, and which member authors those posts.
+
+    Picking an author turns the wall on. A blank author on an owner bot uses
+    that owner. Any other bot can post on the wall only when the author is an owner.
+    """
+    acting_owner = (act_role or "") == "Owner"
+    if author_id and not requested:
+        requested = True
+    if requested and not author_id and acting_owner and act_as_id:
+        author_id = int(act_as_id)
+        author_role = "Owner"
+    if requested and not author_id and prior_author:
+        author_id = int(prior_author)
+        author_role = author_role or "Owner"
+    if not requested:
+        return False, None, None
+    if not author_id:
+        return False, None, "Choose an owner as the author for church posts."
+    if not acting_owner and (author_role or "") != "Owner":
+        return False, None, "Church posts stay off unless this bot acts as an owner, or the author is an owner."
+    return True, int(author_id), None
+
+
 def resolve_bot_post(token, voices: list[dict] | None, *,
                      role=None, admin_granted: bool = False) -> tuple[dict | None, str | None]:
-    """Wall posts use the one saved account. Only an owner bot may use the church wall."""
+    """Wall posts use the one saved account. Church posts use the saved owner author."""
     uid, err = _one_account(voices)
     if err:
         return None, err
@@ -602,7 +626,7 @@ def resolve_bot_post(token, voices: list[dict] | None, *,
         return None, blocked
     raw = (token or "").strip().lower()
     if raw in ("church", "as:church"):
-        if role != "Owner":
+        if role not in ("Owner", "Admin"):
             return None, "This bot acts only as the account the owner chose. It cannot post as the church."
         return resolve_voice("church", voices or [])
     mismatch = _as_matches(token, uid)
@@ -745,9 +769,9 @@ def call_map(controls, blocked_why: str | None = None) -> list[dict]:
         {"method": "POST", "path": "/api/bot/reverse", "switch": None,
          "about": "Undo one of this key's changes. Body: {\"log_id\": N}."},
         {"method": "POST", "path": "/api/bot/posts", "switch": "posts",
-         "about": "Publish text as the one account the owner chose. Body: {\"kind\":\"post|quote|verse|blog|book\", \"title\":\"\", \"body\":\"\", \"visibility\":\"public|private|personal|followers\", \"as\":\"church\"}. An owner bot may send as=church when the church wall is on. An admin bot cannot post as the church or as anyone else. A picture on the wall is POST /api/bot/upload place=post and also needs this switch. Reverse hides the post and can show it again. The row is kept."},
+         "about": "Publish text as the one account the owner chose. Body: {\"kind\":\"post|quote|verse|blog|book\", \"title\":\"\", \"body\":\"\", \"visibility\":\"public|private|personal|followers\", \"as\":\"church\"}. as=church posts on the church wall as the owner saved under Author for church posts. An admin bot may use as=church only as that owner. A picture on the wall is POST /api/bot/upload place=post and also needs this switch. Reverse hides the post and can show it again. The row is kept."},
         {"method": "GET", "path": "/api/bot/posts", "switch": "posts",
-         "about": "Recent live wall posts for the account the owner chose. An owner bot may use as=church."},
+         "about": "Recent live wall posts for the account the owner chose. as=church lists the church wall when that author is saved."},
         {"method": "GET", "path": "/api/bot/posts/<id>", "switch": "posts",
          "about": "One wall post, including a hidden one."},
         {"method": "POST", "path": "/api/bot/posts/<id>", "switch": "posts",
