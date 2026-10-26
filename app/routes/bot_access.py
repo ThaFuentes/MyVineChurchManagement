@@ -394,6 +394,7 @@ def _finish(row: dict, result: dict):
             )
         return _json(
             False,
+            data=result.get("data"),
             error=result.get("error") or "That did not work.",
             status=result.get("status") or 400,
             code=result.get("code"),
@@ -886,6 +887,24 @@ def api_sermon_sections(sermon_id: int):
     return _finish_person(row, sermons.save_section(sermon_id, _payload(), person["user_id"]), person)
 
 
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/sections/link", methods=["POST"])
+def api_sermon_section_link(sermon_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, sermons.link_section(sermon_id, _payload(), person["user_id"]), person)
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/sections/save-illustration", methods=["POST"])
+def api_sermon_section_save_illustration(sermon_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(
+        row, sermons.save_section_as_illustration(sermon_id, _payload(), person["user_id"]), person,
+    )
+
+
 @bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/sections/hide", methods=["POST"])
 def api_sermon_section_hide(sermon_id: int):
     row, person, err = _desk()
@@ -917,9 +936,27 @@ def api_illustrations():
         return err
     if request.method == "GET":
         return _finish_person(row, sermons.list_illustrations(
-            request.args.get("q") or "", request.args.get("limit"), request.args.get("id"), person["user_id"],
+            request.args.get("q") or "",
+            request.args.get("limit"),
+            request.args.get("id"),
+            person["user_id"],
+            offset=request.args.get("offset"),
+            preview=request.args.get("preview"),
+            book=request.args.get("book"),
+            chapter=request.args.get("chapter"),
+            kind=request.args.get("kind"),
+            fact_check=request.args.get("fact_check") or request.args.get("fact"),
+            tag=request.args.get("tag"),
         ), person)
     return _finish_person(row, sermons.create_illustration_item(person["user_id"], _payload()), person)
+
+
+@bot_access_bp.route("/api/bot/illustrations/tags", methods=["POST"])
+def api_illustration_tags():
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, sermons.rename_illustration_tags(person["user_id"], _payload()), person)
 
 
 @bot_access_bp.route("/api/bot/illustrations/<int:illus_id>", methods=["POST"])

@@ -27,7 +27,10 @@ from app.models.pastoral.illustrations import (
     create_illustration,
     update_illustration,
     delete_illustration,
-    get_visible_illustrations
+    get_visible_illustrations,
+    find_similar_illustrations,
+    illustration_usage,
+    illustration_use_counts,
 )
 from app.models.pastoral.vault import delete_vault_item
 from app.models.pastoral.content_export import (
@@ -110,19 +113,61 @@ def quick_add():
     content = (data.get('content') or '').strip()
     source = (data.get('source') or '').strip()
     tags = data.get('tags') or ''
+    scripture = (data.get('scripture_reference') or data.get('scripture') or '').strip()
+    translation = (data.get('scripture_translation') or data.get('translation') or '').strip()
+    visibility = (data.get('visibility') or 'private').strip().lower()
+    if visibility not in ('private', 'pastoral_group'):
+        visibility = 'private'
     if not content:
         return jsonify({'error': 'Content required'}), 400
+    confirmed = str(data.get('confirm_duplicate') or '').lower() in ('1', 'true', 'yes', 'on')
+    if not confirmed:
+        matches = find_similar_illustrations(user_id, title, scripture)
+        if matches:
+            return jsonify({
+                'error': 'This looks like an illustration you already have.',
+                'code': 'possible_duplicate',
+                'matches': matches,
+            }), 409
     try:
-        new_id = create_illustration({
+        payload = {
             'title': title,
             'content': content,
             'source': source,
             'tags': tags,
-            'visibility': 'private'
-        }, user_id)
+            'visibility': visibility,
+            'scripture_reference': scripture,
+            'scripture_translation': translation,
+            'fact_check': data.get('fact_check') or data.get('fact') or '',
+            'kind': data.get('kind') or '',
+        }
+        new_id = create_illustration(payload, user_id)
+        section_id = data.get('section_id')
+        sermon_id = data.get('sermon_id')
+        if section_id and sermon_id:
+            _link_section_illustration(int(sermon_id), int(section_id), int(new_id), user_id)
         return jsonify({'success': True, 'id': new_id, 'title': title})
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+def _link_section_illustration(sermon_id: int, section_id: int, illus_id: int, user_id: int) -> None:
+    from app.models.pastoral.sermons import get_sermon_by_id
+    if not get_sermon_by_id(sermon_id, user_id):
+        return
+    db = get_db()
+    cur = db.cursor()
+    cur.execute(
+        """
+        UPDATE sermon_sections
+        SET illustration_id=%s
+        WHERE id=%s AND sermon_id=%s AND removed_at IS NULL
+        """,
+        (illus_id, section_id, sermon_id),
+    )
+    db.commit()
 
 
 @illustrations_bp.route('/list_json', methods=['GET'])
@@ -132,9 +177,52 @@ def list_json():
     user_id = session['user_id']
     q = request.args.get('q', '').strip()
     items = get_visible_illustrations(user_id, search=q if q else None)
-    # Return minimal for insert: id, title, content (text)
-    simple = [{'id': i['id'], 'title': i.get('title'), 'content': i.get('content'), 'source': i.get('source','')} for i in items[:50]]
-    return jsonify(simple)
+    book = (request.args.get('book') or '').strip().lower()
+    chapter = (request.args.get('chapter') or '').strip()
+    kind = (request.args.get('kind') or '').strip().lower()
+    fact = (request.args.get('fact_check') or request.args.get('fact') or '').strip().lower()
+    tag = (request.args.get('tag') or '').strip().lower()
+    filtered = []
+    for item in items:
+        if book and book not in str(item.get('scripture_book') or item.get('scripture_reference') or '').lower():
+            continue
+        if chapter and str(item.get('scripture_chapter') or '') != chapter and f" {chapter}" not in str(item.get('scripture_reference') or ''):
+            continue
+        if kind and str(item.get('kind') or '').lower() != kind:
+            continue
+        if fact and str(item.get('fact_check') or '').lower().replace(' ', '_') != fact.replace(' ', '_'):
+            continue
+        if tag:
+            names = [str(part).lower() for part in (item.get('tags') or [])]
+            if tag not in names and tag not in str(item.get('tags') or '').lower():
+                continue
+        filtered.append(item)
+    try:
+        offset = max(0, int(request.args.get('offset') or 0))
+    except (TypeError, ValueError):
+        offset = 0
+    try:
+        limit = int(request.args.get('limit') or 50)
+    except (TypeError, ValueError):
+        limit = 50
+    limit = max(1, min(limit, 100))
+    page = filtered[offset:offset + limit]
+    counts = illustration_use_counts([row.get('id') for row in page])
+    simple = []
+    for row in page:
+        bucket = counts.get(int(row['id']), {})
+        simple.append({
+            'id': row['id'],
+            'title': row.get('title'),
+            'content': row.get('content'),
+            'source': row.get('source', ''),
+            'scripture_reference': row.get('scripture_reference') or '',
+            'kind': row.get('kind') or '',
+            'fact_check': row.get('fact_check') or '',
+            'used_count': bucket.get('count') or 0,
+            'last_used': bucket.get('last_used'),
+        })
+    return jsonify({'items': simple, 'total': len(filtered), 'offset': offset, 'limit': limit})
 
 
 @illustrations_bp.route('/dock_json', methods=['GET'])
@@ -161,7 +249,15 @@ def dock_json():
             'content': item.get('content') or '',
             'source': item.get('source_url') or item.get('source') or '',
             'type': item.get('type') or 'illustration',
+            'scripture_reference': item.get('scripture_reference') or '',
+            'kind': item.get('kind') or '',
+            'fact_check': item.get('fact_check') or '',
         })
+    counts = illustration_use_counts([row['id'] for row in out if row.get('type') != 'section'])
+    for row in out:
+        bucket = counts.get(int(row['id']), {}) if row.get('type') != 'section' else {}
+        row['used_count'] = bucket.get('count') or 0
+        row['last_used'] = bucket.get('last_used')
     return jsonify({'items': out, 'count': len(out)})
 
 
@@ -331,6 +427,11 @@ def library():
     user_id = session['user_id']
     user_role = session.get('user_role', 'Member')
     q = request.args.get('q', '').strip()
+    book = (request.args.get('book') or '').strip()
+    chapter = (request.args.get('chapter') or '').strip()
+    kind_filter = (request.args.get('kind') or '').strip().lower()
+    fact_filter = (request.args.get('fact_check') or request.args.get('fact') or '').strip().lower().replace(' ', '_')
+    tag_filter = (request.args.get('tag') or '').strip()
     edit_id = request.args.get('edit_id')
 
     db = get_db()
@@ -359,6 +460,7 @@ def library():
                CASE WHEN il.user_id IS NOT NULL THEN 'private' ELSE 'pastoral_group' END AS visibility
         FROM illustration_library il
         WHERE (il.user_id = %s OR il.user_id IS NULL)
+          AND il.removed_at IS NULL
     """
     params = [user_id]
     illus_sql += illus_campus_frag
@@ -368,9 +470,28 @@ def library():
         like = f"%{q}%"
         illus_sql += (
             " AND (il.title LIKE %s OR il.content LIKE %s OR il.source LIKE %s"
-            " OR il.tags LIKE %s OR IFNULL(il.notes, '') LIKE %s)"
+            " OR il.tags LIKE %s OR IFNULL(il.notes, '') LIKE %s"
+            " OR IFNULL(il.scripture_reference, '') LIKE %s OR IFNULL(il.scripture_book, '') LIKE %s)"
         )
-        params += [like] * 5
+        params += [like] * 7
+    if book:
+        illus_sql += " AND (il.scripture_book = %s OR IFNULL(il.scripture_reference, '') LIKE %s)"
+        params += [book, f"{book}%"]
+    if chapter:
+        try:
+            illus_sql += " AND (il.scripture_chapter = %s OR IFNULL(il.scripture_reference, '') LIKE %s)"
+            params += [int(chapter), f"% {int(chapter)}:%"]
+        except ValueError:
+            pass
+    if kind_filter:
+        illus_sql += " AND il.kind = %s"
+        params.append(kind_filter)
+    if fact_filter:
+        illus_sql += " AND il.fact_check = %s"
+        params.append(fact_filter)
+    if tag_filter:
+        illus_sql += " AND (il.tags LIKE %s OR IFNULL(il.tags, '') LIKE %s)"
+        params += [f'%"{tag_filter}"%', f"%{tag_filter}%"]
 
     cur.execute(illus_sql, params)
     items.extend(list(cur.fetchall()))
@@ -387,6 +508,7 @@ def library():
                END AS visibility
         FROM pastoral_vault pv
         WHERE (pv.user_id = %s OR pv.user_id IS NULL)
+          AND pv.removed_at IS NULL
     """
     params = [user_id]
     vault_sql += vault_campus_frag
@@ -408,6 +530,14 @@ def library():
         # Ensure badge/edit form always have a visibility string
         if not item.get('visibility'):
             item['visibility'] = 'private' if item.get('user_id') else 'pastoral_group'
+
+    use_counts = illustration_use_counts([
+        item.get('id') for item in items if item.get('type') == 'illustration'
+    ])
+    for item in items:
+        bucket = use_counts.get(int(item['id']), {}) if item.get('type') == 'illustration' else {}
+        item['used_count'] = bucket.get('count') or 0
+        item['last_used'] = bucket.get('last_used')
 
     # Sort by created_at DESC
     items.sort(key=lambda x: x.get('created_at') or '0000-00-00 00:00:00', reverse=True)
@@ -460,6 +590,10 @@ def library():
             visibility = 'private'
         section_type = request.form.get('section_type')
         scripture_reference = request.form.get('scripture_reference', '').strip() or None
+        scripture_translation = request.form.get('scripture_translation', '').strip() or None
+        fact_check = (request.form.get('fact_check') or '').strip()
+        kind = (request.form.get('kind') or '').strip()
+        confirm_duplicate = request.form.get('confirm_duplicate') in ('1', 'true', 'on', 'yes')
 
         if not title or not content:
             flash('Title and content are required.', 'error')
@@ -474,9 +608,33 @@ def library():
             return redirect(request.url)
 
         owner_id = user_id if visibility == 'private' else None
+        duplicate_hold = False
 
         try:
-            if edit_item:
+            if not edit_item and not confirm_duplicate:
+                matches = find_similar_illustrations(user_id, title, scripture_reference)
+                if matches:
+                    names = ", ".join(str(match.get("title") or "Untitled") for match in matches[:5])
+                    flash(f'This looks like an illustration you already have: {names}. Check Save anyway to keep it.', 'error')
+                    edit_item = {
+                        'type': 'illustration',
+                        'title': title,
+                        'content': content,
+                        'source': source,
+                        'source_url': source,
+                        'notes': notes,
+                        'tags_input': tags_input,
+                        'visibility': visibility,
+                        'scripture_reference': scripture_reference or '',
+                        'scripture_translation': scripture_translation or '',
+                        'fact_check': fact_check,
+                        'kind': kind,
+                        'needs_confirm': True,
+                    }
+                    duplicate_hold = True
+            if duplicate_hold:
+                pass
+            elif edit_item and not edit_item.get('needs_confirm'):
                 if edit_item.get('type') == 'section':
                     cur.execute("""
                         UPDATE pastoral_vault
@@ -495,6 +653,10 @@ def library():
                         'notes': notes,
                         'tags': tags_json,
                         'visibility': visibility,
+                        'scripture_reference': scripture_reference,
+                        'scripture_translation': scripture_translation,
+                        'fact_check': fact_check,
+                        'kind': kind,
                     }
                     update_illustration(edit_id, data, user_id)
                     log_change(user_id, 'illustration_update', edit_id, title, 'Updated illustration')
@@ -508,11 +670,16 @@ def library():
                     'notes': notes,
                     'tags': tags_json,
                     'visibility': visibility,
+                    'scripture_reference': scripture_reference,
+                    'scripture_translation': scripture_translation,
+                    'fact_check': fact_check,
+                    'kind': kind,
                 }
                 new_id = create_illustration(data, user_id)
                 log_change(user_id, 'illustration_create', new_id, title, 'Created illustration')
                 flash('Illustration created.', 'success')
-            return redirect(url_for('pastoral.illustrations.library'))
+            if not duplicate_hold:
+                return redirect(url_for('pastoral.illustrations.library'))
         except Exception as e:
             flash(f'Error: {str(e)}', 'error')
 
@@ -521,10 +688,34 @@ def library():
         items=items,
         total_count=total_count,
         q=q,
+        book=book,
+        chapter=chapter,
+        kind_filter=kind_filter,
+        fact_filter=fact_filter,
+        tag_filter=tag_filter,
         edit_item=edit_item,
         docked_count=len(docked_ids),
         recent_sermons=recent_sermons,
     )
+
+
+@illustrations_bp.route('/tags', methods=['POST'])
+@pastoral_required()
+def rename_tags():
+    """Rename or merge a tag on illustrations this person can open."""
+    from app.utils.bot_sermon_library import rename_illustration_tags
+    user_id = session['user_id']
+    result = rename_illustration_tags(user_id, {
+        'from': request.form.get('from') or request.form.get('rename'),
+        'to': request.form.get('to'),
+        'merge': request.form.get('merge'),
+    })
+    if result.get('ok'):
+        count = (result.get('data') or {}).get('renamed') or 0
+        flash(f'Renamed that tag on {count} illustration{"s" if count != 1 else ""}.', 'success')
+    else:
+        flash(result.get('error') or 'Those tags could not be renamed.', 'error')
+    return redirect(url_for('pastoral.illustrations.library'))
 
 
 @illustrations_bp.route('/view/<int:item_id>')
@@ -543,9 +734,16 @@ def view(item_id: int):
     if not item.get('visibility'):
         item['visibility'] = 'private' if item.get('user_id') else 'pastoral_group'
 
+    used_in = []
+    last_used = None
+    if (item.get('type') or 'illustration') != 'section':
+        used_in, last_used = illustration_usage(item_id)
+
     return render_template(
         'pastoral/illustration_view.html',
         item=item,
+        used_in=used_in,
+        last_used=last_used,
         current_user_id=user_id,
         current_user_role=user_role,
     )
@@ -817,6 +1015,7 @@ def insert_into_sermon(sermon_id: int):
         return jsonify({'status': 'error', 'message': 'Invalid item'}), 400
 
     as_new = str(data.get('as_new_section') or '').lower() in ('1', 'true', 'yes', 'on')
+    confirm_reuse = str(data.get('confirm_reuse') or '').lower() in ('1', 'true', 'yes', 'on')
     section_index = data.get('section_index')
     try:
         section_index = int(section_index) if section_index is not None and str(section_index) != '' else None
@@ -840,6 +1039,17 @@ def insert_into_sermon(sermon_id: int):
     if not sermon:
         return jsonify({'status': 'error', 'message': 'Sermon not found or access denied'}), 404
 
+    if not confirm_reuse and (item.get('type') or 'illustration') != 'section':
+        used, last_used = illustration_usage(item_id, campus_id=sermon.get('campus_id'))
+        if used:
+            return jsonify({
+                'status': 'error',
+                'code': 'already_used',
+                'message': 'This illustration was already used with this church.',
+                'used_in': used[:20],
+                'last_used': last_used,
+            }), 409
+
     sections = list(get_sermon_sections(sermon_id) or [])
     source_ref = item.get('source_url') or item.get('source', '') or ''
     title = item.get('title') or 'Illustration'
@@ -855,6 +1065,8 @@ def insert_into_sermon(sermon_id: int):
             scripture_reference=item.get('scripture_reference') or '',
             source=source_ref,
             section_type='illustration',
+            illustration_id=item_id,
+            translation=item.get('scripture_translation') or '',
         )
         created_new = True
         target_index = result.get('section_index')
@@ -865,6 +1077,7 @@ def insert_into_sermon(sermon_id: int):
             html,
             source=source_ref,
             force_illustration_title=title,
+            illustration_id=item_id,
         )
         created_new = bool(result.get('created'))
         target_index = result.get('section_index')
@@ -934,6 +1147,8 @@ def insert_docked_into_sermon(sermon_id: int):
                 scripture_reference=item.get('scripture_reference') or '',
                 source=source_ref,
                 section_type='illustration',
+                illustration_id=iid,
+                translation=item.get('scripture_translation') or '',
             )
             sections = list(get_sermon_sections(sermon_id) or [])  # refresh length
         else:

@@ -278,6 +278,8 @@ CLOSED_TABLES = (
     "maya_bot_settings",
     "maya_bot_permissions",
     "maya_bot_perm_log",
+    "illustration_tags",
+    "illustration_tag_links",
 )
 
 

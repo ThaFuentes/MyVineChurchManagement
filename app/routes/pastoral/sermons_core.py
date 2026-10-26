@@ -30,7 +30,8 @@ from . import pastoral_required
 from app.models.pastoral.sermons import (
     get_visible_sermons, get_sermon_by_id, create_sermon, update_sermon,
     delete_sermon, get_sermon_sections, save_sermon_sections,
-    get_collaborators, add_collaborator, remove_collaborator
+    get_collaborators, add_collaborator, remove_collaborator,
+    clean_service_date,
 )
 from app.models.pastoral.service_plans import (
     get_all_service_plans,
@@ -38,6 +39,28 @@ from app.models.pastoral.service_plans import (
 )
 from app.models.pastoral.illustrations import get_visible_illustrations
 from app.models.log import log_change
+
+
+def _passage_value(data) -> str | None:
+    """primary_passage wins when it has words. passage is the same field."""
+    if not isinstance(data, dict):
+        return None
+    primary = data.get('primary_passage')
+    passage = data.get('passage')
+    if primary is not None and str(primary).strip():
+        return str(primary).strip()
+    if passage is not None and str(passage).strip():
+        return str(passage).strip()
+    if primary is not None:
+        return str(primary).strip() or None
+    return None
+
+
+def _form_passage() -> str | None:
+    return _passage_value({
+        'primary_passage': request.form.get('primary_passage'),
+        'passage': request.form.get('passage'),
+    })
 from app.utils.helpers import contains_censored_word
 from app.models.db import get_db
 
@@ -426,8 +449,8 @@ def new():
         sermon_data = {
             'title': title,
             'preacher_id': request.form.get('preacher_id') or None,
-            'primary_passage': request.form.get('primary_passage', '').strip() or None,
-            'service_date': request.form.get('service_date') or None,
+            'primary_passage': _form_passage(),
+            'service_date': clean_service_date(request.form.get('service_date')),
             'visibility': request.form.get('visibility', 'private'),
             'header_text': request.form.get('header_text', '').strip() or None,
             'footer_text': request.form.get('footer_text', '').strip() or None,
@@ -468,10 +491,7 @@ def edit(sermon_id: int):
     sections = get_sermon_sections(sermon_id)
     collaborators = get_collaborators(sermon_id)
     pastoral_users = load_pastoral_users()
-    sermon_date = None
-    if sermon.get('service_date'):
-        sd = sermon.get('service_date')
-        sermon_date = sd.strftime('%Y-%m-%d') if hasattr(sd, 'strftime') else str(sd)[:10]
+    sermon_date = clean_service_date(sermon.get('service_date'))
     service_plans = get_service_plans_for_sermon_picker(
         days_ahead=180,
         days_past=120,
@@ -529,6 +549,9 @@ def edit(sermon_id: int):
         sections = get_sermon_sections(sermon_id)
         collaborators = get_collaborators(sermon_id)
 
+    if sermon:
+        sermon['service_date'] = clean_service_date(sermon.get('service_date'))
+
     return render_template('pastoral/sermon_editor.html',
                            sermon=sermon, sections=sections, collaborators=collaborators,
                            pastoral_users=pastoral_users, service_plans=service_plans,
@@ -576,6 +599,10 @@ def autosave():
                   'header_text', 'footer_text', 'conclusion_text', 'notes'):
             if k in sermon_meta:
                 safe_meta[k] = sermon_meta[k]
+        if 'primary_passage' not in safe_meta and sermon_meta.get('passage'):
+            safe_meta['primary_passage'] = sermon_meta.get('passage')
+        if 'service_date' in safe_meta:
+            safe_meta['service_date'] = clean_service_date(safe_meta.get('service_date'))
         if safe_meta:
             try:
                 update_sermon(sid, safe_meta, user_id)
@@ -591,8 +618,8 @@ def autosave():
         title = (sermon_meta.get('title') or '').strip() or f"Draft Sermon {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
         create_data = {
             'title': title,
-            'primary_passage': sermon_meta.get('primary_passage'),
-            'service_date': sermon_meta.get('service_date') or None,
+            'primary_passage': _passage_value(sermon_meta),
+            'service_date': clean_service_date(sermon_meta.get('service_date')),
             'visibility': sermon_meta.get('visibility', 'private'),
             'header_text': sermon_meta.get('header_text'),
             'footer_text': sermon_meta.get('footer_text'),

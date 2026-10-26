@@ -23,6 +23,40 @@
       <input type="text" name="q" placeholder="title, tags, content, scripture..." value="{{ q or '' }}"
              class="form-control-dark" style="width:100%; padding:0.55rem 0.7rem; border-radius:10px; background:rgba(0,0,0,0.25); color:inherit; border:1px solid rgba(255,255,255,0.15);">
     </div>
+    <div style="min-width:120px;">
+      <label style="display:block; font-size:0.75rem; opacity:0.7; margin-bottom:0.2rem;">Book</label>
+      <input type="text" name="book" placeholder="John" value="{{ book or '' }}"
+             class="form-control-dark" style="width:100%; padding:0.55rem 0.7rem; border-radius:10px; background:rgba(0,0,0,0.25); color:inherit; border:1px solid rgba(255,255,255,0.15);">
+    </div>
+    <div style="width:96px;">
+      <label style="display:block; font-size:0.75rem; opacity:0.7; margin-bottom:0.2rem;">Chapter</label>
+      <input type="text" name="chapter" inputmode="numeric" placeholder="3" value="{{ chapter or '' }}"
+             class="form-control-dark" style="width:100%; padding:0.55rem 0.7rem; border-radius:10px; background:rgba(0,0,0,0.25); color:inherit; border:1px solid rgba(255,255,255,0.15);">
+    </div>
+    <div style="min-width:130px;">
+      <label style="display:block; font-size:0.75rem; opacity:0.7; margin-bottom:0.2rem;">Kind</label>
+      <select name="kind" class="form-control-dark" style="width:100%; padding:0.55rem 0.7rem; border-radius:10px; background:rgba(0,0,0,0.25); color:inherit; border:1px solid rgba(255,255,255,0.15);">
+        <option value="">Any</option>
+        <option value="testimony" {% if kind_filter == 'testimony' %}selected{% endif %}>Testimony</option>
+        <option value="historical" {% if kind_filter == 'historical' %}selected{% endif %}>Historical</option>
+        <option value="science" {% if kind_filter == 'science' %}selected{% endif %}>Science</option>
+        <option value="bible" {% if kind_filter == 'bible' %}selected{% endif %}>Bible</option>
+      </select>
+    </div>
+    <div style="min-width:150px;">
+      <label style="display:block; font-size:0.75rem; opacity:0.7; margin-bottom:0.2rem;">Fact-check</label>
+      <select name="fact_check" class="form-control-dark" style="width:100%; padding:0.55rem 0.7rem; border-radius:10px; background:rgba(0,0,0,0.25); color:inherit; border:1px solid rgba(255,255,255,0.15);">
+        <option value="">Any</option>
+        <option value="verified" {% if fact_filter == 'verified' %}selected{% endif %}>Verified</option>
+        <option value="testimony" {% if fact_filter == 'testimony' %}selected{% endif %}>Testimony</option>
+        <option value="needs_review" {% if fact_filter == 'needs_review' %}selected{% endif %}>Needs review</option>
+      </select>
+    </div>
+    <div style="min-width:120px;">
+      <label style="display:block; font-size:0.75rem; opacity:0.7; margin-bottom:0.2rem;">Tag</label>
+      <input type="text" name="tag" placeholder="grace" value="{{ tag_filter or '' }}"
+             class="form-control-dark" style="width:100%; padding:0.55rem 0.7rem; border-radius:10px; background:rgba(0,0,0,0.25); color:inherit; border:1px solid rgba(255,255,255,0.15);">
+    </div>
     <button type="submit" class="btn btn-primary" style="min-height:42px;">Search</button>
     <button type="button" id="add-item-btn" class="btn btn-secondary" style="min-height:42px;">
       <i class="fa-solid fa-plus" aria-hidden="true"></i> Add illustration
@@ -40,6 +74,25 @@
   <p style="margin:0.55rem 0 0; font-size:0.78rem; opacity:0.65;">
     Your stories and sections are yours — download any item from its card, or grab the whole library as a ZIP.
   </p>
+  <form method="POST" action="{{ url_for('pastoral.illustrations.rename_tags') }}" style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:flex-end; margin-top:0.85rem;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+    <div style="min-width:140px; flex:1;">
+      <label style="display:block; font-size:0.75rem; opacity:0.7; margin-bottom:0.2rem;">Rename tag</label>
+      <input type="text" name="from" required placeholder="old tag"
+             class="form-control-dark" style="width:100%; padding:0.55rem 0.7rem; border-radius:10px; background:rgba(0,0,0,0.25); color:inherit; border:1px solid rgba(255,255,255,0.15);">
+    </div>
+    <div style="min-width:140px; flex:1;">
+      <label style="display:block; font-size:0.75rem; opacity:0.7; margin-bottom:0.2rem;">To</label>
+      <input type="text" name="to" required placeholder="new tag"
+             class="form-control-dark" style="width:100%; padding:0.55rem 0.7rem; border-radius:10px; background:rgba(0,0,0,0.25); color:inherit; border:1px solid rgba(255,255,255,0.15);">
+    </div>
+    <div style="min-width:180px; flex:1;">
+      <label style="display:block; font-size:0.75rem; opacity:0.7; margin-bottom:0.2rem;">Also merge</label>
+      <input type="text" name="merge" placeholder="old, also"
+             class="form-control-dark" style="width:100%; padding:0.55rem 0.7rem; border-radius:10px; background:rgba(0,0,0,0.25); color:inherit; border:1px solid rgba(255,255,255,0.15);">
+    </div>
+    <button type="submit" class="btn btn-secondary" style="min-height:42px;">Rename tags</button>
+  </form>
 </div>
 
 {% if docked_count > 0 %}
@@ -91,7 +144,18 @@
 
     <div class="illus-card-body">
       {% if item.scripture_reference %}
-      <div class="illus-card-meta"><strong>Scripture:</strong> {{ item.scripture_reference }}</div>
+      <div class="illus-card-meta"><strong>Scripture:</strong> {{ item.scripture_reference }}{% if item.scripture_translation %} ({{ item.scripture_translation }}){% endif %}</div>
+      {% endif %}
+      {% if item.kind %}
+      <div class="illus-card-meta"><strong>Kind:</strong> {{ item.kind }}</div>
+      {% endif %}
+      {% if item.fact_check %}
+      <div class="illus-card-meta"><strong>Fact-check:</strong> {{ item.fact_check|replace('_', ' ') }}</div>
+      {% endif %}
+      {% if item.type != 'section' %}
+      <div class="illus-card-meta">
+        Used in {{ item.used_count or 0 }} sermon{{ 's' if (item.used_count or 0) != 1 else '' }}{% if item.last_used %} · last used {{ item.last_used }}{% endif %}
+      </div>
       {% endif %}
       <div class="illus-card-excerpt">{{ item.content|safe }}</div>
       {% if item.tag_list %}
@@ -290,6 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function generateEditCard(data = {}, isEdit = false) {
     const isSection = data.type === 'section';
+    const fieldStyle = 'width:100%; margin-top:0.25rem; padding:0.55rem; border-radius:8px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.15); color:inherit;';
     // Default new items to private; shared only when explicitly pastoral_group
     const isPrivate = data.visibility !== 'pastoral_group';
     container.innerHTML = `
@@ -308,7 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
           </label>
           ${isSection ? `
           <label style="display:block; margin-bottom:0.75rem;">Section type
-            <select name="section_type" style="width:100%; margin-top:0.25rem; padding:0.55rem; border-radius:8px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.15); color:inherit;">
+            <select name="section_type" style="${fieldStyle}">
               <option value="introduction" ${data.section_type === 'introduction' ? 'selected' : ''}>Introduction</option>
               <option value="point" ${data.section_type === 'point' ? 'selected' : ''}>Point</option>
               <option value="application" ${data.section_type === 'application' ? 'selected' : ''}>Application</option>
@@ -316,11 +381,31 @@ document.addEventListener('DOMContentLoaded', () => {
               <option value="conclusion" ${data.section_type === 'conclusion' ? 'selected' : ''}>Conclusion</option>
               <option value="other" ${data.section_type === 'other' ? 'selected' : ''}>Other</option>
             </select>
-          </label>
-          <label style="display:block; margin-bottom:0.75rem;">Scripture
-            <input type="text" name="scripture_reference" value="${escAttr(data.scripture_reference || '')}"
-                   style="width:100%; margin-top:0.25rem; padding:0.55rem; border-radius:8px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.15); color:inherit;">
           </label>` : ''}
+          <label style="display:block; margin-bottom:0.75rem;">Scripture reference
+            <input type="text" name="scripture_reference" value="${escAttr(data.scripture_reference || '')}"
+                   placeholder="John 3:16" style="${fieldStyle}">
+          </label>
+          <label style="display:block; margin-bottom:0.75rem;">Translation
+            <input type="text" name="scripture_translation" maxlength="40" value="${escAttr(data.scripture_translation || data.translation || '')}"
+                   placeholder="KJV" style="${fieldStyle}">
+          </label>
+          <label style="display:block; margin-bottom:0.75rem;">Kind
+            <select name="kind" style="${fieldStyle}">
+              <option value="">—</option>
+              ${['testimony', 'historical', 'science', 'bible'].map(function (value) {
+                return '<option value="' + value + '"' + (data.kind === value ? ' selected' : '') + '>' + value.charAt(0).toUpperCase() + value.slice(1) + '</option>';
+              }).join('')}
+            </select>
+          </label>
+          <label style="display:block; margin-bottom:0.75rem;">Fact-check
+            <select name="fact_check" style="${fieldStyle}">
+              <option value="">—</option>
+              <option value="verified" ${data.fact_check === 'verified' ? 'selected' : ''}>Verified</option>
+              <option value="testimony" ${data.fact_check === 'testimony' ? 'selected' : ''}>Testimony</option>
+              <option value="needs_review" ${data.fact_check === 'needs_review' ? 'selected' : ''}>Needs review</option>
+            </select>
+          </label>
           <label style="display:block; margin-bottom:0.75rem;">Tags
             <input type="text" name="tags" value="${escAttr(data.tags_input || '')}" placeholder="grace, faith"
                    style="width:100%; margin-top:0.25rem; padding:0.55rem; border-radius:8px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.15); color:inherit;">
@@ -343,6 +428,11 @@ document.addEventListener('DOMContentLoaded', () => {
           <label style="display:block; margin-bottom:0.75rem;">Private notes
             <textarea name="notes" rows="3" style="width:100%; margin-top:0.25rem; padding:0.55rem; border-radius:8px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.15); color:inherit;">${escText(data.notes || '')}</textarea>
           </label>
+          ${data.needs_confirm ? `
+          <label style="display:flex; gap:0.5rem; align-items:flex-start; margin-bottom:0.75rem;">
+            <input type="checkbox" name="confirm_duplicate" value="1" required style="margin-top:0.3rem;">
+            <span>Save anyway. This looks like an illustration you already have.</span>
+          </label>` : ''}
           <div style="display:flex; gap:0.5rem; justify-content:flex-end; flex-wrap:wrap;">
             <button type="button" class="btn btn-secondary cancel-edit">Cancel</button>
             <button type="submit" class="btn btn-primary">${isEdit ? 'Update' : 'Save'}</button>

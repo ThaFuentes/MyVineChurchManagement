@@ -16,6 +16,7 @@ from app.utils.bot_sermon_common import (
     _jsonish,
     _like,
     _limit,
+    _offset,
     _ok,
     _parse_date,
     _person,
@@ -36,11 +37,21 @@ from app.utils.bot_sermon_common import (
     verse_span,
 )
 
-def _illustration_item(row: dict, preview: bool, actor_id: int | None = None, *, staff: bool | None = None) -> dict:
-    item = _plain(row, (
-        "id", "title", "source", "notes", "user_id", "created_at", "content",
-    ))
-    item["tags"] = _tags(row.get("tags"))
+_ILLUSTRATION_KEYS = (
+    "id", "title", "source", "notes", "user_id", "created_at", "content",
+    "scripture_reference", "scripture_translation", "scripture_book", "scripture_chapter",
+    "fact_check", "kind",
+)
+
+
+def _illustration_item(row: dict, preview: bool, actor_id: int | None = None, *, staff: bool | None = None,
+                       link_tags: list[str] | None = None) -> dict:
+    item = _plain(row, _ILLUSTRATION_KEYS)
+    names = _tags(row.get("tags"))
+    for name in link_tags or []:
+        if name and name not in names and name.lower() not in {part.lower() for part in names}:
+            names.append(name)
+    item["tags"] = names
     item["visibility"] = "private" if row.get("user_id") else "pastoral_group"
     item["creator_name"] = _blank_name(row.get("creator_name"))
     if not may_see_illustration_notes(actor_id, row.get("user_id"), staff=staff):
@@ -53,7 +64,94 @@ def _illustration_item(row: dict, preview: bool, actor_id: int | None = None, *,
     return item
 
 
-def list_illustrations(search: str, limit, illus_id=None, actor_id: int | None = None) -> dict:
+def _tag_names_for(ids: list[int]) -> dict[int, list[str]]:
+    clean = []
+    for raw in ids:
+        try:
+            clean.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    if not clean:
+        return {}
+    marks = ", ".join(["%s"] * len(clean))
+    cur = _db().cursor()
+    cur.execute(
+        f"""
+        SELECT l.illustration_id, t.name
+        FROM illustration_tag_links l
+        JOIN illustration_tags t ON t.id = l.tag_id
+        WHERE l.illustration_id IN ({marks})
+        ORDER BY t.name
+        """,
+        clean,
+    )
+    out: dict[int, list[str]] = {}
+    for row in cur.fetchall() or []:
+        try:
+            iid = int(row["illustration_id"])
+        except (TypeError, ValueError, KeyError):
+            continue
+        name = str(row.get("name") or "").strip()
+        if name:
+            out.setdefault(iid, []).append(name)
+    return out
+
+
+def _illustration_filters(filters: dict) -> tuple[str, list, str | None]:
+    from app.utils.bot_illustration_fields import normalize_fact, normalize_kind, parse_scripture, tag_name
+    sql = ""
+    params: list = []
+    book = str((filters or {}).get("book") or "").strip()
+    if book:
+        parsed = parse_scripture(book)
+        canon = parsed.get("book") or book
+        sql += (
+            " AND (il.scripture_book = %s"
+            " OR ((il.scripture_book IS NULL OR il.scripture_book = '')"
+            " AND (il.scripture_reference = %s OR il.scripture_reference LIKE %s OR il.scripture_reference LIKE %s)))"
+        )
+        params.extend([canon, canon, f"{canon} %", f"{canon}:%"])
+    chapter = (filters or {}).get("chapter")
+    if chapter not in (None, ""):
+        try:
+            number = int(chapter)
+        except (TypeError, ValueError):
+            return "", [], "chapter must be a number."
+        sql += (
+            " AND (il.scripture_chapter = %s"
+            " OR ((il.scripture_chapter IS NULL OR il.scripture_chapter = 0)"
+            " AND (il.scripture_reference LIKE %s OR il.scripture_reference LIKE %s)))"
+        )
+        params.extend([number, f"% {number}:%", f"% {number} %"])
+    kind = (filters or {}).get("kind")
+    if kind not in (None, ""):
+        canon_kind = normalize_kind(kind)
+        if not canon_kind:
+            return "", [], "kind must be testimony, historical, science, or bible."
+        sql += " AND il.kind = %s"
+        params.append(canon_kind)
+    fact = (filters or {}).get("fact_check")
+    if fact in (None, ""):
+        fact = (filters or {}).get("fact")
+    if fact not in (None, ""):
+        canon_fact = normalize_fact(fact)
+        if not canon_fact:
+            return "", [], "fact_check must be verified, testimony, or needs_review."
+        sql += " AND il.fact_check = %s"
+        params.append(canon_fact)
+    tag = tag_name((filters or {}).get("tag"))
+    if tag:
+        sql += (
+            " AND (il.tags LIKE %s OR EXISTS ("
+            " SELECT 1 FROM illustration_tag_links l"
+            " JOIN illustration_tags t ON t.id = l.tag_id"
+            " WHERE l.illustration_id = il.id AND LOWER(t.name) = LOWER(%s)))"
+        )
+        params.extend([f'%"{tag}"%', tag])
+    return sql, params, None
+
+
+def list_illustrations(search: str, limit, illus_id=None, actor_id: int | None = None, **filters) -> dict:
     problem = ensure_soft_columns()
     if problem:
         return _fail(problem, 500, "illustration.list")
@@ -69,7 +167,9 @@ def list_illustrations(search: str, limit, illus_id=None, actor_id: int | None =
             cur.execute(
                 """
                 SELECT il.id, il.title, il.content, il.source, il.tags, il.notes,
-                       il.user_id, il.created_at, u.username AS creator_name
+                       il.user_id, il.created_at, il.scripture_reference, il.scripture_translation,
+                       il.scripture_book, il.scripture_chapter, il.fact_check, il.kind,
+                       u.username AS creator_name
                 FROM illustration_library il
                 LEFT JOIN users u ON u.id = il.user_id
                 WHERE il.id=%s AND il.removed_at IS NULL
@@ -79,24 +179,59 @@ def list_illustrations(search: str, limit, illus_id=None, actor_id: int | None =
             row = cur.fetchone()
             if not row:
                 return _fail("That illustration is not in the library.", 404)
-            return _ok(_illustration_item(row, False, actor_id, staff=staff))
-        sql = """
-            SELECT il.id, il.title, il.content, il.source, il.tags, il.notes,
-                   il.user_id, il.created_at, u.username AS creator_name
+            names = _tag_names_for([wanted]).get(wanted, [])
+            item = _illustration_item(row, False, actor_id, staff=staff, link_tags=names)
+            from app.models.pastoral.illustrations import illustration_usage
+            used, last_used = illustration_usage(wanted)
+            item["used_in"] = used[:50]
+            item["used_count"] = len(used)
+            item["last_used"] = last_used
+            return _ok(item)
+        filter_sql, filter_params, filter_error = _illustration_filters(filters)
+        if filter_error:
+            return _fail(filter_error, 400)
+        where = """
             FROM illustration_library il
             LEFT JOIN users u ON u.id = il.user_id
             WHERE il.removed_at IS NULL
-        """ + visible_sql
-        params = list(visible_params)
+        """ + visible_sql + filter_sql
+        params = list(visible_params) + list(filter_params)
         if (search or "").strip():
-            sql += " AND (il.title LIKE %s OR il.content LIKE %s OR il.source LIKE %s OR il.tags LIKE %s)"
+            where += (
+                " AND (il.title LIKE %s OR il.content LIKE %s OR il.source LIKE %s OR il.tags LIKE %s"
+                " OR IFNULL(il.notes, '') LIKE %s OR IFNULL(il.scripture_reference, '') LIKE %s"
+                " OR IFNULL(il.scripture_book, '') LIKE %s OR IFNULL(il.kind, '') LIKE %s"
+                " OR IFNULL(il.fact_check, '') LIKE %s)"
+            )
             like = _like(search)
-            params.extend([like, like, like, like])
-        sql += " ORDER BY il.created_at DESC, il.id DESC LIMIT %s"
-        params.append(_limit(limit))
-        cur.execute(sql, params)
-        rows = [_illustration_item(row, True, actor_id, staff=staff) for row in (cur.fetchall() or [])]
-        return _ok({"illustrations": rows, "count": len(rows)})
+            params.extend([like] * 9)
+        preview = str((filters or {}).get("preview") or "").strip().lower() in ("1", "true", "yes", "on")
+        page_limit = _limit(limit)
+        page_offset = _offset((filters or {}).get("offset"))
+        cur.execute("SELECT COUNT(*) AS n " + where, params)
+        total = int((cur.fetchone() or {}).get("n") or 0)
+        cur.execute(
+            """
+            SELECT il.id, il.title, il.content, il.source, il.tags, il.notes,
+                   il.user_id, il.created_at, il.scripture_reference, il.scripture_translation,
+                   il.scripture_book, il.scripture_chapter, il.fact_check, il.kind,
+                   u.username AS creator_name
+            """ + where + " ORDER BY il.created_at DESC, il.id DESC LIMIT %s OFFSET %s",
+            [*params, page_limit, page_offset],
+        )
+        fetched = list(cur.fetchall() or [])
+        names = _tag_names_for([int(row["id"]) for row in fetched])
+        rows = [
+            _illustration_item(row, preview, actor_id, staff=staff, link_tags=names.get(int(row["id"])))
+            for row in fetched
+        ]
+        return _ok({
+            "illustrations": rows,
+            "count": len(rows),
+            "total": total,
+            "offset": page_offset,
+            "limit": page_limit,
+        })
     except Exception as exc:
         print(f"bot illustrations: {exc}")
         return _fail("The illustrations could not be read.", 500, "illustration.list")
@@ -114,23 +249,46 @@ def create_illustration_item(actor_id: int, body: dict) -> dict:
     visibility = str(body.get("visibility") or "pastoral_group").strip().lower()
     if visibility not in SHARE_VISIBILITY:
         return _fail("visibility must be private or pastoral_group.", 400)
+    from app.utils.bot_illustration_fields import meta_columns, truthy
+    columns, meta_error = meta_columns(body)
+    if meta_error:
+        return _fail(meta_error, 400)
+    scripture = columns.get("scripture_reference") if columns else None
+    if not truthy(body.get("confirm_duplicate")):
+        try:
+            from app.models.pastoral.illustrations import find_similar_illustrations
+            matches = find_similar_illustrations(int(actor_id), title, scripture)
+        except Exception as exc:
+            print(f"bot illustration duplicate check: {exc}")
+            return _fail("That illustration could not be saved.", 500, "illustration.create")
+        if matches:
+            return _fail(
+                "This looks like an illustration you already have.",
+                409,
+                data={"matches": matches},
+                code="possible_duplicate",
+            )
+    payload = {
+        "title": title,
+        "content": content,
+        "source": _clip(body.get("source"), 500),
+        "tags": body.get("tags"),
+        "notes": _clip(body.get("notes"), TEXT_CAP),
+        "visibility": visibility,
+    }
+    payload.update(columns or {})
     try:
         from app.models.pastoral.illustrations import create_illustration
-        illus_id = create_illustration({
-            "title": title,
-            "content": content,
-            "source": _clip(body.get("source"), 500),
-            "tags": body.get("tags"),
-            "notes": _clip(body.get("notes"), TEXT_CAP),
-            "visibility": visibility,
-        }, int(actor_id))
+        illus_id = create_illustration(payload, int(actor_id))
+    except ValueError as exc:
+        return _fail(str(exc), 400)
     except Exception as exc:
         print(f"bot illustration create: {exc}")
         return _fail("That illustration could not be saved.", 500, "illustration.create")
     if not illus_id:
         return _fail("That illustration could not be saved.", 500, "illustration.create")
     return _ok(
-        {"illustration_id": int(illus_id), "title": title, "visibility": visibility},
+        {"illustration_id": int(illus_id), "title": title, "visibility": visibility, **(columns or {})},
         {
             "action": "illustration.create",
             "target_type": "illustration",
@@ -149,7 +307,9 @@ def update_illustration_item(actor_id: int | None, illus_id: int, body: dict) ->
         cur = _db().cursor()
         cur.execute(
             """
-            SELECT id, title, content, source, tags, notes, user_id
+            SELECT id, title, content, source, tags, notes, user_id,
+                   scripture_reference, scripture_translation, scripture_book, scripture_chapter,
+                   fact_check, kind
             FROM illustration_library
             WHERE id=%s AND removed_at IS NULL
             """ + (" AND (user_id=%s OR user_id IS NULL)" if actor_id else ""),
@@ -188,14 +348,22 @@ def update_illustration_item(actor_id: int | None, illus_id: int, body: dict) ->
                 changes["user_id"] = int(actor_id)
             else:
                 changes["user_id"] = None
+        from app.utils.bot_illustration_fields import meta_columns
+        columns, meta_error = meta_columns(body)
+        if meta_error:
+            return _fail(meta_error, 400)
+        changes.update(columns or {})
         if not changes:
-            return _fail("Send a title, story, source, or tags to change.", 400)
+            return _fail("Send a title, story, source, tags, scripture, fact-check, or kind to change.", 400)
         before = {key: _jsonish(row.get(key)) for key in changes}
         after = {key: _jsonish(value) for key, value in changes.items()}
         snapshot = {"illustration_id": int(illus_id), "before": before, "after": after}
         if _too_big(snapshot):
             return _fail("That change is too large to undo, so it was not saved.", 400)
         _update_fields("illustration_library", int(illus_id), changes, ILLUSTRATION_FIELDS)
+        if "tags" in changes:
+            from app.models.pastoral.illustrations import replace_illustration_tags
+            replace_illustration_tags(int(illus_id), _tags(changes.get("tags")))
         return _ok(
             {"illustration_id": int(illus_id), **after},
             {
@@ -209,6 +377,88 @@ def update_illustration_item(actor_id: int | None, illus_id: int, body: dict) ->
     except Exception as exc:
         print(f"bot illustration update: {exc}")
         return _fail("That illustration could not be saved.", 500, "illustration.update")
+
+
+def rename_illustration_tags(actor_id: int | None, body: dict) -> dict:
+    """Rename or merge tags on illustrations this account can open."""
+    problem = ensure_soft_columns()
+    if problem:
+        return _fail(problem, 500, "illustration.tags")
+    from app.utils.bot_illustration_fields import rewrite_tags, tag_rename_request
+    sources, dest, error = tag_rename_request(body or {})
+    if error:
+        return _fail(error, 400)
+    if not actor_id:
+        return _fail("This key has no person assigned, so it cannot rename tags.", 400)
+    try:
+        cur = _db().cursor()
+        visible_sql, visible_params = illustration_visible_sql(int(actor_id))
+        cur.execute(
+            """
+            SELECT il.id, il.tags
+            FROM illustration_library il
+            WHERE il.removed_at IS NULL
+            """ + visible_sql,
+            visible_params,
+        )
+        planned = []
+        for row in cur.fetchall() or []:
+            current = _tags(row.get("tags"))
+            updated, changed = rewrite_tags(current, sources, dest)
+            if not changed:
+                continue
+            planned.append((int(row["id"]), current, updated))
+        if not planned:
+            return _fail("No illustration you can open uses that tag.", 404)
+        before = [{"id": iid, "tags": _tags_json(old)} for iid, old, _new in planned]
+        after = [{"id": iid, "tags": _tags_json(new)} for iid, _old, new in planned]
+        snapshot = {
+            "sources": sources,
+            "destination": dest,
+            "before": before,
+            "after": after,
+        }
+        if _too_big(snapshot):
+            return _fail("That tag is on too many illustrations to undo in one step, so nothing was renamed.", 400)
+        from app.models.pastoral.illustrations import replace_illustration_tags
+        for iid, _old, new in planned:
+            cur.execute(
+                "UPDATE illustration_library SET tags=%s WHERE id=%s",
+                (_tags_json(new), iid),
+            )
+            replace_illustration_tags(iid, new)
+        return _ok(
+            {"renamed": len(planned), "from": sources, "to": dest},
+            {
+                "action": "illustration.tags",
+                "target_type": "illustration",
+                "target_id": planned[0][0],
+                "detail": f"{', '.join(sources)} -> {dest}"[:180],
+                "snapshot": snapshot,
+            },
+        )
+    except Exception as exc:
+        print(f"bot illustration tags: {exc}")
+        return _fail("Those tags could not be renamed.", 500, "illustration.tags")
+
+
+def _undo_illustration_tags(plan: str, snapshot: dict):
+    side = snapshot.get("before") if plan == "restore" else snapshot.get("after")
+    if not isinstance(side, list) or not side:
+        return False, "That tag change has nothing to put back."
+    from app.models.pastoral.illustrations import replace_illustration_tags
+    cur = _db().cursor()
+    for item in side:
+        if not isinstance(item, dict) or item.get("id") is None:
+            continue
+        cur.execute(
+            "UPDATE illustration_library SET tags=%s WHERE id=%s",
+            (item.get("tags") or "[]", int(item["id"])),
+        )
+        replace_illustration_tags(int(item["id"]), _tags(item.get("tags")))
+    if plan == "restore":
+        return True, "Put the previous tags back."
+    return True, "Applied that tag change again."
 
 
 def hide_illustration(actor_id: int, illus_id: int) -> dict:
@@ -256,7 +506,9 @@ def _load_illustration_for_actor(actor_id: int, illus_id: int) -> dict | None:
     visible_sql, visible_params = illustration_visible_sql(int(actor_id))
     cur.execute(
         """
-        SELECT il.id, il.title, il.content, il.source, il.tags, il.notes, il.user_id
+        SELECT il.id, il.title, il.content, il.source, il.tags, il.notes, il.user_id,
+               il.scripture_reference, il.scripture_translation, il.scripture_book,
+               il.scripture_chapter, il.fact_check, il.kind
         FROM illustration_library il
         WHERE il.id=%s AND il.removed_at IS NULL
         """ + visible_sql,

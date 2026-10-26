@@ -173,6 +173,18 @@ def get_sermon_for_podium(sermon_id, user_id):
 # ----------------------------------------------------------------------
 # Sermon CRUD Operations
 # ----------------------------------------------------------------------
+def clean_service_date(value):
+    """Blank and MySQL zero dates are stored as no date."""
+    from app.utils.bot_illustration_fields import blank_date
+    cleaned = blank_date(value)
+    if cleaned is None:
+        return None
+    text = str(cleaned).strip()[:10]
+    if len(text) != 10:
+        return None
+    return text
+
+
 def create_sermon(data, user_id):
     """
     Create a new sermon entry.
@@ -204,7 +216,7 @@ def create_sermon(data, user_id):
         data.get('title'),
         data.get('preacher_id'),
         data.get('primary_passage'),
-        data.get('service_date') or None,
+        clean_service_date(data.get('service_date')),
         data.get('visibility', 'private'),
         data.get('header_text'),
         data.get('footer_text'),
@@ -241,8 +253,11 @@ def update_sermon(sermon_id, data, user_id):
 
     for field in updatable_fields:
         if field in data:
+            value = data[field]
+            if field == 'service_date':
+                value = clean_service_date(value)
             sql += f"{field} = %s, "
-            params.append(data[field])
+            params.append(value)
 
     if not params:
         return  # Nothing to update
@@ -271,6 +286,16 @@ def delete_sermon(sermon_id):
 # ----------------------------------------------------------------------
 # Sermon Sections - FULL REPLACE + source field
 # ----------------------------------------------------------------------
+def _section_illustration_id(sec) -> int | None:
+    raw = (sec or {}).get('illustration_id')
+    if raw in (None, '', 0, '0', 'unlink', 'null'):
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 def get_sermon_sections(sermon_id):
     """
     Fetch all ordered sections for a sermon.
@@ -286,7 +311,7 @@ def get_sermon_sections(sermon_id):
 
     cur.execute("""
         SELECT id, sort_order, section_type, title, content,
-               scripture_reference, source, notes
+               scripture_reference, translation, source, notes, illustration_id
         FROM sermon_sections
         WHERE sermon_id = %s AND removed_at IS NULL
         ORDER BY sort_order
@@ -319,11 +344,13 @@ def save_sermon_sections(sermon_id, sections_list):
     for i, sec in enumerate(sections_list):
         sort_order = sec.get('sort_order') or (i + 1)  # Safe sequential fallback
 
+        link_id = _section_illustration_id(sec)
+        translation = str(sec.get('translation') or sec.get('scripture_translation') or '')[:40]
         cur.execute("""
             INSERT INTO sermon_sections (
                 sermon_id, sort_order, section_type, title, content,
-                scripture_reference, source, notes
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                scripture_reference, translation, source, notes, illustration_id
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             sermon_id,
             sort_order,
@@ -331,8 +358,10 @@ def save_sermon_sections(sermon_id, sections_list):
             sec.get('title', ''),
             sec.get('content', ''),
             sec.get('scripture_reference', ''),
+            translation,
             sec.get('source', ''),      # Free text source/reference - saved correctly
-            sec.get('notes', '')
+            sec.get('notes', ''),
+            link_id,
         ))
 
     db.commit()
@@ -347,6 +376,8 @@ def append_illustration_section(
     source: str = '',
     notes: str = '',
     section_type: str = 'illustration',
+    illustration_id: int | None = None,
+    translation: str | None = None,
 ) -> dict:
     """
     Insert ONE new sermon section without full-replace.
@@ -363,8 +394,8 @@ def append_illustration_section(
         """
         INSERT INTO sermon_sections (
             sermon_id, sort_order, section_type, title, content,
-            scripture_reference, source, notes
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            scripture_reference, translation, source, notes, illustration_id
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         (
             sermon_id,
@@ -373,8 +404,10 @@ def append_illustration_section(
             (title or 'Illustration')[:500],
             content_html or '',
             scripture_reference or '',
+            (translation or '')[:40],
             source or '',
             notes or '',
+            _section_illustration_id({'illustration_id': illustration_id}),
         ),
     )
     section_id = cur.lastrowid
@@ -400,6 +433,7 @@ def append_html_to_section_index(
     *,
     source: str = '',
     force_illustration_title: str | None = None,
+    illustration_id: int | None = None,
 ) -> dict:
     """
     Append HTML into an existing section by 0-based index (or last section).
@@ -413,6 +447,7 @@ def append_html_to_section_index(
             title=force_illustration_title or 'Illustration',
             content_html=html or '',
             source=source or '',
+            illustration_id=illustration_id,
         )
         return {**r, 'created': True}
 
@@ -431,18 +466,32 @@ def append_html_to_section_index(
         new_type = 'illustration'
         new_title = force_illustration_title
     new_source = target.get('source') or source or ''
-
-    cur.execute(
-        """
-        UPDATE sermon_sections
-        SET content = %s,
-            section_type = %s,
-            title = %s,
-            source = %s
-        WHERE id = %s AND sermon_id = %s
-        """,
-        (new_content, new_type, new_title, new_source, sid, sermon_id),
-    )
+    link_id = _section_illustration_id({'illustration_id': illustration_id}) if illustration_id else None
+    if link_id:
+        cur.execute(
+            """
+            UPDATE sermon_sections
+            SET content = %s,
+                section_type = %s,
+                title = %s,
+                source = %s,
+                illustration_id = %s
+            WHERE id = %s AND sermon_id = %s
+            """,
+            (new_content, new_type, new_title, new_source, link_id, sid, sermon_id),
+        )
+    else:
+        cur.execute(
+            """
+            UPDATE sermon_sections
+            SET content = %s,
+                section_type = %s,
+                title = %s,
+                source = %s
+            WHERE id = %s AND sermon_id = %s
+            """,
+            (new_content, new_type, new_title, new_source, sid, sermon_id),
+        )
     try:
         cur.execute(
             "UPDATE pastoral_sermons SET updated_at = CURRENT_TIMESTAMP WHERE id = %s",
@@ -507,10 +556,11 @@ def append_scripture_to_sermon(sermon_id, reference: str, text: str, translation
             UPDATE sermon_sections
             SET content = %s,
                 scripture_reference = COALESCE(NULLIF(scripture_reference, ''), %s),
-                source = COALESCE(NULLIF(source, ''), %s)
+                source = COALESCE(NULLIF(source, ''), %s),
+                translation = COALESCE(NULLIF(translation, ''), %s)
             WHERE id = %s
             """,
-            (new_content, reference, (translation or '')[:120], row['id']),
+            (new_content, reference, (translation or '')[:40], (translation or '')[:40], row['id']),
         )
         section_id = row['id']
     else:
@@ -523,8 +573,8 @@ def append_scripture_to_sermon(sermon_id, reference: str, text: str, translation
             """
             INSERT INTO sermon_sections (
                 sermon_id, sort_order, section_type, title, content,
-                scripture_reference, source, notes
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                scripture_reference, translation, source, notes
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 sermon_id,
@@ -533,7 +583,8 @@ def append_scripture_to_sermon(sermon_id, reference: str, text: str, translation
                 section_title,
                 html,
                 reference,
-                (translation or '')[:120],
+                (translation or '')[:40],
+                (translation or '')[:40],
                 '',
             ),
         )

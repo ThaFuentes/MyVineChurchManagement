@@ -234,6 +234,8 @@ class BotPolicyTests(unittest.TestCase):
         self.assertEqual(undo_plan("section.add", False), "hide")
         self.assertEqual(undo_plan("illustration.hide", False), "hide")
         self.assertEqual(undo_plan("illustration.hide", True), "show")
+        self.assertEqual(undo_plan("illustration.tags", False), "restore")
+        self.assertEqual(undo_plan("illustration.tags", True), "reapply")
         self.assertEqual(undo_plan("sermon.hide", False), "hide")
         self.assertEqual(undo_plan("section.hide", False), "hide")
         self.assertEqual(undo_plan("section.reorder", False), "restore")
@@ -249,7 +251,10 @@ class BotPolicyTests(unittest.TestCase):
             "GET /api/bot/sermons",
             "POST /api/bot/sermons",
             "POST /api/bot/illustrations",
+            "POST /api/bot/illustrations/tags",
             "POST /api/bot/illustrations/<id>/hide",
+            "POST /api/bot/sermons/<id>/sections/link",
+            "POST /api/bot/sermons/<id>/sections/save-illustration",
             "GET /api/bot/illustrations/<id>/download",
             "POST /api/bot/sermons/<id>/hide",
             "POST /api/bot/sermons/<id>/sections/reorder",
@@ -261,6 +266,9 @@ class BotPolicyTests(unittest.TestCase):
             self.assertIn(path, on)
         self.assertIn("GET /api/bot/sermons [off]", off)
         self.assertIn("GET /api/bot/sermons [on]", on)
+        self.assertIn("does not add a section", on)
+        self.assertIn("primary_passage", on)
+        self.assertIn('"passage"', on)
         self.assertIn("the owner chose", on)
         self.assertNotIn("more than one person", on)
         self.assertIn("GET /api/bot/comments [off]", off)

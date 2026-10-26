@@ -91,6 +91,12 @@ def format_illustration_markdown(item: dict, *, kind: str = "illustration") -> s
         lines.append(f"Section type: {item['section_type']}")
     if item.get("scripture_reference"):
         lines.append(f"Scripture: {item['scripture_reference']}")
+    if item.get("scripture_translation"):
+        lines.append(f"Translation: {item['scripture_translation']}")
+    if item.get("kind"):
+        lines.append(f"Kind: {item['kind']}")
+    if item.get("fact_check"):
+        lines.append(f"Fact-check: {item['fact_check']}")
     source = item.get("source_url") or item.get("source") or ""
     if source:
         lines.append(f"Source: {source}")

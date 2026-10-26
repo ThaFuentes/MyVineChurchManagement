@@ -38,10 +38,25 @@ SECTION_FIELDS = (
     "title",
     "content",
     "scripture_reference",
+    "translation",
     "source",
     "notes",
+    "illustration_id",
 )
-ILLUSTRATION_FIELDS = ("title", "content", "source", "tags", "notes", "user_id")
+ILLUSTRATION_FIELDS = (
+    "title",
+    "content",
+    "source",
+    "tags",
+    "notes",
+    "user_id",
+    "scripture_reference",
+    "scripture_translation",
+    "scripture_book",
+    "scripture_chapter",
+    "fact_check",
+    "kind",
+)
 VAULT_FIELDS = (
     "user_id",
     "title",
@@ -147,10 +162,14 @@ def assignments_with_speaker(assignments, preacher_id, guest_name, change_speake
     return rows
 
 
-def _fail(error: str, status: int = 400, action: str | None = None) -> dict:
+def _fail(error: str, status: int = 400, action: str | None = None, *, data=None, code: str | None = None) -> dict:
     out = {"ok": False, "error": error, "status": status}
     if action:
         out["action"] = action
+    if code:
+        out["code"] = code
+    if data is not None:
+        out["data"] = data
     return out
 
 
@@ -159,11 +178,17 @@ def _ok(data: dict, log: dict | None = None) -> dict:
 
 
 def _jsonish(value):
+    if isinstance(value, str) and value.startswith("0000-00-00"):
+        return None
     if value is None or isinstance(value, (int, float, str, bool)):
         return value
     if isinstance(value, datetime):
+        if value.year < 1:
+            return None
         return value.isoformat(sep=" ", timespec="seconds")
     if isinstance(value, date):
+        if value.year < 1:
+            return None
         return value.isoformat()
     if isinstance(value, time):
         return value.strftime("%H:%M:%S")
@@ -206,17 +231,31 @@ def _limit(value, default: int = 40) -> int:
     return max(1, min(number, 100))
 
 
+def _offset(value) -> int:
+    try:
+        number = int(value if value not in (None, "") else 0)
+    except (TypeError, ValueError):
+        number = 0
+    return max(0, min(number, 100000))
+
+
 def _like(value: str) -> str:
     cleaned = (value or "").replace("%", "").replace("_", "").replace("\\", "")
     return f"%{cleaned[:80]}%"
 
 
 def _parse_date(value, required: bool = False):
+    from app.utils.bot_illustration_fields import blank_date
     if value in (None, ""):
         if required:
             return None, "Send date as YYYY-MM-DD."
         return None, None
-    text = str(value).strip()[:10]
+    cleaned = blank_date(value)
+    if cleaned is None:
+        if required:
+            return None, "Send the date as YYYY-MM-DD."
+        return None, None
+    text = str(cleaned).strip()[:10]
     try:
         datetime.strptime(text, "%Y-%m-%d")
     except ValueError:
@@ -280,6 +319,52 @@ def ensure_soft_columns() -> str | None:
             except Exception as exc:
                 if "1060" not in str(exc) and "Duplicate" not in str(exc):
                     raise
+        extra = (
+            ("illustration_library", "scripture_reference", "TEXT NULL"),
+            ("illustration_library", "scripture_translation", "VARCHAR(40) NULL"),
+            ("illustration_library", "scripture_book", "VARCHAR(40) NULL"),
+            ("illustration_library", "scripture_chapter", "INT NULL"),
+            ("illustration_library", "fact_check", "VARCHAR(20) NULL"),
+            ("illustration_library", "kind", "VARCHAR(20) NULL"),
+            ("sermon_sections", "translation", "VARCHAR(40) NULL"),
+        )
+        for table, column, definition in extra:
+            cur.execute(
+                """
+                SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s
+                """,
+                (table, column),
+            )
+            if cur.fetchone():
+                continue
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS illustration_tags (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(80) NOT NULL,
+                UNIQUE KEY uq_illustration_tag_name (name)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS illustration_tag_links (
+                illustration_id INT UNSIGNED NOT NULL,
+                tag_id INT UNSIGNED NOT NULL,
+                PRIMARY KEY (illustration_id, tag_id),
+                KEY idx_illustration_tag_tag (tag_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """
+        )
+        try:
+            cur.execute(
+                "CREATE INDEX idx_illustration_scripture ON illustration_library (scripture_book, scripture_chapter)"
+            )
+        except Exception as exc:
+            if "1061" not in str(exc) and "Duplicate" not in str(exc):
+                raise
         _ready = True
         return None
     except Exception as exc:

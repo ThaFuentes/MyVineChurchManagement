@@ -51,6 +51,24 @@
   </div>
 
   <div class="input-group">
+    <label class="fw-bold text-cyan small">Translation</label>
+    <input type="text" class="form-control form-control-dark section-translation" maxlength="40"
+           value="{{ section.translation or '' }}"
+           placeholder="KJV, ESV, NIV">
+  </div>
+
+  <input type="hidden" class="section-illustration-id" value="{{ section.illustration_id or '' }}">
+  <div class="section-illustration-link d-flex flex-wrap align-items-center gap-2 mb-2">
+    <span class="small text-muted section-illustration-status">
+      {% if section.illustration_id %}Linked illustration #{{ section.illustration_id }}{% else %}No illustration linked{% endif %}
+    </span>
+    <button type="button" class="btn btn-sm btn-outline-secondary unlink-illustration-btn"
+            {% if not section.illustration_id %}hidden{% endif %}>
+      Unlink illustration
+    </button>
+  </div>
+
+  <div class="input-group">
     <label class="fw-bold text-cyan small">Source / Reference</label>
     <textarea class="form-control form-control-dark section-source section-field-source section-field-wide" rows="4"
               placeholder="Books, articles, conversations, stories - paste everything you want to keep visible while you write">{{ section.source }}</textarea>

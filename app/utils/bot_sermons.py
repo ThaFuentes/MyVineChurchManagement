@@ -40,6 +40,12 @@ from app.utils.bot_sermon_common import (
     verse_span,
     visible_sermon_filter,
 )
+from app.utils.bot_illustration_fields import (
+    link_without_section,
+    passage_from,
+    truthy,
+    wants_explicit_insert,
+)
 from app.utils.bot_sermon_library import (
     create_illustration_item,
     create_vault_item,
@@ -47,12 +53,14 @@ from app.utils.bot_sermon_library import (
     list_illustrations,
     list_vault,
     lookup_reference,
+    rename_illustration_tags,
     set_lineup,
     download_illustration,
     hide_illustration,
     update_illustration_item,
     update_vault_item,
     _load_verses,
+    _undo_illustration_tags,
     _undo_lineup,
 )
 
@@ -161,7 +169,7 @@ def sermon_detail(sermon_id: int, actor_id: int | None = None) -> dict:
         cur.execute(
             """
             SELECT id, sort_order, section_type, title, content, scripture_reference,
-                   source, notes, illustration_id
+                   translation, source, notes, illustration_id
             FROM sermon_sections
             WHERE sermon_id=%s AND removed_at IS NULL
             ORDER BY sort_order, id
@@ -179,6 +187,7 @@ def sermon_detail(sermon_id: int, actor_id: int | None = None) -> dict:
         data = _plain(row)
         data["preacher_name"] = _blank_name(data.get("preacher_name"))
         data["creator_name"] = _blank_name(data.get("creator_name"))
+        data["passage"] = data.get("primary_passage")
         data["sections"] = sections
         return _ok(data)
     except Exception as exc:
@@ -204,12 +213,13 @@ def create_builder_sermon(actor_id: int, body: dict) -> dict:
     service_date, derr = _parse_date(body.get("service_date"))
     if derr:
         return _fail(derr, 400)
+    passage, passage_set = passage_from(body or {})
     try:
         from app.models.pastoral.sermons import create_sermon
         sermon_id = create_sermon({
             "title": title,
             "preacher_id": preacher_id,
-            "primary_passage": _clip(body.get("primary_passage"), 500),
+            "primary_passage": _clip(passage, 500) if passage_set else None,
             "service_date": service_date,
             "visibility": visibility,
             "header_text": _clip(body.get("header_text"), TEXT_CAP),
@@ -287,8 +297,10 @@ def _sermon_changes(body: dict, row: dict):
             if perr:
                 return None, perr
             changes["preacher_id"] = preacher_id
+    passage, passage_set = passage_from(body)
+    if passage_set:
+        changes["primary_passage"] = _clip(passage, 500)
     for key, cap in (
-        ("primary_passage", 500),
         ("header_text", TEXT_CAP),
         ("footer_text", TEXT_CAP),
         ("conclusion_text", TEXT_CAP),
@@ -320,8 +332,11 @@ def save_section(sermon_id: int, body: dict, actor_id: int | None = None) -> dic
             return denied
         body = body or {}
         if body.get("section_id") not in (None, "", 0, "0"):
-            return _update_section(int(sermon_id), body)
-        if body.get("illustration_id") not in (None, "", 0, "0"):
+            return _update_section(int(sermon_id), body, actor_id)
+        refusal = link_without_section(body)
+        if refusal:
+            return _fail(refusal, 400)
+        if wants_explicit_insert(body) and body.get("illustration_id") not in (None, "", 0, "0"):
             return _add_illustration_section(int(sermon_id), body, actor_id)
         if (body.get("reference") or body.get("ref")):
             return _add_verse_section(int(sermon_id), body)
@@ -331,7 +346,16 @@ def save_section(sermon_id: int, body: dict, actor_id: int | None = None) -> dic
         return _fail("That section could not be saved.", 500, "section.add")
 
 
-def _insert_section(sermon_id, section_type, title, content, scripture_reference, source, notes, illustration_id=None):
+def _section_translation(body: dict) -> str | None:
+    if "translation" in (body or {}):
+        return _clip(body.get("translation"), 40) or ""
+    if "scripture_translation" in (body or {}):
+        return _clip(body.get("scripture_translation"), 40) or ""
+    return None
+
+
+def _insert_section(sermon_id, section_type, title, content, scripture_reference, source, notes,
+                    illustration_id=None, translation=None):
     cur = _db().cursor()
     cur.execute(
         "SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM sermon_sections WHERE sermon_id=%s",
@@ -342,8 +366,8 @@ def _insert_section(sermon_id, section_type, title, content, scripture_reference
         """
         INSERT INTO sermon_sections (
             sermon_id, sort_order, section_type, title, content,
-            scripture_reference, source, notes, illustration_id
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            scripture_reference, translation, source, notes, illustration_id
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         (
             int(sermon_id),
@@ -352,6 +376,7 @@ def _insert_section(sermon_id, section_type, title, content, scripture_reference
             title,
             content,
             scripture_reference or "",
+            (translation or "")[:40],
             source or "",
             notes or "",
             illustration_id,
@@ -389,14 +414,19 @@ def _add_text_section(sermon_id: int, body: dict) -> dict:
     raw = body.get("content")
     if not str(raw or "").strip() and not str(body.get("title") or "").strip():
         return _fail("A section needs a title or some words.", 400)
+    translation = _section_translation(body)
+    source = _clip(body.get("source"), 500) or ""
+    if translation and "source" not in body and not source:
+        source = translation
     section_id, _order = _insert_section(
         sermon_id,
         section_type,
         title,
         as_html(str(raw or "")),
         _clip(body.get("scripture_reference"), 500) or "",
-        _clip(body.get("source"), 500) or "",
+        source,
         _clip(body.get("notes"), TEXT_CAP) or "",
+        translation=translation or "",
     )
     return _section_log(sermon_id, section_id, title, section_type)
 
@@ -421,7 +451,12 @@ def _add_illustration_section(sermon_id: int, body: dict, actor_id: int | None =
     row = cur.fetchone()
     if not row:
         return _fail("That illustration is not in the library.", 404)
+    if not truthy(body.get("confirm_reuse")):
+        refused = _reuse_block(sermon_id, illus_id, None)
+        if refused:
+            return refused
     title = _clip(body.get("title"), 500) or row.get("title") or "Illustration"
+    translation = _section_translation(body)
     section_id, _order = _insert_section(
         sermon_id,
         "illustration",
@@ -431,6 +466,7 @@ def _add_illustration_section(sermon_id: int, body: dict, actor_id: int | None =
         row.get("source") or "",
         _clip(body.get("notes"), TEXT_CAP) or "",
         illus_id,
+        translation or "",
     )
     return _section_log(sermon_id, section_id, title, "illustration")
 
@@ -446,14 +482,16 @@ def _add_verse_section(sermon_id: int, body: dict) -> dict:
         parts.append(f"<p><sup>{int(verse['verse'])}</sup> {html.escape(verse['text'] or '')}</p>")
     parts.append("</blockquote>")
     title = payload["reference"]
+    translation = _section_translation(body) or (payload.get("translation") or "")
     section_id, _order = _insert_section(
         sermon_id,
         "scripture",
         title,
         "".join(parts),
         title,
-        payload.get("translation") or "",
+        translation or "",
         "",
+        translation=translation or "",
     )
     result = _section_log(sermon_id, section_id, title, "scripture")
     result["data"]["verses"] = verses
@@ -462,7 +500,65 @@ def _add_verse_section(sermon_id: int, body: dict) -> dict:
     return result
 
 
-def _update_section(sermon_id: int, body: dict) -> dict:
+def _sermon_campus(sermon_id: int):
+    cur = _db().cursor()
+    cur.execute("SELECT campus_id FROM pastoral_sermons WHERE id=%s", (int(sermon_id),))
+    row = cur.fetchone() or {}
+    return row.get("campus_id")
+
+
+def _reuse_block(sermon_id: int, illus_id: int, section_id: int | None):
+    from app.models.pastoral.illustrations import illustration_usage
+    used, last_used = illustration_usage(
+        int(illus_id),
+        campus_id=_sermon_campus(sermon_id),
+        exclude_section_id=section_id,
+    )
+    if not used:
+        return None
+    return _fail(
+        "This illustration was already used with this church.",
+        409,
+        data={"used_in": used[:20], "last_used": last_used, "illustration_id": int(illus_id)},
+        code="already_used",
+    )
+
+
+def _link_fields(sermon_id: int, section_id: int, body: dict, actor_id: int | None = None):
+    """Return illustration_id changes, or an error result. Absent means the link was not sent."""
+    if truthy(body.get("unlink")) or str(body.get("illustration_id") or "").strip().lower() == "unlink":
+        return {"illustration_id": None}, None
+    if "illustration_id" not in body:
+        return {}, None
+    raw = body.get("illustration_id")
+    if raw in (None, "", 0, "0"):
+        return {"illustration_id": None}, None
+    try:
+        illus_id = int(raw)
+    except (TypeError, ValueError):
+        return None, _fail("illustration_id must be a number.", 400)
+    cur = _db().cursor()
+    sql = """
+        SELECT il.id
+        FROM illustration_library il
+        WHERE il.id=%s AND il.removed_at IS NULL
+    """
+    params = [illus_id]
+    if actor_id:
+        frag, extra = illustration_visible_sql(int(actor_id))
+        sql += frag
+        params.extend(extra)
+    cur.execute(sql, params)
+    if not cur.fetchone():
+        return None, _fail("That illustration is not in the library.", 404)
+    if not truthy(body.get("confirm_reuse")):
+        refused = _reuse_block(sermon_id, illus_id, section_id)
+        if refused:
+            return None, refused
+    return {"illustration_id": illus_id}, None
+
+
+def _update_section(sermon_id: int, body: dict, actor_id: int | None = None) -> dict:
     try:
         section_id = int(body.get("section_id"))
     except (TypeError, ValueError):
@@ -470,7 +566,7 @@ def _update_section(sermon_id: int, body: dict) -> dict:
     cur = _db().cursor()
     cur.execute(
         """
-        SELECT id, section_type, title, content, scripture_reference, source, notes
+        SELECT id, section_type, title, content, scripture_reference, translation, source, notes, illustration_id
         FROM sermon_sections
         WHERE id=%s AND sermon_id=%s AND removed_at IS NULL
         """,
@@ -479,7 +575,9 @@ def _update_section(sermon_id: int, body: dict) -> dict:
     row = cur.fetchone()
     if not row:
         return _fail("That section is not on this sermon.", 404)
-    changes = {}
+    changes, link_error = _link_fields(int(sermon_id), section_id, body, actor_id)
+    if link_error:
+        return link_error
     if "section_type" in body:
         section_type = str(body.get("section_type") or "").strip().lower()
         if section_type not in SECTION_TYPES:
@@ -494,6 +592,11 @@ def _update_section(sermon_id: int, body: dict) -> dict:
         changes["content"] = as_html(str(body.get("content") or ""))
     if "scripture_reference" in body:
         changes["scripture_reference"] = _clip(body.get("scripture_reference"), 500) or ""
+    translation = _section_translation(body)
+    if translation is not None:
+        changes["translation"] = translation
+        if "source" not in body and not str(row.get("source") or "").strip():
+            changes["source"] = translation
     if "source" in body:
         changes["source"] = _clip(body.get("source"), 500) or ""
     if "notes" in body:
@@ -516,6 +619,100 @@ def _update_section(sermon_id: int, body: dict) -> dict:
             "snapshot": snapshot,
         },
     )
+
+
+def link_section(sermon_id: int, body: dict, actor_id: int | None = None) -> dict:
+    """Link or unlink an illustration. This never inserts a section."""
+    problem = ensure_soft_columns()
+    if problem:
+        return _fail(problem, 500, "section.update")
+    body = body or {}
+    if body.get("section_id") in (None, "", 0, "0"):
+        return _fail(
+            "Linking an illustration needs a section_id. This call does not add a section.",
+            400,
+        )
+    _row, denied = _guard_sermon(sermon_id, actor_id, write=True)
+    if denied:
+        return denied
+    if "illustration_id" not in body and not truthy(body.get("unlink")):
+        return _fail("Send illustration_id to link, or unlink true to clear the link.", 400)
+    slim = {"section_id": body.get("section_id")}
+    if "illustration_id" in body:
+        slim["illustration_id"] = body.get("illustration_id")
+    if "unlink" in body:
+        slim["unlink"] = body.get("unlink")
+    if "confirm_reuse" in body:
+        slim["confirm_reuse"] = body.get("confirm_reuse")
+    return _update_section(int(sermon_id), slim, actor_id)
+
+
+def save_section_as_illustration(sermon_id: int, body: dict, actor_id: int | None = None) -> dict:
+    """Copy one section into the illustration library and link it."""
+    problem = ensure_soft_columns()
+    if problem:
+        return _fail(problem, 500, "illustration.create")
+    body = body or {}
+    if body.get("section_id") in (None, "", 0, "0"):
+        return _fail("Saving a section as an illustration needs a section_id.", 400)
+    if not actor_id:
+        return _fail("This key has no person assigned, so it cannot save an illustration.", 400)
+    try:
+        _row, denied = _guard_sermon(sermon_id, actor_id, write=True)
+        if denied:
+            return denied
+        try:
+            section_id = int(body.get("section_id"))
+        except (TypeError, ValueError):
+            return _fail("section_id must be a number.", 400)
+        cur = _db().cursor()
+        cur.execute(
+            """
+            SELECT id, title, content, scripture_reference, translation, source, notes
+            FROM sermon_sections
+            WHERE id=%s AND sermon_id=%s AND removed_at IS NULL
+            """,
+            (section_id, int(sermon_id)),
+        )
+        row = cur.fetchone()
+        if not row:
+            return _fail("That section is not on this sermon.", 404)
+        content = str(row.get("content") or "").strip()
+        title = str(body.get("title") or row.get("title") or "").strip()
+        if not title or not content:
+            return _fail("That section needs a title and some words to save as an illustration.", 400)
+        created = create_illustration_item(int(actor_id), {
+            "title": title,
+            "content": content[:TEXT_CAP],
+            "source": body.get("source") if "source" in body else row.get("source"),
+            "notes": body.get("notes") if "notes" in body else row.get("notes"),
+            "tags": body.get("tags"),
+            "scripture_reference": body.get("scripture_reference") if "scripture_reference" in body else row.get("scripture_reference"),
+            "translation": body.get("translation") if "translation" in body else row.get("translation"),
+            "fact_check": body.get("fact_check") if "fact_check" in body else body.get("fact"),
+            "kind": body.get("kind"),
+            "visibility": body.get("visibility") or "private",
+            "confirm_duplicate": body.get("confirm_duplicate"),
+        })
+        if not created.get("ok"):
+            return created
+        illus_id = int(created["data"]["illustration_id"])
+        cur.execute(
+            "UPDATE sermon_sections SET illustration_id=%s WHERE id=%s AND sermon_id=%s",
+            (illus_id, section_id, int(sermon_id)),
+        )
+        created["data"]["section_id"] = section_id
+        created["data"]["sermon_id"] = int(sermon_id)
+        snapshot = (created.get("log") or {}).get("snapshot") or {}
+        snapshot["section_id"] = section_id
+        snapshot["sermon_id"] = int(sermon_id)
+        snapshot["illustration_id"] = illus_id
+        if created.get("log"):
+            created["log"]["snapshot"] = snapshot
+        return created
+    except Exception as exc:
+        print(f"bot save section illustration: {exc}")
+        return _fail("That section could not be saved as an illustration.", 500, "illustration.create")
 
 
 def hide_builder_sermon(sermon_id: int, actor_id: int | None) -> dict:
@@ -665,6 +862,24 @@ def _apply_section_order(plan: str, snapshot: dict):
     return True, "Applied that order again."
 
 
+def _relink_saved_section(plan: str, snapshot: dict) -> None:
+    section_id = snapshot.get("section_id")
+    illus_id = snapshot.get("illustration_id")
+    if not section_id or not illus_id:
+        return
+    cur = _db().cursor()
+    if plan == "hide":
+        cur.execute(
+            "UPDATE sermon_sections SET illustration_id=NULL WHERE id=%s AND illustration_id=%s",
+            (int(section_id), int(illus_id)),
+        )
+        return
+    cur.execute(
+        "UPDATE sermon_sections SET illustration_id=%s WHERE id=%s",
+        (int(illus_id), int(section_id)),
+    )
+
+
 def _set_removed(table: str, row_id: int, hide: bool):
     cur = _db().cursor()
     cur.execute(f"SELECT id FROM {table} WHERE id=%s", (int(row_id),))
@@ -708,7 +923,12 @@ def apply_undo(plan: str, entry: dict):
             row_id = entry.get("target_id") or snapshot.get(HIDE_SNAPSHOT_KEY.get(action) or "")
             if not row_id:
                 return False, "That entry has nothing to hide or put back."
-            return _set_removed(HIDE_TABLES[action], int(row_id), plan == "hide")
+            ok, message = _set_removed(HIDE_TABLES[action], int(row_id), plan == "hide")
+            if ok and action == "illustration.create" and snapshot.get("section_id"):
+                _relink_saved_section(plan, snapshot)
+            return ok, message
+        if action == "illustration.tags":
+            return _undo_illustration_tags(plan, snapshot)
         if action == "section.reorder":
             return _apply_section_order(plan, snapshot)
         if action == "sermon.update":

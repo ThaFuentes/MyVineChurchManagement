@@ -54,11 +54,33 @@
                         </div>
                     {% endif %}
 
-                    <!-- Scripture Reference (sections only) -->
                     {% if item.scripture_reference %}
                         <div class="mb-4">
                             <strong class="text-cyan">Scripture Reference:</strong>
-                            <p class="mt-2 text-white fw-medium">{{ item.scripture_reference }}</p>
+                            <p class="mt-2 text-white fw-medium">{{ item.scripture_reference }}{% if item.scripture_translation %} ({{ item.scripture_translation }}){% endif %}</p>
+                        </div>
+                    {% endif %}
+
+                    {% if item.kind or item.fact_check %}
+                        <div class="mb-4">
+                            {% if item.kind %}<p class="mb-1 text-white"><strong class="text-cyan">Kind:</strong> {{ item.kind }}</p>{% endif %}
+                            {% if item.fact_check %}<p class="mb-0 text-white"><strong class="text-cyan">Fact-check:</strong> {{ item.fact_check|replace('_', ' ') }}</p>{% endif %}
+                        </div>
+                    {% endif %}
+
+                    {% if item.type != 'section' %}
+                        <div class="mb-4">
+                            <strong class="text-cyan">Used in:</strong>
+                            {% if used_in %}
+                                <ul class="mt-2 mb-2 text-white">
+                                    {% for row in used_in %}
+                                        <li>{{ row.title or 'Untitled sermon' }}{% if row.used_on %} — {{ row.used_on }}{% endif %}</li>
+                                    {% endfor %}
+                                </ul>
+                                {% if last_used %}<p class="mb-0 text-white">Last used {{ last_used }}</p>{% endif %}
+                            {% else %}
+                                <p class="mt-2 mb-0 text-white">Not used in a sermon yet.</p>
+                            {% endif %}
                         </div>
                     {% endif %}
 

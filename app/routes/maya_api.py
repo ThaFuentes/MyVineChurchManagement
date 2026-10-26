@@ -661,76 +661,105 @@ def _finish(result):
     return ba._finish(g.maya_row, result)
 
 
-@maya_route("/builder/sermons", perm="builder.read", what="Builder sermons. ?q=&limit=")
+def _finish_as(result, user_id: int):
+    """Stamp the acting account the Owner assigned to this bot."""
+    if isinstance(result, dict) and result.get("ok"):
+        data = result.setdefault("data", {})
+        data["as"] = f"user:{int(user_id)}"
+        data["user_id"] = int(user_id)
+    return _finish(result)
+
+
+@maya_route("/builder/sermons", perm="builder.read", what="Builder sermons for Maya's acting account. ?q=&limit=")
 def builder_list():
-    return _finish(sermons.list_builder_sermons(request.args.get("q") or "", request.args.get("limit")))
+    uid = actor()
+    return _finish_as(sermons.list_builder_sermons(request.args.get("q") or "", request.args.get("limit"), uid), uid)
 
 
-@maya_route("/builder/sermons/<int:sermon_id>", perm="builder.read", what="One builder sermon.")
+@maya_route("/builder/sermons/<int:sermon_id>", perm="builder.read", what="One builder sermon Maya's acting account can open.")
 def builder_get(sermon_id):
-    return _finish(sermons.sermon_detail(sermon_id))
+    uid = actor()
+    return _finish_as(sermons.sermon_detail(sermon_id, uid), uid)
 
 
-@maya_route("/builder/sermons", methods=("POST",), perm="builder.create", what="Same body as POST /api/bot/sermons.")
+@maya_route("/builder/sermons", methods=("POST",), perm="builder.create", what="Same body as POST /api/bot/sermons. Saved as Maya's acting account.")
 def builder_create():
-    return _finish(sermons.create_builder_sermon(actor(), payload()))
+    uid = actor()
+    return _finish_as(sermons.create_builder_sermon(uid, payload()), uid)
 
 
-@maya_route("/builder/sermons/<int:sermon_id>", methods=("PATCH",), perm="builder.edit", what="Update a draft.")
+@maya_route("/builder/sermons/<int:sermon_id>", methods=("PATCH",), perm="builder.edit", what="Update a draft Maya's acting account created.")
 def builder_edit(sermon_id):
-    return _finish(sermons.update_builder_sermon(sermon_id, payload()))
+    uid = actor()
+    return _finish_as(sermons.update_builder_sermon(sermon_id, payload(), uid), uid)
 
 
-@maya_route("/builder/sermons/<int:sermon_id>/sections", methods=("POST",), perm="builder.edit", what="Save a section.")
+@maya_route("/builder/sermons/<int:sermon_id>/sections", methods=("POST",), perm="builder.edit", what="Save a section on a draft that account created.")
 def builder_section(sermon_id):
-    return _finish(sermons.save_section(sermon_id, payload()))
+    uid = actor()
+    return _finish_as(sermons.save_section(sermon_id, payload(), uid), uid)
 
 
-@maya_route("/builder/illustrations", perm="builder.read", what="Illustrations. ?q=&id=")
+@maya_route("/builder/illustrations", perm="builder.read", what="Illustrations that account can open, including their private ones. ?q=&id=")
 def illustrations_list():
-    return _finish(sermons.list_illustrations(request.args.get("q") or "", request.args.get("limit"),
-                                              request.args.get("id")))
+    uid = actor()
+    return _finish_as(sermons.list_illustrations(
+        request.args.get("q") or "", request.args.get("limit"), request.args.get("id"), uid,
+        offset=request.args.get("offset"), preview=request.args.get("preview"),
+        book=request.args.get("book"), chapter=request.args.get("chapter"),
+        kind=request.args.get("kind"),
+        fact_check=request.args.get("fact_check") or request.args.get("fact"),
+        tag=request.args.get("tag"),
+    ), uid)
 
 
-@maya_route("/builder/illustrations", methods=("POST",), perm="builder.create", what="New illustration.")
+@maya_route("/builder/illustrations", methods=("POST",), perm="builder.create", what="New illustration as Maya's acting account.")
 def illustrations_create():
-    return _finish(sermons.create_illustration_item(actor(), payload()))
+    uid = actor()
+    return _finish_as(sermons.create_illustration_item(uid, payload()), uid)
 
 
-@maya_route("/builder/illustrations/<int:illus_id>", methods=("PATCH",), perm="builder.edit", what="Edit illustration.")
+@maya_route("/builder/illustrations/<int:illus_id>", methods=("PATCH",), perm="builder.edit", what="Edit an illustration that account can open.")
 def illustrations_edit(illus_id):
-    return _finish(sermons.update_illustration_item(actor(), illus_id, payload()))
+    uid = actor()
+    return _finish_as(sermons.update_illustration_item(uid, illus_id, payload()), uid)
 
 
-@maya_route("/builder/research", perm="builder.read", what="Research notes. ?q=&id=")
+@maya_route("/builder/research", perm="builder.read", what="Research notes for Maya's acting account. ?q=&id=")
 def research_list():
-    return _finish(sermons.list_vault(actor(), request.args.get("q") or "", request.args.get("limit"),
-                                      request.args.get("id")))
+    uid = actor()
+    return _finish_as(sermons.list_vault(uid, request.args.get("q") or "", request.args.get("limit"),
+                                         request.args.get("id")), uid)
 
 
-@maya_route("/builder/research", methods=("POST",), perm="builder.create", what="New research note.")
+@maya_route("/builder/research", methods=("POST",), perm="builder.create", what="New research note as Maya's acting account.")
 def research_create():
-    return _finish(sermons.create_vault_item(actor(), payload()))
+    uid = actor()
+    return _finish_as(sermons.create_vault_item(uid, payload()), uid)
 
 
-@maya_route("/builder/research/<int:item_id>", methods=("PATCH",), perm="builder.edit", what="Edit research note.")
+@maya_route("/builder/research/<int:item_id>", methods=("PATCH",), perm="builder.edit", what="Edit a research note that account can open.")
 def research_edit(item_id):
-    return _finish(sermons.update_vault_item(actor(), item_id, payload()))
+    uid = actor()
+    return _finish_as(sermons.update_vault_item(uid, item_id, payload()), uid)
 
 
 @maya_route("/verses", perm="verses.read", what="?ref=John 3:16&translation=")
 def verses():
-    return _finish(sermons.lookup_reference(request.args.get("ref") or "", request.args.get("translation")))
+    uid = actor()
+    return _finish_as(sermons.lookup_reference(request.args.get("ref") or "", request.args.get("translation")), uid)
 
 
 @maya_route("/lineup", perm="lineup.read", what="?days=")
 def lineup_get():
-    return _finish(sermons.lineup_for(request.args.get("days")))
+    uid = actor()
+    return _finish_as(sermons.lineup_for(request.args.get("days")), uid)
 
 
-@maya_route("/lineup", methods=("POST",), perm="lineup.edit", what="Same body as POST /api/bot/lineup.")
+@maya_route("/lineup", methods=("POST",), perm="lineup.edit", what="Same body as POST /api/bot/lineup. Recorded as Maya's acting account.")
 def lineup_set():
-    return _finish(sermons.set_lineup(actor(), payload()))
+    uid = actor()
+    return _finish_as(sermons.set_lineup(uid, payload()), uid)
 
 
 # ------------------------------------------------------------------ reads
@@ -760,8 +789,10 @@ def members_list():
     cols = "id, username, first_name, last_name, role" + (", email, phone" if contact else "")
     cur = _cur()
     cur.execute(f"SELECT {cols} FROM users ORDER BY id DESC LIMIT %s", (_limit(100, 500),))
+    rows = cur.fetchall() or []
     store.write_log(int(g.maya_row["id"]), "maya.read", ok=True, detail="members", target_type="read")
-    return ok({"members": _clean_rows(cur.fetchall()), "contact_included": contact})
+    return ok({"members": _clean_rows(rows), "contact_included": contact})
+
 
 
 @maya_route("/security", perm="security.read", what="Security summary and recent events.")

@@ -103,9 +103,11 @@
                                 {% for plan in service_plans %}
                                     {# MariaDB may return date/time as str — never call strftime on strings #}
                                     {% set plan_ymd = plan.service_date[:10] if plan.service_date is string else (plan.service_date.strftime('%Y-%m-%d') if plan.service_date else '') %}
+                                    {% if plan_ymd and plan_ymd.startswith('0000') %}{% set plan_ymd = '' %}{% endif %}
                                     {% set sermon_ymd = '' %}
                                     {% if sermon and sermon.service_date %}
                                         {% set sermon_ymd = sermon.service_date[:10] if sermon.service_date is string else sermon.service_date.strftime('%Y-%m-%d') %}
+                                        {% if sermon_ymd.startswith('0000') %}{% set sermon_ymd = '' %}{% endif %}
                                     {% endif %}
                                     {% if plan.service_date is string %}
                                         {% set plan_label = plan_ymd %}
@@ -114,6 +116,7 @@
                                     {% else %}
                                         {% set plan_label = '' %}
                                     {% endif %}
+                                    {% if plan_ymd and not plan_ymd.startswith('0000') %}
                                     <option value="{{ plan_ymd }}"
                                             {% if sermon_ymd and sermon_ymd == plan_ymd %}selected{% endif %}
                                             {% if not sermon and plan_ymd == next_upcoming_date %}selected{% endif %}>
@@ -122,6 +125,7 @@
                                             ({% if plan.start_time is string %}{{ plan.start_time[:5] }}{% else %}{{ plan.start_time.strftime('%I:%M %p') }}{% endif %}{% if plan.worship_start_time %} / {% if plan.worship_start_time is string %}{{ plan.worship_start_time[:5] }}{% else %}{{ plan.worship_start_time.strftime('%I:%M %p') }}{% endif %}{% endif %})
                                         {% endif %}
                                     </option>
+                                    {% endif %}
                                 {% endfor %}
                             </select>
                         </div>
@@ -379,10 +383,13 @@
 
         function readSectionFromRoot(root) {
             if (!root) return {};
+            const link = root.querySelector('.section-illustration-id')?.value.trim() || '';
             return {
                 title: root.querySelector('.section-title')?.value.trim() || '',
                 section_type: root.querySelector('.section-type')?.value || 'point',
                 scripture_reference: root.querySelector('.section-scripture')?.value.trim() || '',
+                translation: root.querySelector('.section-translation')?.value.trim() || '',
+                illustration_id: (link === '0' || link === 'unlink' || link === 'null') ? '' : link,
                 source: root.querySelector('.section-source')?.value.trim() || '',
                 vault_tags: root.querySelector('.section-vault-tags')?.value.trim() || '',
                 vault_visibility: root.querySelector('.section-vault-visibility')?.value || 'private',
@@ -391,9 +398,20 @@
             };
         }
 
+        function syncIllustrationLinkStatus(root) {
+            if (!root) return;
+            const id = root.querySelector('.section-illustration-id')?.value.trim() || '';
+            const linked = id && id !== '0' && id !== 'unlink' && id !== 'null';
+            const status = root.querySelector('.section-illustration-status');
+            const unlink = root.querySelector('.unlink-illustration-btn');
+            if (status) status.textContent = linked ? ('Linked illustration #' + id) : 'No illustration linked';
+            if (unlink) unlink.hidden = !linked;
+        }
+
         function isSectionCompletelyEmpty(data) {
             return !data.title && isQuillEmpty(data.content) && !data.notes
-                && !data.scripture_reference && !data.source && !data.vault_tags;
+                && !data.scripture_reference && !data.source && !data.vault_tags
+                && !data.illustration_id && !data.translation;
         }
 
         function buildVaultPayload(data) {
@@ -447,11 +465,73 @@
         // Back-compat alias (older call sites)
         const saveSectionToVault = saveSectionToIllustrations;
 
+        async function saveSectionAsIllustration(card, data, confirmDuplicate) {
+            const content = isQuillEmpty(data.content) ? '' : data.content;
+            if (!content) {
+                showToast('Add content before saving this section as an illustration.', false);
+                return;
+            }
+            const body = {
+                title: data.title || 'Untitled Illustration',
+                content: content,
+                source: data.source || '',
+                tags: data.vault_tags || '',
+                scripture_reference: data.scripture_reference || '',
+                translation: data.translation || '',
+                visibility: data.vault_visibility || 'private',
+            };
+            const sectionId = card?.dataset?.sectionId || '';
+            if (sectionId && currentSermonId) {
+                body.section_id = sectionId;
+                body.sermon_id = currentSermonId;
+            }
+            if (confirmDuplicate) body.confirm_duplicate = true;
+            try {
+                const resp = await fetch('/pastoral/illustrations/quick_add', {
+                    method: 'POST',
+                    headers: csrfHeaders(true),
+                    credentials: 'same-origin',
+                    body: JSON.stringify(body),
+                });
+                const result = await resp.json().catch(() => ({}));
+                if (resp.status === 409 && result.code === 'possible_duplicate') {
+                    const names = (result.matches || []).map((row) => row.title || 'Untitled').slice(0, 5).join(', ');
+                    const ok = confirm(
+                        'This looks like an illustration you already have'
+                        + (names ? ': ' + names : '')
+                        + '. Save it anyway?'
+                    );
+                    if (ok) return saveSectionAsIllustration(card, data, true);
+                    return;
+                }
+                if (result.success && result.id) {
+                    const root = card.querySelector('[data-section-root]') || card;
+                    const link = root.querySelector('.section-illustration-id');
+                    if (link) link.value = String(result.id);
+                    syncIllustrationLinkStatus(root);
+                    markDirty();
+                    showToast('Saved this section as an illustration and linked it. Save the sermon to keep the link.', true);
+                    return;
+                }
+                showToast(result.error || result.message || 'Could not save this section as an illustration.', false);
+            } catch (e) {
+                showToast('Network error saving this section as an illustration.', false);
+            }
+        }
+
         function applySectionToRoot(root, data) {
             if (!root) return;
             root.querySelector('.section-type').value = data.section_type || 'point';
             root.querySelector('.section-title').value = data.title || '';
             root.querySelector('.section-scripture').value = data.scripture_reference || '';
+            const translation = root.querySelector('.section-translation');
+            if (translation) translation.value = data.translation || data.scripture_translation || '';
+            const link = root.querySelector('.section-illustration-id');
+            if (link) {
+                const raw = data.illustration_id;
+                link.value = (raw && raw !== '0' && raw !== 'unlink' && raw !== 'null') ? String(raw) : '';
+            }
+            syncIllustrationLinkStatus(root);
             root.querySelector('.section-source').value = data.source || '';
             root.querySelector('.section-vault-tags').value = data.vault_tags || '';
             const vis = root.querySelector('.section-vault-visibility');
@@ -867,6 +947,17 @@
                 e.preventDefault();
                 const root = card.querySelector('[data-section-root]') || card;
                 saveSectionToIllustrations(readSectionFromRoot(root));
+            } else if (e.target.closest('.save-section-as-illustration')) {
+                e.preventDefault();
+                const root = card.querySelector('[data-section-root]') || card;
+                saveSectionAsIllustration(card, readSectionFromRoot(root));
+            } else if (e.target.closest('.unlink-illustration-btn')) {
+                e.preventDefault();
+                const root = card.querySelector('[data-section-root]') || card;
+                const link = root.querySelector('.section-illustration-id');
+                if (link) link.value = '';
+                syncIllustrationLinkStatus(root);
+                markDirty();
             } else if (e.target.closest('.remove-section')) {
                 if (confirm('Permanently delete this section?')) {
                     card.remove();
@@ -906,6 +997,8 @@
                     section_type: data.section_type,
                     title: data.title,
                     scripture_reference: data.scripture_reference,
+                    translation: data.translation,
+                    illustration_id: data.illustration_id,
                     source: data.source,
                     content: data.content,
                     notes: data.notes
@@ -1114,6 +1207,37 @@
         let pauseAutosaveForInsert = false;
         window.__pauseAutosaveForInsert = false;
         let pickerTargetSectionIndex = null; // null = new section
+        let pickerMode = 'insert';
+        let pickerTargetCard = null;
+
+        function illustrationUseLine(it) {
+            const bits = [];
+            if (it.kind) bits.push(it.kind);
+            if (it.fact_check) bits.push(String(it.fact_check).replace(/_/g, ' '));
+            const used = Number(it.used_count || 0);
+            if (used > 0) bits.push('used ' + used + (it.last_used ? ' · last ' + it.last_used : ''));
+            return bits.join(' · ');
+        }
+
+        function attachIllustrationToCard(item, card) {
+            if (!card || !item || !item.id) return;
+            const used = Number(item.used_count || 0);
+            if (used > 0) {
+                const last = item.last_used ? (' Last used ' + item.last_used + '.') : '';
+                const ok = confirm(
+                    'This illustration was already used ' + used + ' time' + (used === 1 ? '' : 's') + '.'
+                    + last + ' Link it to this section anyway?'
+                );
+                if (!ok) return;
+            }
+            const root = card.querySelector('[data-section-root]') || card;
+            const link = root.querySelector('.section-illustration-id');
+            if (link) link.value = String(item.id);
+            syncIllustrationLinkStatus(root);
+            markDirty();
+            closeIllustrationPicker();
+            showToast('Illustration linked. Save the sermon to keep it.', true);
+        }
 
         function csrfHeaders(json) {
             const h = {
@@ -1156,7 +1280,7 @@
             try { card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
         }
 
-        async function insertItemIntoSection(item, sectionIndex, asNewSection) {
+        async function insertItemIntoSection(item, sectionIndex, asNewSection, confirmReuse) {
             if (!item) return;
             if (!currentSermonId) {
                 showToast('Save the sermon once (title + Save), then add illustrations.', false);
@@ -1180,9 +1304,23 @@
                         illustration_id: item.id,
                         section_index: asNewSection ? null : sectionIndex,
                         as_new_section: !!asNewSection,
+                        confirm_reuse: !!confirmReuse,
                     }),
                 });
                 const data = await res.json().catch(() => ({}));
+                if (res.status === 409 && data.code === 'already_used' && !confirmReuse) {
+                    const last = data.last_used ? (' Last used ' + data.last_used + '.') : '';
+                    const titles = (data.used_in || []).slice(0, 5).map((row) => row.title || ('Sermon ' + row.sermon_id)).join(', ');
+                    const ok = confirm(
+                        'This illustration was already used with this church.' + last
+                        + (titles ? ' Used in: ' + titles + '.' : '')
+                        + ' Use it again?'
+                    );
+                    if (ok) return insertItemIntoSection(item, sectionIndex, asNewSection, true);
+                    pauseAutosaveForInsert = false;
+                    window.__pauseAutosaveForInsert = false;
+                    return;
+                }
                 if (res.ok && data.status === 'success') {
                     closeIllustrationPicker();
                     reloadAfterIllustrationInsert(
@@ -1374,17 +1512,25 @@
             pickerTargetSectionIndex = null;
         }
 
-        function openIllustrationPicker(sectionIndex) {
+        function openIllustrationPicker(sectionIndex, mode, card) {
             pickerTargetSectionIndex = sectionIndex;
+            pickerMode = mode || 'insert';
+            pickerTargetCard = card || null;
             const modal = document.getElementById('illustration-picker-modal');
             const hint = document.getElementById('illustration-picker-hint');
+            const title = document.getElementById('illustration-picker-title');
             const list = document.getElementById('illustration-picker-list');
             const search = document.getElementById('illustration-picker-search');
             if (!modal || !list) return;
+            if (title) title.textContent = pickerMode === 'attach' ? 'Attach illustration' : 'Add illustration';
             if (hint) {
-                hint.textContent = sectionIndex == null
-                    ? 'Pick an illustration to add as a new section.'
-                    : ('Pick an illustration to insert into section ' + (sectionIndex + 1) + '.');
+                if (pickerMode === 'attach') {
+                    hint.textContent = 'Pick an illustration to link to this section. This does not add a section.';
+                } else {
+                    hint.textContent = sectionIndex == null
+                        ? 'Pick an illustration to add as a new section.'
+                        : ('Pick an illustration to insert into section ' + (sectionIndex + 1) + '.');
+                }
             }
             if (search) search.value = '';
             modal.style.display = 'block';
@@ -1429,9 +1575,15 @@
                     btn.type = 'button';
                     btn.className = 'illustration-picker-item';
                     const preview = (it.content || '').replace(/<[^>]+>/g, ' ').trim().slice(0, 140);
+                    const meta = illustrationUseLine(it);
                     btn.innerHTML = '<strong>' + escapeHtml(it.title || 'Untitled') + '</strong>'
+                        + (meta ? '<small>' + escapeHtml(meta) + '</small>' : '')
                         + (preview ? '<small>' + escapeHtml(preview) + '</small>' : '');
                     btn.addEventListener('click', () => {
+                        if (pickerMode === 'attach') {
+                            attachIllustrationToCard(it, pickerTargetCard);
+                            return;
+                        }
                         const asNew = pickerTargetSectionIndex == null;
                         insertItemIntoSection(it, pickerTargetSectionIndex, asNew);
                     });
@@ -1458,7 +1610,9 @@
 
         // Per-section "Add illustration" — modern picker, not prompt()
         document.addEventListener('click', async (e) => {
-            const btn = e.target.closest('.add-illustration-to-section-btn');
+            const attachBtn = e.target.closest('.attach-illustration-btn');
+            const addBtn = e.target.closest('.add-illustration-to-section-btn');
+            const btn = attachBtn || addBtn;
             if (!btn) return;
             e.preventDefault();
             const card = btn.closest('.section-card');
@@ -1467,7 +1621,7 @@
                 showToast('Save the sermon once first, then add illustrations.', false);
                 return;
             }
-            openIllustrationPicker(sectionIndexOfCard(card));
+            openIllustrationPicker(sectionIndexOfCard(card), attachBtn ? 'attach' : 'insert', card);
         });
 
         // Badge count on load
@@ -1532,6 +1686,8 @@
                         title: sec.title || '',
                         section_type: sec.section_type || 'point',
                         scripture_reference: sec.scripture_reference || '',
+                        translation: sec.translation || '',
+                        illustration_id: sec.illustration_id || '',
                         source: sec.source || '',
                         notes: sec.notes || '',
                         vault_tags: sec.vault_tags || '',
@@ -1588,7 +1744,11 @@
                 html += `<section class="preview-block preview-section">`;
                 html += `<h6>Section ${i + 1}${data.title ? ': ' + escapeHtml(data.title) : ''} <span class="preview-badge">${escapeHtml(typeLabel)}</span></h6>`;
                 if (data.scripture_reference) {
-                    html += `<p class="preview-scripture">${escapeHtml(data.scripture_reference).replace(/\n/g, '<br>')}</p>`;
+                    const translated = data.translation ? (' (' + escapeHtml(data.translation) + ')') : '';
+                    html += `<p class="preview-scripture">${escapeHtml(data.scripture_reference).replace(/\n/g, '<br>')}${translated}</p>`;
+                }
+                if (data.illustration_id) {
+                    html += `<p class="preview-source small"><em>Linked illustration #${escapeHtml(String(data.illustration_id))}</em></p>`;
                 }
                 if (data.source) html += `<p class="preview-source small"><em>Source:</em> ${escapeHtml(data.source).replace(/\n/g, '<br>')}</p>`;
                 if (!isQuillEmpty(data.content)) html += `<div class="preview-content">${data.content}</div>`;

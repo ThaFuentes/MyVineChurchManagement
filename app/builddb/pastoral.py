@@ -547,6 +547,50 @@ def create_tables(cursor):
         except Exception as exc:
             print(f"  (skip {table}.removed_at: {exc})")
 
+    # Illustration scripture, fact-check, kind, and the section translation.
+    for table, column, definition in (
+        ("illustration_library", "scripture_reference", "TEXT NULL"),
+        ("illustration_library", "scripture_translation", "VARCHAR(40) NULL"),
+        ("illustration_library", "scripture_book", "VARCHAR(40) NULL"),
+        ("illustration_library", "scripture_chapter", "INT NULL"),
+        ("illustration_library", "fact_check", "VARCHAR(20) NULL"),
+        ("illustration_library", "kind", "VARCHAR(20) NULL"),
+        ("sermon_sections", "translation", "VARCHAR(40) NULL"),
+    ):
+        cursor.execute(
+            """
+            SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s
+            """,
+            (table, column),
+        )
+        if cursor.fetchone():
+            continue
+        print(f" Migration: Adding {column} to {table}")
+        try:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        except Exception as exc:
+            print(f"  (skip {table}.{column}: {exc})")
+    safe_exec(
+        cursor,
+        "CREATE INDEX IF NOT EXISTS idx_illustration_scripture ON illustration_library(scripture_book, scripture_chapter)",
+    )
+    safe_exec(cursor, """
+        CREATE TABLE IF NOT EXISTS illustration_tags (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(80) NOT NULL,
+            UNIQUE KEY uq_illustration_tag_name (name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+    safe_exec(cursor, """
+        CREATE TABLE IF NOT EXISTS illustration_tag_links (
+            illustration_id INT UNSIGNED NOT NULL,
+            tag_id INT UNSIGNED NOT NULL,
+            PRIMARY KEY (illustration_id, tag_id),
+            KEY idx_illustration_tag_tag (tag_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
     # NEW: Seed default Sunday template if none exist; remove duplicate weekday masters
     print("Seeding default Sunday template (if needed)...")
     dedupe_service_templates()
