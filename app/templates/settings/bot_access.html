@@ -86,15 +86,27 @@
                 Key is on
             </label>
 
+            <label style="display:block; margin:0.75rem 0;">
+                <input type="checkbox" name="switch_bot_writes_off" value="1" {% if key.controls.get('bot_writes_off') %}checked{% endif %}>
+                Bot writes OFF
+                <span class="help-text" style="display:block; margin:0 0 0 1.4rem;">When this is on, this bot can still sign in and read. Every change is refused until you turn it off.</span>
+            </label>
+
             {% for group in groups %}
+            {% set shown = group.switches | rejectattr('id', 'equalto', 'bot_writes_off') | list %}
+            {% if shown %}
             <h3 class="section-subtitle">{{ group.name }}</h3>
-            {% for sw in group.switches %}
+            {% for sw in shown %}
             <label style="display:block; margin:0.35rem 0;">
                 <input type="checkbox" name="switch_{{ sw.id }}" value="1" {% if key.controls.get(sw.id) %}checked{% endif %}>
                 {{ sw.label }}
                 <span class="help-text" style="display:block; margin:0 0 0 1.4rem;">{{ sw.detail }}</span>
+                {% if sw.high_risk %}
+                <span class="help-text" style="display:block; margin:0 0 0 1.4rem;">High risk. Stays on until you turn it off.</span>
+                {% endif %}
             </label>
             {% endfor %}
+            {% endif %}
             {% endfor %}
 
             <h3 class="section-subtitle">This bot acts as</h3>

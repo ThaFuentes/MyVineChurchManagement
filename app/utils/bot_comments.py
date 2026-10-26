@@ -300,3 +300,218 @@ def comment_detail(area: str, comment_id: int) -> dict:
     except Exception as exc:
         print(f"bot comment detail: {exc}")
         return _fail("That comment could not be read.", 500, "comments.detail")
+
+
+def comment_blocked(text: str) -> str | None:
+    """The church word list. A lookup failure does not invent a block."""
+    try:
+        from app.utils.helpers import contains_censored_word
+        if contains_censored_word(text or ""):
+            return "That comment uses a word the church blocks."
+    except Exception as exc:
+        print(f"bot comment words: {type(exc).__name__}")
+    return None
+
+
+def _ensure_removed(table: str) -> set[str]:
+    cols = _columns(table)
+    if "removed" in cols:
+        return cols
+    cur = _db().cursor()
+    cur.execute(f"ALTER TABLE {table} ADD COLUMN removed TINYINT(1) NOT NULL DEFAULT 0")
+    _columns_cache.pop(table, None)
+    return _columns(table)
+
+
+def _spec(area: str):
+    name = (area or "").strip().lower()
+    src = AREAS.get(name)
+    if not src:
+        return None, _fail(f"area must be one of: {', '.join(AREAS)}.", 400, "bot_comment_reply")
+    spec = dict(src)
+    spec["area"] = name
+    return spec, None
+
+
+def reply_comment(area: str, parent_id: int, text: str, actor: dict) -> dict:
+    spec, err = _spec(area)
+    if err:
+        return err
+    body = (text or "").strip()
+    if not body:
+        return _fail("Write a comment.", 400, "bot_comment_reply")
+    if len(body) > 4000:
+        return _fail("That comment is too long.", 400, "bot_comment_reply")
+    blocked = comment_blocked(body)
+    if blocked:
+        out = _fail(blocked, 400, "bot_comment_reply")
+        out["code"] = "censored"
+        return out
+    try:
+        cols = _ensure_removed(spec["table"])
+        if spec["parent_col"] not in cols or spec["text_col"] not in cols:
+            return _fail("That comment area is not on this church.", 404, "bot_comment_reply")
+        fields = {spec["parent_col"]: int(parent_id), spec["text_col"]: body}
+        if "user_id" in cols and actor.get("user_id"):
+            fields["user_id"] = int(actor["user_id"])
+        name_col = spec.get("name_col") or ""
+        if name_col and name_col in cols:
+            fields[name_col] = _clip(actor.get("name") or "Church", 120) or "Church"
+        if "removed" in cols:
+            fields["removed"] = 0
+        columns = list(fields)
+        marks = ", ".join(["%s"] * len(columns))
+        cur = _db().cursor()
+        cur.execute(
+            f"INSERT INTO {spec['table']} ({', '.join(columns)}) VALUES ({marks})",
+            tuple(fields[key] for key in columns),
+        )
+        new_id = int(cur.lastrowid or 0)
+        return _ok(
+            {"area": spec["area"], "parent_id": int(parent_id), "comment_id": new_id},
+            {
+                "action": "bot_comment_reply",
+                "target_type": spec["table"],
+                "target_id": new_id,
+                "detail": body[:180],
+                "snapshot": {"id": new_id, "area": spec["area"], "parent_id": int(parent_id)},
+            },
+        )
+    except Exception as exc:
+        print(f"bot comment reply: {type(exc).__name__}")
+        return _fail("That comment could not be saved.", 500, "bot_comment_reply")
+
+
+def edit_comment(area: str, parent_id: int, comment_id: int, text: str) -> dict:
+    spec, err = _spec(area)
+    if err:
+        err["action"] = "bot_comment_edit"
+        return err
+    body = (text or "").strip()
+    blocked = comment_blocked(body)
+    if blocked:
+        out = _fail(blocked, 400, "bot_comment_edit")
+        out["code"] = "censored"
+        return out
+    if not body:
+        return _fail("Write a comment.", 400, "bot_comment_edit")
+    try:
+        cols = _columns(spec["table"])
+        cur = _db().cursor()
+        cur.execute(
+            f"SELECT id, {spec['text_col']} AS body FROM {spec['table']} WHERE id=%s AND {spec['parent_col']}=%s",
+            (int(comment_id), int(parent_id)),
+        )
+        row = cur.fetchone()
+        if not row:
+            return _fail("That comment was not found.", 404, "bot_comment_edit")
+        cur.execute(
+            f"UPDATE {spec['table']} SET {spec['text_col']}=%s WHERE id=%s",
+            (body[:4000], int(comment_id)),
+        )
+        return _ok(
+            {"area": spec["area"], "comment_id": int(comment_id)},
+            {
+                "action": "bot_comment_edit",
+                "target_type": spec["table"],
+                "target_id": int(comment_id),
+                "detail": body[:180],
+                "snapshot": {
+                    "id": int(comment_id),
+                    "area": spec["area"],
+                    "before": row.get("body"),
+                    "after": body[:4000],
+                },
+            },
+        )
+    except Exception as exc:
+        print(f"bot comment edit: {type(exc).__name__}")
+        return _fail("That comment could not be saved.", 500, "bot_comment_edit")
+
+
+def restore_comment_text(area: str, comment_id: int, text: str) -> tuple[bool, str]:
+    spec, err = _spec(area)
+    if err:
+        return False, err.get("error") or "That comment area is not available."
+    try:
+        cur = _db().cursor()
+        cur.execute(
+            f"UPDATE {spec['table']} SET {spec['text_col']}=%s WHERE id=%s",
+            ((text or "")[:4000], int(comment_id)),
+        )
+        if not cur.rowcount:
+            return False, "That comment was not found."
+        return True, "Put the previous comment back."
+    except Exception as exc:
+        print(f"bot comment restore: {type(exc).__name__}")
+        return False, "That comment could not be updated."
+
+
+def set_comment_removed(area: str, comment_id: int, removed: bool) -> tuple[bool, str]:
+    spec, err = _spec(area)
+    if err:
+        return False, err.get("error") or "That comment area is not available."
+    try:
+        _ensure_removed(spec["table"])
+        cur = _db().cursor()
+        cur.execute(
+            f"UPDATE {spec['table']} SET removed=%s WHERE id=%s",
+            (1 if removed else 0, int(comment_id)),
+        )
+        if not cur.rowcount:
+            return False, "That comment was not found."
+        return True, "Hid that comment." if removed else "Put that comment back."
+    except Exception as exc:
+        print(f"bot comment flag: {type(exc).__name__}")
+        return False, "That comment could not be updated."
+
+
+def hide_comment(area: str, parent_id: int, comment_id: int, body: dict, hard_on: bool) -> dict:
+    from app.utils import bot_guard as guard
+    spec, err = _spec(area)
+    if err:
+        err["action"] = "bot_comment_delete"
+        return err
+    wants, confirm_err = guard.confirm_delete(body or {}, comment_id)
+    if wants and not hard_on:
+        out = _fail("Hard delete is turned off for this key.", 403, "bot_comment_delete")
+        out["code"] = "hard_delete"
+        out["missing"] = ["hard_delete"]
+        return out
+    if confirm_err:
+        return _fail(confirm_err, 400, "bot_comment_delete")
+    try:
+        if wants:
+            cur = _db().cursor()
+            cur.execute(
+                f"DELETE FROM {spec['table']} WHERE id=%s AND {spec['parent_col']}=%s",
+                (int(comment_id), int(parent_id)),
+            )
+            if not cur.rowcount:
+                return _fail("That comment was not found.", 404, "bot_comment_delete")
+            return _ok(
+                {"area": spec["area"], "comment_id": int(comment_id), "deleted": True, "hard": True},
+                {
+                    "action": "bot_comment_delete",
+                    "target_type": spec["table"],
+                    "target_id": int(comment_id),
+                    "detail": "Hard delete.",
+                    "snapshot": {"id": int(comment_id), "area": spec["area"], "hard": True},
+                },
+            )
+        ok, message = set_comment_removed(spec["area"], comment_id, True)
+        if not ok:
+            return _fail(message, 404, "bot_comment_delete")
+        return _ok(
+            {"area": spec["area"], "comment_id": int(comment_id), "hidden": True},
+            {
+                "action": "bot_comment_delete",
+                "target_type": spec["table"],
+                "target_id": int(comment_id),
+                "detail": "Hidden.",
+                "snapshot": {"id": int(comment_id), "area": spec["area"], "table": spec["table"]},
+            },
+        )
+    except Exception as exc:
+        print(f"bot comment hide: {type(exc).__name__}")
+        return _fail("That comment could not be removed.", 500, "bot_comment_delete")

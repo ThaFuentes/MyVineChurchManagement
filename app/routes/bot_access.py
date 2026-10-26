@@ -12,8 +12,12 @@ from flask import Blueprint, Response, abort, flash, jsonify, redirect, render_t
 from app.models.users import get_user_by_id
 from app.utils import bot_areas as areas
 from app.utils import bot_comments as comments
+from app.utils import bot_content as content
 from app.utils import bot_desks as desks
+from app.utils import bot_events as events_api
+from app.utils import bot_guard as guard
 from app.utils import bot_login as login
+from app.utils import bot_members as members_api
 from app.utils import bot_office as office
 from app.utils import bot_policy as policy
 from app.utils import bot_sermons as sermons
@@ -23,7 +27,8 @@ from app.utils.decorators import login_required
 bot_access_bp = Blueprint("bot_access", __name__)
 
 
-def _json(ok: bool, data=None, error: str | None = None, status: int = 200, code: str | None = None):
+def _json(ok: bool, data=None, error: str | None = None, status: int = 200, code: str | None = None,
+          missing=None, surface: dict | None = None):
     body = {"ok": ok, "greeting": policy.GREETING}
     if error:
         body["error"] = error
@@ -33,8 +38,14 @@ def _json(ok: bool, data=None, error: str | None = None, status: int = 200, code
         body["code"] = "admin_not_granted"
     elif error == "The owner turned this key off.":
         body["code"] = "key_off"
+    if missing:
+        body["missing"] = list(missing)
     if data is not None:
         body["data"] = data
+    if surface:
+        for key, val in surface.items():
+            if key not in ("ok", "greeting", "data"):
+                body[key] = val
     return jsonify(body), status
 
 
@@ -55,8 +66,8 @@ def _owner_user():
     return user
 
 
-def _require_key():
-    """Work calls take a live session, not the permanent API key."""
+def _require_session():
+    """A live session. This does not apply the admin-grant stop or the master switch."""
     raw = _bearer()
     if not raw:
         return None, _json(
@@ -75,9 +86,6 @@ def _require_key():
             return None, _json(False, error="That session is not open. Sign in again.", status=401, code="session_unknown")
         if not row.get("active"):
             return None, _json(False, error="The owner turned this key off.", status=403, code="key_off")
-        blocked = _acting_block(row)
-        if blocked:
-            return None, blocked
         return row, None
     if kind == "expired_session":
         return None, _json(False, error="That session expired. Sign in again.", status=401, code="session_expired")
@@ -104,6 +112,25 @@ def _require_key():
     if raw.startswith("mvos_s_"):
         return None, _json(False, error="That session is not open. Sign in again.", status=401, code="session_unknown")
     return None, _json(False, error="That API key is not recognized.", status=401, code="key_unknown")
+
+
+def _require_key():
+    """Work calls take a live session, not the permanent API key."""
+    row, err = _require_session()
+    if err:
+        return None, err
+    blocked = _acting_block(row)
+    if blocked:
+        return None, blocked
+    if request.method != "GET" and policy.writes_blocked(row.get("controls")):
+        return None, _json(
+            False,
+            error="The owner turned bot writes off.",
+            status=423,
+            code="bot_writes_off",
+            missing=["bot_writes_off"],
+        )
+    return row, None
 
 
 def _require_reset():
@@ -142,16 +169,48 @@ def _require_reset():
     return row, None
 
 
-def _acting_block(row: dict):
+def _acting_name(row: dict, facts: dict) -> str:
+    uid = facts.get("user_id")
+    for voice in row.get("voices") or []:
+        try:
+            if int(voice.get("user_id") or 0) == int(uid or 0):
+                return policy.person_label(voice)
+        except (TypeError, ValueError):
+            continue
+    return "this admin"
+
+
+def _block_info(row: dict) -> dict | None:
     """An admin uses a bot only after the owner allows that admin."""
     people = policy.assigned_people(row.get("voices") or [])
     if len(people) != 1:
         return None
     facts = store.account_facts(people[0])
-    if facts.get("role") == "Admin" and not facts.get("admin_granted"):
-        return _json(False, error=policy.ADMIN_NOT_GRANTED, status=403, code="admin_not_granted")
     row["acting"] = facts
+    if facts.get("role") == "Admin" and not facts.get("admin_granted"):
+        uid = facts.get("user_id")
+        name = _acting_name(row, facts)
+        return {
+            "code": "admin_not_granted",
+            "error": policy.ADMIN_NOT_GRANTED,
+            "missing": [f"admin_grant:{uid}"],
+            "fix": f"Owner: Settings → Bot Access → tick 'Allow bot' for {name}",
+        }
     return None
+
+
+def _acting_block(row: dict):
+    info = _block_info(row)
+    if not info:
+        return None
+    return _json(
+        False,
+        error=info["error"],
+        status=403,
+        code=info["code"],
+        missing=info["missing"],
+        surface={"fix": info["fix"]},
+    )
 
 
 def _need(row: dict, switch_id: str):
@@ -159,7 +218,20 @@ def _need(row: dict, switch_id: str):
         return None
     label = (policy.switch_by_id(switch_id) or {}).get("label") or switch_id
     store.write_log(int(row["id"]), "denied", ok=False, detail=f"{switch_id} is off", target_type="switch")
-    return _json(False, error=f"The owner has {label} turned off for this key.", status=403)
+    return _json(
+        False,
+        error=f"The owner has {label} turned off for this key.",
+        status=403,
+        code="switch_off",
+        missing=[switch_id],
+    )
+
+
+def _need_any(row: dict, *switch_ids: str):
+    for switch_id in switch_ids:
+        if policy.switch_on(row.get("controls"), switch_id):
+            return None
+    return _need(row, switch_ids[0])
 
 
 def _payload():
@@ -213,6 +285,12 @@ def _apply_reverse(entry: dict, actor: str) -> tuple[bool, str]:
         if not post_id:
             return False, "That entry has no post to hide or restore."
         ok, message = store.set_post_removed(int(post_id), plan == "hide")
+    elif action.startswith("bot_member"):
+        ok, message = members_api.apply_undo(plan, entry)
+    elif action.startswith("bot_event"):
+        ok, message = events_api.apply_undo(plan, entry)
+    elif action.startswith("bot_"):
+        ok, message = content.apply_undo(plan, entry)
     elif action.startswith("desk."):
         ok, message = desks.apply_undo(plan, entry)
     elif (action.split(".", 1)[0] if action else "") in {"group", "worship", "bill", "inventory", "attendance"}:
@@ -314,7 +392,13 @@ def _finish(row: dict, result: dict):
                 ok=False,
                 detail=result.get("error") or "",
             )
-        return _json(False, error=result.get("error") or "That did not work.", status=result.get("status") or 400)
+        return _json(
+            False,
+            error=result.get("error") or "That did not work.",
+            status=result.get("status") or 400,
+            code=result.get("code"),
+            missing=result.get("missing"),
+        )
     data = dict(result.get("data") or {})
     log = result.get("log")
     if log:
@@ -500,12 +584,12 @@ def api_password_reset():
         int(row["id"]),
         "key_reset",
         ok=True,
-        detail="A new API key was emailed to the main inbox. A 2FA key goes to the other inbox.",
+        detail="A new API key was emailed to the main inbox.",
     )
     return _json(True, {
         "step": "reset",
         "sent": True,
-        "twofa_sent": "A 2FA key was emailed" in (message or ""),
+        "twofa_sent": False,
         "message": message,
     })
 
@@ -524,21 +608,50 @@ def api_key_reset_request():
     return _json(True, {"step": "reset-request", "message": policy.RESET_REQUEST_REPLY})
 
 
+def _status_surface(row: dict, block: dict | None) -> dict:
+    facts = row.get("acting") if isinstance(row.get("acting"), dict) else _facts(row)
+    name = _acting_name(row, facts) if facts.get("user_id") else ""
+    surface = {
+        "blocked": bool(block),
+        "acting_user": {
+            "id": facts.get("user_id"),
+            "name": name,
+            "role": facts.get("role"),
+        },
+        "missing": list(block.get("missing") or []) if block else [],
+        "fix": (block or {}).get("fix") or "",
+        "switches": row.get("controls") or policy.default_controls(),
+        "expired_switches": [],
+        "writes_off": policy.writes_blocked(row.get("controls")),
+    }
+    if block:
+        surface["code"] = block.get("code")
+    return surface
+
+
 @bot_access_bp.route("/api/bot/help", methods=["GET"])
 @bot_access_bp.route("/api/bot/helper", methods=["GET"])
 def api_help():
-    row, err = _require_key()
+    row, err = _require_session()
     if err:
         return err
-    return _json(True, policy.help_payload(row.get("controls"), row.get("voices")))
+    block = _block_info(row)
+    why = "admin_grant" if block else None
+    payload = policy.help_payload(row.get("controls"), row.get("voices"), blocked_why=why)
+    surface = {"blocked": bool(block), "missing": list((block or {}).get("missing") or []), "writes_off": policy.writes_blocked(row.get("controls"))}
+    if block:
+        surface["code"] = block.get("code")
+        surface["fix"] = block.get("fix")
+    return _json(True, payload, surface=surface)
 
 
 @bot_access_bp.route("/api/bot/whoami", methods=["GET"])
 @bot_access_bp.route("/api/bot/me", methods=["GET"])
 def api_whoami():
-    row, err = _require_key()
+    row, err = _require_session()
     if err:
         return err
+    block = _block_info(row)
     facts = _facts(row)
     people = policy.assigned_people(row.get("voices") or [])
     actor, actor_err = policy.resolve_sermon_user(
@@ -548,7 +661,7 @@ def api_whoami():
         role=facts.get("role"),
         admin_granted=bool(facts.get("admin_granted")),
     )
-    return _json(True, {
+    data = {
         "name": row.get("name"),
         "prefix": row.get("key_prefix"),
         "active": True,
@@ -559,7 +672,46 @@ def api_whoami():
         "sermon_user": actor,
         "sermon_people": [f"user:{people[0]}"] if len(people) == 1 else [],
         "help": "GET /api/bot/help",
-    })
+        "blocked": bool(block),
+        "writes_off": policy.writes_blocked(row.get("controls")),
+        "expired_switches": [],
+        "missing": list((block or {}).get("missing") or []),
+        "fix": (block or {}).get("fix") or "",
+    }
+    return _json(True, data, surface=_status_surface(row, block))
+
+
+@bot_access_bp.route("/api/bot/diagnostics", methods=["GET"])
+def api_diagnostics():
+    row, err = _require_session()
+    if err:
+        return err
+    block = _block_info(row)
+    facts = _facts(row)
+    people = policy.assigned_people(row.get("voices") or [])
+    data = {
+        "name": row.get("name"),
+        "key_prefix": row.get("key_prefix"),
+        "prefix": row.get("key_prefix"),
+        "active": True,
+        "switches": row.get("controls") or policy.default_controls(),
+        "blocked": bool(block),
+        "missing": list((block or {}).get("missing") or []),
+        "fix": (block or {}).get("fix") or "",
+        "writes_off": policy.writes_blocked(row.get("controls")),
+        "expired_switches": [],
+        "acting_user": {
+            "id": facts.get("user_id"),
+            "name": _acting_name(row, facts) if facts.get("user_id") else "",
+            "role": facts.get("role"),
+        },
+        "sermon_people": [f"user:{people[0]}"] if len(people) == 1 else [],
+        "session_expires_in": store.session_seconds_left(row.get("session_row_id")),
+        "pending_2fa": store.pending_twofa_count(int(row["id"])),
+        "reset_count_hour": store.recent_reset_count(int(row["id"])),
+        "grace_key_active": store.grace_key_active(int(row["id"])),
+    }
+    return _json(True, data, surface=_status_surface(row, block))
 
 
 @bot_access_bp.route("/api/bot/log", methods=["GET"])
@@ -1119,3 +1271,426 @@ def api_desk(area: str):
         desks.write_desk(person["user_id"], facts.get("role"), area, _payload()),
         person,
     )
+
+
+def _hard(row: dict) -> bool:
+    return policy.switch_on(row.get("controls"), "hard_delete")
+
+
+def _actor(row: dict) -> dict:
+    facts = _facts(row)
+    uid = facts.get("user_id")
+    return {"user_id": uid, "name": _acting_name(row, facts) if uid else "Church"}
+
+
+def _member_actor(row: dict) -> int:
+    try:
+        return int(_facts(row).get("user_id") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _comment_rate(row: dict):
+    count = store.recent_action_count(int(row["id"]), "bot_comment_reply")
+    if guard.over_comment_rate(count, policy.COMMENT_RATE_PER_HOUR):
+        return _json(
+            False,
+            error="This bot already replied 30 times this hour.",
+            status=429,
+            code="rate_limit",
+        )
+    return None
+
+
+@bot_access_bp.route("/api/bot/posts/<int:post_id>", methods=["GET", "POST"])
+def api_post_one(post_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "posts")
+    if denied:
+        return denied
+    if request.method == "GET":
+        return _finish(row, content.get_post(post_id))
+    return _finish(row, content.edit_post(post_id, _payload()))
+
+
+@bot_access_bp.route("/api/bot/posts/<int:post_id>/hide", methods=["POST"])
+def api_post_hide(post_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "posts")
+    if denied:
+        return denied
+    return _finish(row, content.hide_post(post_id, True))
+
+
+@bot_access_bp.route("/api/bot/posts/<int:post_id>/unhide", methods=["POST"])
+def api_post_show(post_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "posts")
+    if denied:
+        return denied
+    return _finish(row, content.hide_content(
+        "community_posts", post_id, hide=False, action="bot_post_unhide",
+    ))
+
+
+@bot_access_bp.route("/api/bot/posts/<int:post_id>/delete", methods=["POST"])
+def api_post_remove(post_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "posts")
+    if denied:
+        return denied
+    return _finish(row, content.delete_content(
+        "community_posts", post_id, _payload(), _hard(row),
+    ))
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/unhide", methods=["POST"])
+def api_sermon_show(sermon_id: int):
+    row, _person, err = _desk()
+    if err:
+        return err
+    return _finish(row, content.hide_content(
+        "pastoral_sermons", sermon_id, hide=False, action="bot_sermon_unhide",
+    ))
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/delete", methods=["POST"])
+def api_sermon_remove(sermon_id: int):
+    row, _person, err = _desk()
+    if err:
+        return err
+    return _finish(row, content.delete_content(
+        "pastoral_sermons", sermon_id, _payload(), _hard(row),
+    ))
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/sections/<int:section_id>/delete", methods=["POST"])
+def api_section_remove(sermon_id: int, section_id: int):
+    row, _person, err = _desk()
+    if err:
+        return err
+    return _finish(row, content.delete_content(
+        "sermon_sections", section_id, _payload(), _hard(row), sermon_id=sermon_id,
+    ))
+
+
+@bot_access_bp.route("/api/bot/illustrations/<int:illus_id>/unhide", methods=["POST"])
+def api_illustration_show(illus_id: int):
+    row, _person, err = _desk()
+    if err:
+        return err
+    return _finish(row, content.hide_content(
+        "illustration_library", illus_id, hide=False, action="bot_illustration_unhide",
+    ))
+
+
+@bot_access_bp.route("/api/bot/illustrations/<int:illus_id>/delete", methods=["POST"])
+def api_illustration_remove(illus_id: int):
+    row, _person, err = _desk()
+    if err:
+        return err
+    return _finish(row, content.delete_content(
+        "illustration_library", illus_id, _payload(), _hard(row),
+    ))
+
+
+@bot_access_bp.route("/api/bot/vault/<int:item_id>/delete", methods=["POST"])
+def api_vault_remove(item_id: int):
+    row, _person, err = _desk()
+    if err:
+        return err
+    return _finish(row, content.delete_content(
+        "pastoral_vault", item_id, _payload(), _hard(row),
+    ))
+
+
+@bot_access_bp.route("/api/bot/lineup/<int:plan_id>/delete", methods=["POST"])
+def api_lineup_remove(plan_id: int):
+    row, _person, err = _desk()
+    if err:
+        return err
+    return _finish(row, content.clear_lineup(plan_id, _payload(), _hard(row)))
+
+
+@bot_access_bp.route("/api/bot/comments/<area>/<int:parent_id>", methods=["POST"])
+def api_comment_reply(area: str, parent_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "comments")
+    if denied:
+        return denied
+    limited = _comment_rate(row)
+    if limited:
+        return limited
+    body = _payload()
+    text = body.get("body") or body.get("text") or ""
+    return _finish(row, comments.reply_comment(area, parent_id, text, _actor(row)))
+
+
+@bot_access_bp.route("/api/bot/comments/<area>/<int:parent_id>/<int:comment_id>", methods=["POST"])
+def api_comment_edit(area: str, parent_id: int, comment_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "comments")
+    if denied:
+        return denied
+    body = _payload()
+    return _finish(row, comments.edit_comment(area, parent_id, comment_id, body.get("body") or body.get("text") or ""))
+
+
+@bot_access_bp.route("/api/bot/comments/<area>/<int:parent_id>/<int:comment_id>/hide", methods=["POST"])
+def api_comment_hide(area: str, parent_id: int, comment_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "comments")
+    if denied:
+        return denied
+    return _finish(row, comments.hide_comment(area, parent_id, comment_id, {}, False))
+
+
+@bot_access_bp.route("/api/bot/comments/<area>/<int:parent_id>/<int:comment_id>/delete", methods=["POST"])
+def api_comment_remove(area: str, parent_id: int, comment_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "comments")
+    if denied:
+        return denied
+    return _finish(row, comments.hide_comment(area, parent_id, comment_id, _payload(), _hard(row)))
+
+
+@bot_access_bp.route("/api/bot/content/<kind>/<int:item_id>/moderate", methods=["POST"])
+def api_content_moderate(kind: str, item_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need_any(row, "moderation", "office")
+    if denied:
+        return denied
+    return _finish(row, content.moderate(kind, item_id, _payload()))
+
+
+@bot_access_bp.route("/api/bot/members", methods=["GET", "POST"])
+def api_members():
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "members")
+    if denied:
+        return denied
+    if request.method == "GET":
+        return _finish(row, members_api.list_members(request.args.get("q") or "", request.args.get("page")))
+    return _finish(row, members_api.create_member(_member_actor(row), _payload()))
+
+
+@bot_access_bp.route("/api/bot/members/visitors", methods=["GET"])
+def api_member_visitors():
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "members")
+    if denied:
+        return denied
+    return _finish(row, members_api.list_visitors())
+
+
+@bot_access_bp.route("/api/bot/members/export", methods=["GET"])
+def api_member_export():
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "members_export")
+    if denied:
+        return denied
+    return _finish(row, members_api.export_members(request.args.get("format") or "json"))
+
+
+@bot_access_bp.route("/api/bot/members/registrations/<int:user_id>/approve", methods=["POST"])
+def api_member_approve(user_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "members")
+    if denied:
+        return denied
+    return _finish(row, members_api.decide_registration(_member_actor(row), user_id, True))
+
+
+@bot_access_bp.route("/api/bot/members/registrations/<int:user_id>/reject", methods=["POST"])
+def api_member_reject(user_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "members")
+    if denied:
+        return denied
+    return _finish(row, members_api.decide_registration(_member_actor(row), user_id, False))
+
+
+@bot_access_bp.route("/api/bot/members/access/templates", methods=["GET", "POST"])
+def api_access_templates():
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "members_access")
+    if denied:
+        return denied
+    if request.method == "GET":
+        return _finish(row, members_api.templates(_member_actor(row), None, None, False))
+    return _finish(row, members_api.templates(_member_actor(row), None, _payload(), True))
+
+
+@bot_access_bp.route("/api/bot/members/access/templates/<int:template_id>", methods=["POST"])
+def api_access_template(template_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "members_access")
+    if denied:
+        return denied
+    return _finish(row, members_api.templates(_member_actor(row), template_id, _payload(), True))
+
+
+@bot_access_bp.route("/api/bot/members/<int:member_id>", methods=["GET", "POST"])
+def api_member(member_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "members")
+    if denied:
+        return denied
+    if request.method == "GET":
+        return _finish(row, members_api.member_detail(member_id))
+    return _finish(row, members_api.update_member(_member_actor(row), member_id, _payload()))
+
+
+@bot_access_bp.route("/api/bot/members/<int:member_id>/delete", methods=["POST"])
+def api_member_remove(member_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "members")
+    if denied:
+        return denied
+    return _finish(row, members_api.delete_member(_member_actor(row), member_id, _payload(), _hard(row)))
+
+
+@bot_access_bp.route("/api/bot/members/<int:member_id>/access", methods=["GET", "POST"])
+def api_member_access(member_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "members_access")
+    if denied:
+        return denied
+    writing = request.method != "GET"
+    return _finish(row, members_api.member_access(
+        _member_actor(row), member_id, _payload() if writing else None, writing,
+    ))
+
+
+@bot_access_bp.route("/api/bot/events", methods=["GET", "POST"])
+def api_events():
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "events")
+    if denied:
+        return denied
+    if request.method == "GET":
+        return _finish(row, events_api.list_events(
+            request.args.get("from") or "",
+            request.args.get("to") or "",
+            request.args.get("campus_id"),
+        ))
+    return _finish(row, events_api.create_event(_member_actor(row), _payload()))
+
+
+@bot_access_bp.route("/api/bot/events/<int:event_id>", methods=["GET", "POST"])
+def api_event(event_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "events")
+    if denied:
+        return denied
+    if request.method == "GET":
+        return _finish(row, events_api.event_detail(event_id))
+    return _finish(row, events_api.update_event(_member_actor(row), event_id, _payload()))
+
+
+@bot_access_bp.route("/api/bot/events/<int:event_id>/delete", methods=["POST"])
+def api_event_remove(event_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "events")
+    if denied:
+        return denied
+    return _finish(row, events_api.delete_event(_member_actor(row), event_id, _payload(), _hard(row)))
+
+
+@bot_access_bp.route("/api/bot/events/<int:event_id>/signups", methods=["GET", "POST"])
+def api_event_signups(event_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "events")
+    if denied:
+        return denied
+    writing = request.method != "GET"
+    return _finish(row, events_api.signups(event_id, _payload() if writing else None, writing))
+
+
+@bot_access_bp.route("/api/bot/events/<int:event_id>/signups/<int:signup_id>/delete", methods=["POST"])
+def api_event_signup_remove(event_id: int, signup_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "events")
+    if denied:
+        return denied
+    return _finish(row, events_api.signups(event_id, _payload(), True, signup_id))
+
+
+@bot_access_bp.route("/api/bot/events/<int:event_id>/comments/<int:comment_id>", methods=["POST"])
+def api_event_comment(event_id: int, comment_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "comments")
+    if denied:
+        return denied
+    body = _payload()
+    if body.get("hide") in (True, 1, "1", "true", "True"):
+        return _finish(row, comments.hide_comment("event", event_id, comment_id, body, _hard(row)))
+    return _finish(row, comments.edit_comment(
+        "event", event_id, comment_id, body.get("body") or body.get("text") or "",
+    ))
+
+
+@bot_access_bp.route("/api/bot/events/<int:event_id>/email", methods=["POST"])
+def api_event_email(event_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "comms_send")
+    if denied:
+        return denied
+    return _finish(row, events_api.email_event(
+        _member_actor(row),
+        event_id,
+        _payload(),
+        policy.switch_on(row.get("controls"), "comms_send"),
+    ))

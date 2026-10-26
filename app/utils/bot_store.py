@@ -163,6 +163,7 @@ def ensure_login_columns() -> None:
                 continue
             cur.execute(f"ALTER TABLE bot_access_keys ADD COLUMN {column} {definition}")
         ensure_sessions()
+        ensure_twofa_codes()
     except Exception as exc:
         print(f"bot login columns: {type(exc).__name__}")
 
@@ -302,11 +303,57 @@ def replace_api_key(key_id: int, digest: str, prefix: str) -> tuple[bool, str]:
         return False, "That API key could not be saved."
 
 
+def ensure_twofa_codes() -> None:
+    """Newest unused 2FA codes. A later sign-in does not erase the earlier ones."""
+    try:
+        cur = _cur()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bot_twofa_codes (
+                id         INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                key_id     INT UNSIGNED NOT NULL,
+                code_hash  CHAR(64) NOT NULL,
+                expires_at DATETIME NOT NULL,
+                used_at    DATETIME NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                KEY idx_bot_twofa_key (key_id, id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """
+        )
+    except Exception as exc:
+        print(f"bot twofa codes: {type(exc).__name__}")
+
+
+def _trim_twofa(key_id: int) -> None:
+    """Keep the newest three unused codes that have not expired."""
+    cur = _cur()
+    cur.execute(
+        """
+        SELECT id FROM bot_twofa_codes
+        WHERE key_id=%s AND used_at IS NULL AND expires_at > NOW()
+        ORDER BY id DESC
+        """,
+        (int(key_id),),
+    )
+    ids = [int(row["id"]) for row in (cur.fetchall() or []) if row.get("id")]
+    for old in ids[3:]:
+        cur.execute("UPDATE bot_twofa_codes SET used_at=NOW() WHERE id=%s", (int(old),))
+
+
 def store_twofa(key_id: int, digest: str) -> bool:
-    """Store a 2FA key. This does not close any open session."""
+    """Store a 2FA key beside any that are still waiting. This does not close a session."""
     try:
         ensure_login_columns()
+        ensure_twofa_codes()
         cur = _cur()
+        cur.execute(
+            """
+            INSERT INTO bot_twofa_codes (key_id, code_hash, expires_at)
+            VALUES (%s, %s, DATE_ADD(NOW(), INTERVAL %s SECOND))
+            """,
+            (int(key_id), digest, int(policy.TWOFA_TTL_SECONDS)),
+        )
+        _trim_twofa(int(key_id))
         cur.execute(
             """
             UPDATE bot_access_keys
@@ -321,6 +368,34 @@ def store_twofa(key_id: int, digest: str) -> bool:
     except Exception as exc:
         print(f"bot store_twofa: {type(exc).__name__}")
         return False
+
+
+def mark_twofa_used(code_id: int | None) -> None:
+    if not code_id:
+        return
+    try:
+        cur = _cur()
+        cur.execute("UPDATE bot_twofa_codes SET used_at=NOW() WHERE id=%s", (int(code_id),))
+    except Exception as exc:
+        print(f"bot mark twofa: {type(exc).__name__}")
+
+
+def pending_twofa_count(key_id: int) -> int:
+    try:
+        ensure_twofa_codes()
+        cur = _cur()
+        cur.execute(
+            """
+            SELECT COUNT(*) AS n FROM bot_twofa_codes
+            WHERE key_id=%s AND used_at IS NULL AND expires_at > NOW()
+            """,
+            (int(key_id),),
+        )
+        row = cur.fetchone() or {}
+        return int(row.get("n") or 0)
+    except Exception as exc:
+        print(f"bot pending twofa: {type(exc).__name__}")
+        return 0
 
 
 def open_session(key_id: int, digest: str, client_label: str = "") -> bool:
@@ -374,10 +449,44 @@ def note_bad_twofa(key_id: int) -> None:
         print(f"bot note_bad_twofa: {exc}")
 
 
-def clear_twofa(key_id: int) -> None:
-    """Drop a 2FA key that was stored but never emailed."""
+def clear_twofa(key_id: int, digest: str | None = None) -> None:
+    """Drop a 2FA key that was stored but never emailed. Other waiting codes stay."""
     try:
         cur = _cur()
+        if digest:
+            cur.execute(
+                """
+                UPDATE bot_twofa_codes
+                SET used_at=NOW()
+                WHERE key_id=%s AND code_hash=%s AND used_at IS NULL
+                """,
+                (int(key_id), digest),
+            )
+            cur.execute(
+                """
+                SELECT code_hash,
+                       TIMESTAMPDIFF(SECOND, NOW(), expires_at) AS seconds_left
+                FROM bot_twofa_codes
+                WHERE key_id=%s AND used_at IS NULL AND expires_at > NOW()
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (int(key_id),),
+            )
+            left = cur.fetchone()
+            if left and left.get("code_hash"):
+                seconds = int(left.get("seconds_left") or policy.TWOFA_TTL_SECONDS)
+                cur.execute(
+                    """
+                    UPDATE bot_access_keys
+                    SET twofa_hash=%s,
+                        twofa_expires=DATE_ADD(NOW(), INTERVAL %s SECOND),
+                        twofa_attempts=0
+                    WHERE id=%s
+                    """,
+                    (left["code_hash"], max(seconds, 1), int(key_id)),
+                )
+                return
         cur.execute(
             """
             UPDATE bot_access_keys
@@ -525,24 +634,16 @@ def find_session(raw: str) -> dict | None:
         return None
 
 
-def twofa_matches(row: dict, raw: str) -> str:
-    """ok, missing, expired, or bad. The hash stays in the database."""
-    digest = policy.hash_key(raw or "")
-    if not row or not row.get("id") or not digest or not str(raw or "").startswith("mvos_2fa_"):
-        return "missing" if not (raw or "").strip() else "bad"
-    try:
-        cur = _cur()
-        cur.execute(
-            """
-            SELECT twofa_hash, twofa_expires > NOW() AS live
-            FROM bot_access_keys WHERE id=%s
-            """,
-            (int(row["id"]),),
-        )
-        current = cur.fetchone() or {}
-    except Exception as exc:
-        print(f"bot twofa_matches: {exc}")
-        return "bad"
+def _legacy_twofa(key_id: int, digest: str) -> str:
+    cur = _cur()
+    cur.execute(
+        """
+        SELECT twofa_hash, twofa_expires > NOW() AS live
+        FROM bot_access_keys WHERE id=%s
+        """,
+        (int(key_id),),
+    )
+    current = cur.fetchone() or {}
     if not current.get("twofa_hash"):
         return "missing"
     if current.get("twofa_hash") != digest:
@@ -550,6 +651,51 @@ def twofa_matches(row: dict, raw: str) -> str:
     if not current.get("live"):
         return "expired"
     return "ok"
+
+
+def twofa_matches(row: dict, raw: str) -> str:
+    """ok, missing, expired, or bad. Any of the newest unused codes can match."""
+    digest = policy.hash_key(raw or "")
+    if not row or not row.get("id") or not digest or not str(raw or "").startswith("mvos_2fa_"):
+        return "missing" if not (raw or "").strip() else "bad"
+    key_id = int(row["id"])
+    try:
+        cur = _cur()
+        cur.execute(
+            """
+            SELECT id, code_hash, (expires_at > NOW()) AS live
+            FROM bot_twofa_codes
+            WHERE key_id=%s AND used_at IS NULL
+            ORDER BY id DESC
+            LIMIT 3
+            """,
+            (key_id,),
+        )
+        codes = list(cur.fetchall() or [])
+    except Exception as exc:
+        print(f"bot twofa codes read: {type(exc).__name__}")
+        codes = []
+    saw = False
+    for code in codes:
+        if code.get("code_hash") != digest:
+            continue
+        saw = True
+        if code.get("live"):
+            row["_twofa_id"] = int(code["id"])
+            return "ok"
+        return "expired"
+    try:
+        legacy = _legacy_twofa(key_id, digest)
+    except Exception as exc:
+        print(f"bot twofa_matches: {exc}")
+        return "bad"
+    if legacy == "ok":
+        return "ok"
+    if saw:
+        return "expired"
+    if codes and legacy in ("bad", "missing"):
+        return "bad"
+    return legacy
 
 
 def list_usage(limit: int = 80) -> list[dict]:
@@ -629,6 +775,26 @@ def find_key(raw: str) -> dict | None:
         return None
 
 
+def recent_action_count(key_id: int, action: str, window: int | None = None, limit_on_error: int = 30) -> int:
+    """How many successful log rows of this action this bot wrote in the window."""
+    try:
+        cur = _cur()
+        cur.execute(
+            """
+            SELECT COUNT(*) AS n
+            FROM bot_access_log
+            WHERE key_id=%s AND action=%s AND ok=1
+              AND created_at > DATE_SUB(NOW(), INTERVAL %s SECOND)
+            """,
+            (int(key_id), action, int(window or policy.RESET_WINDOW_SECONDS)),
+        )
+        row = cur.fetchone() or {}
+        return int(row.get("n") or 0)
+    except Exception as exc:
+        print(f"bot recent action: {type(exc).__name__}")
+        return int(limit_on_error)
+
+
 def recent_reset_count(key_id: int) -> int:
     """Successful self-service resets for this bot in the last hour.
 
@@ -650,6 +816,44 @@ def recent_reset_count(key_id: int) -> int:
     except Exception as exc:
         print(f"bot recent_reset_count: {type(exc).__name__}")
         return int(policy.RESET_LIMIT_PER_HOUR)
+
+
+def session_seconds_left(session_row_id: int | None) -> int | None:
+    if not session_row_id:
+        return None
+    try:
+        cur = _cur()
+        cur.execute(
+            """
+            SELECT TIMESTAMPDIFF(SECOND, NOW(), expires_at) AS seconds_left
+            FROM bot_sessions WHERE id=%s
+            """,
+            (int(session_row_id),),
+        )
+        row = cur.fetchone() or {}
+        if row.get("seconds_left") is None:
+            return None
+        return max(0, int(row.get("seconds_left") or 0))
+    except Exception as exc:
+        print(f"bot session left: {type(exc).__name__}")
+        return None
+
+
+def grace_key_active(key_id: int) -> bool:
+    try:
+        cur = _cur()
+        cur.execute(
+            """
+            SELECT (prev_key_expires > NOW()) AS grace_live
+            FROM bot_access_keys WHERE id=%s
+            """,
+            (int(key_id),),
+        )
+        row = cur.fetchone() or {}
+        return bool(row.get("grace_live"))
+    except Exception as exc:
+        print(f"bot grace key: {type(exc).__name__}")
+        return False
 
 
 def key_ids_for_inbox(email: str) -> list[int]:

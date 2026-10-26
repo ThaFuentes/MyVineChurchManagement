@@ -18,6 +18,13 @@ VISIBILITIES = ("public", "private", "personal", "followers")
 # kind: write | security | read. Only these ids can be stored on a key.
 SWITCHES = [
     {
+        "id": "bot_writes_off",
+        "kind": "safety",
+        "group": "Safety",
+        "label": "Bot writes OFF",
+        "detail": "Master switch. When this is on, this bot can still sign in and read. Every change is refused until you turn it off.",
+    },
+    {
         "id": "posts",
         "kind": "write",
         "group": "Wall",
@@ -35,8 +42,8 @@ SWITCHES = [
         "id": "members",
         "kind": "read",
         "group": "People",
-        "label": "Read members",
-        "detail": "Directory names, email, phone, and role. No passwords or check-in PINs.",
+        "label": "Members",
+        "detail": "Directory names, email, phone, and role, plus add, edit, and soft-delete. No passwords or check-in PINs. Access templates and export use their own switches.",
     },
     {
         "id": "groups",
@@ -56,8 +63,8 @@ SWITCHES = [
         "id": "events",
         "kind": "read",
         "group": "Church life",
-        "label": "Read events",
-        "detail": "Event names, dates, places, and a short description.",
+        "label": "Events",
+        "detail": "Event names, dates, places, and the calendar. Add, edit, soft-delete, and signups. Emailing the list needs Send email.",
     },
     {
         "id": "announcements",
@@ -147,8 +154,15 @@ SWITCHES = [
         "id": "comments",
         "kind": "monitor",
         "group": "Church life",
-        "label": "Monitor comments",
-        "detail": "Read comments on events, sermons, prayers, dreams, prophecies, announcements, photos, wall posts, and tickets. No IP addresses. This switch cannot remove a comment.",
+        "label": "Comments",
+        "detail": "Read, reply, edit, and hide comments on events, sermons, prayers, dreams, prophecies, announcements, photos, wall posts, and tickets. No IP addresses. A censored word is refused. A hard delete needs the Hard delete switch.",
+    },
+    {
+        "id": "moderation",
+        "kind": "write",
+        "group": "Church life",
+        "label": "Moderate",
+        "detail": "Approve, reject, or hide a post, event, announcement, dream, prophecy, prayer, or sermon. Church office still covers the older moderation call.",
     },
     {
         "id": "office",
@@ -156,6 +170,38 @@ SWITCHES = [
         "group": "Church office",
         "label": "Church office",
         "detail": "Every column of every church desk, as the one account you chose. That account must be you, or an admin you allowed. GET /api/bot/desks lists each area. Study courses, the apps menu, moderation, and AI insights have their own calls. POST /api/bot/upload places a picture on a study lesson, a church or member page, the sign-in page, a ministry partner, a giving option, or a song chart. A wall picture also needs Posts. Help pages update on the help desk. Membership rows can be removed and put back. Pickup codes, family PINs, passwords, mail logins, API keys, card numbers, payroll, and sending email stay off.",
+    },
+    {
+        "id": "members_access",
+        "kind": "write",
+        "group": "High risk",
+        "high_risk": True,
+        "label": "Member access",
+        "detail": "Change tool access and access templates. This bot cannot change an owner, or its own access. Stays on until you turn it off.",
+    },
+    {
+        "id": "members_export",
+        "kind": "write",
+        "group": "High risk",
+        "high_risk": True,
+        "label": "Export members",
+        "detail": "Download the directory as JSON or CSV. No passwords. Stays on until you turn it off.",
+    },
+    {
+        "id": "hard_delete",
+        "kind": "write",
+        "group": "High risk",
+        "high_risk": True,
+        "label": "Hard delete",
+        "detail": "Permanently remove a sermon, post, comment, event, or member. The body must say DELETE and the id. Stays on until you turn it off.",
+    },
+    {
+        "id": "comms_send",
+        "kind": "write",
+        "group": "High risk",
+        "high_risk": True,
+        "label": "Send email",
+        "detail": "Send an event email to people who accept event mail. Stays on until you turn it off.",
     },
 ]
 
@@ -228,14 +274,14 @@ READS = {
 }
 
 CLOSED = [
-    "Child check-in rooms, children, guardians, and the board are on this API. Pickup codes, family PINs, and the check-in kiosk are not. Bill logins, passwords, and sending email are not.",
-    "Deleting a post is not available. Reverse hides it and can put it back.",
-    "Sermon drafts, illustrations, sections, and research notes are hidden, not deleted. A lineup change can be undone for that one date.",
-    "Comment monitoring is read-only. This key cannot remove a comment or email anyone about one.",
+    "Child check-in rooms, children, guardians, and the board are on this API. Pickup codes, family PINs, and the check-in kiosk are not. Bill logins and passwords are not. Event email needs the Send email switch.",
+    "Deleting a post, sermon, comment, event, or member hides it. Hard delete needs the Hard delete switch and confirm set to DELETE plus the id.",
+    "Sermon drafts, illustrations, sections, and research notes can be hidden and put back. A lineup change can be undone for that one date.",
+    "Comment replies post as the account the owner chose. A censored word is refused. This key does not email anyone about a comment.",
     "Card numbers, account numbers, bill site logins, bank details, and passwords stay off this key.",
     "Gifts, bills, and expenses save every safe column. Card numbers, account numbers, bill site logins, and bank details are left off the row. Reverse does not void a gift or an expense.",
     "Only the owner allows an admin to use a bot. That bot acts only as that admin. The owner chooses the one account every bot acts as.",
-    "The desk catalog does not return child check-in PINs or pickup codes, mail passwords, API keys, payment secrets, private messages, or payroll. It does not send email. A new login needs a password, so this bot cannot create one.",
+    "The desk catalog does not return child check-in PINs or pickup codes, mail passwords, API keys, payment secrets, private messages, or payroll. Adding a member emails a temporary password and does not return it.",
     "POST /api/bot/upload does not delete the previous file. Reverse does not remove a picture, a study course, an apps-menu change, a moderation action, or an insight run.",
 ]
 
@@ -298,6 +344,11 @@ def switch_on(controls, switch_id: str) -> bool:
     return bool(normalize_controls(controls).get(switch_id))
 
 
+def writes_blocked(controls) -> bool:
+    """The master switch. On means every change is refused. Reads stay open."""
+    return switch_on(controls, "bot_writes_off")
+
+
 def hash_key(raw: str) -> str:
     return hashlib.sha256((raw or "").encode("utf-8")).hexdigest()
 
@@ -326,6 +377,7 @@ PREV_KEY_GRACE_SECONDS = 15 * 60
 MAX_OPEN_SESSIONS = 5
 RESET_LIMIT_PER_HOUR = 3
 RESET_WINDOW_SECONDS = 3600
+COMMENT_RATE_PER_HOUR = 30
 RESET_REQUEST_REPLY = "If that inbox belongs to a bot, a new API key is on its way."
 ADMIN_NOT_GRANTED = "The owner has not allowed this admin to use a bot."
 
@@ -620,6 +672,26 @@ UNDO_STEPS = {
     "desk.update": ("restore", "reapply"),
     "desk.hide": ("restore", "reapply"),
     "desk.link": ("restore", "reapply"),
+    "bot_member_create": ("hide", "show"),
+    "bot_member_update": ("restore", "reapply"),
+    "bot_member_delete": ("show", "hide"),
+    "bot_member_reject": ("show", "hide"),
+    "bot_event_update": ("restore", "reapply"),
+    "bot_event_delete": ("show", "hide"),
+    "bot_event_signup": ("show", "hide"),
+    "bot_sermon_delete": ("show", "hide"),
+    "bot_sermon_unhide": ("hide", "show"),
+    "bot_section_delete": ("show", "hide"),
+    "bot_illustration_delete": ("show", "hide"),
+    "bot_vault_delete": ("show", "hide"),
+    "bot_post_edit": ("restore", "reapply"),
+    "bot_post_hide": ("show", "hide"),
+    "bot_post_unhide": ("hide", "show"),
+    "bot_post_delete": ("show", "hide"),
+    "bot_illustration_unhide": ("hide", "show"),
+    "bot_lineup_delete": ("show", "hide"),
+    "bot_comment_edit": ("restore", "reapply"),
+    "bot_comment_delete": ("show", "hide"),
 }
 
 UNDO_LABELS = {
@@ -645,7 +717,7 @@ def undo_label(action: str, already_reversed: bool) -> str | None:
     return UNDO_LABELS.get(plan, "Undo")
 
 
-def call_map(controls) -> list[dict]:
+def call_map(controls, blocked_why: str | None = None) -> list[dict]:
     on = normalize_controls(controls)
     calls = [
         {"method": "GET", "path": "/api/bot/help", "switch": None,
@@ -657,13 +729,15 @@ def call_map(controls) -> list[dict]:
         {"method": "POST", "path": "/api/bot/login/exchange", "switch": None,
          "about": "Send the permanent API key as Authorization: Bearer and the emailed 2FA key as X-Bot-2FA. Returns a session token that expires in 1 hour."},
         {"method": "POST", "path": "/api/bot/password-reset", "switch": None,
-         "about": "Send a live session, or the current API key, as Authorization: Bearer. Emails a new API key to the main inbox and a 2FA key to the other inbox. The old key stops working in 15 minutes. Sessions that are already open stay open. POST /api/bot/key/reset is the same call."},
+         "about": "Send a live session, or the current API key, as Authorization: Bearer. Emails a new API key to the main inbox. It does not email a 2FA key. POST /api/bot/login with the new key mails a 2FA key. The old key stops working in 15 minutes. Sessions that are already open stay open. POST /api/bot/key/reset is the same call."},
         {"method": "POST", "path": "/api/bot/key/reset", "switch": None,
-         "about": "Same as POST /api/bot/password-reset. The API key or a live session is enough. The new API key goes to the main inbox. The 2FA key goes to the other inbox. The old key stops working in 15 minutes."},
+         "about": "Same as POST /api/bot/password-reset. The API key or a live session is enough. The new API key goes to the main inbox only. The old key stops working in 15 minutes."},
         {"method": "POST", "path": "/api/bot/key/reset-request", "switch": None,
-         "about": "No working API key is required. Body: {\"email\": \"the main API-key inbox\"}. If that inbox is saved on a bot, a new API key is emailed there and a 2FA key is emailed to the other inbox. The reply is the same either way."},
+         "about": "No working API key is required. Body: {\"email\": \"the main API-key inbox\"}. If that inbox is saved on a bot, a new API key is emailed there. A 2FA key is not emailed until the next POST /api/bot/login. The reply is the same either way."},
         {"method": "GET", "path": "/api/bot/whoami", "switch": None,
-         "about": "Which switches are on, the one account this bot acts as, and the voices on the key. GET /api/bot/me is the same. Session bearer."},
+         "about": "Which switches are on, the one account this bot acts as, and whether this bot is blocked. A blocked admin still gets this answer, with missing and the fix. GET /api/bot/me is the same. Session bearer."},
+        {"method": "GET", "path": "/api/bot/diagnostics", "switch": None,
+         "about": "Same as whoami, plus the key prefix, how long the session has left, whether a 2FA key is waiting, reset count this hour, and whether the previous API key is still in its 15-minute window. No secrets."},
         {"method": "GET", "path": "/api/bot/me", "switch": None,
          "about": "Same as GET /api/bot/whoami. Returns name, prefix, switches, voices, and acts_as. The caller cannot name a different account."},
         {"method": "GET", "path": "/api/bot/log", "switch": None,
@@ -674,6 +748,16 @@ def call_map(controls) -> list[dict]:
          "about": "Publish text as the one account the owner chose. Body: {\"kind\":\"post|quote|verse|blog|book\", \"title\":\"\", \"body\":\"\", \"visibility\":\"public|private|personal|followers\", \"as\":\"church\"}. An owner bot may send as=church when the church wall is on. An admin bot cannot post as the church or as anyone else. A picture on the wall is POST /api/bot/upload place=post and also needs this switch. Reverse hides the post and can show it again. The row is kept."},
         {"method": "GET", "path": "/api/bot/posts", "switch": "posts",
          "about": "Recent live wall posts for the account the owner chose. An owner bot may use as=church."},
+        {"method": "GET", "path": "/api/bot/posts/<id>", "switch": "posts",
+         "about": "One wall post, including a hidden one."},
+        {"method": "POST", "path": "/api/bot/posts/<id>", "switch": "posts",
+         "about": "Edit a post's title, body, or visibility. Reverse puts the previous words back."},
+        {"method": "POST", "path": "/api/bot/posts/<id>/hide", "switch": "posts",
+         "about": "Hide a post. Reverse puts it back."},
+        {"method": "POST", "path": "/api/bot/posts/<id>/unhide", "switch": "posts",
+         "about": "Show a hidden post again."},
+        {"method": "POST", "path": "/api/bot/posts/<id>/delete", "switch": "posts",
+         "about": "Soft-hide a post. Hard delete needs the Hard delete switch and {\"confirm\":\"DELETE <id>\"}."},
         {"method": "GET", "path": "/api/bot/security", "switch": "security",
          "about": "Summary, recent events, events_newest_at, and recording."},
         {"method": "GET", "path": "/api/bot/sermons", "switch": "sermon_builder",
@@ -694,10 +778,24 @@ def call_map(controls) -> list[dict]:
          "about": "Change an illustration's title, story, source, or tags."},
         {"method": "POST", "path": "/api/bot/illustrations/<id>/hide", "switch": "sermon_builder",
          "about": "Hide an illustration that assigned person owns, or a shared one they can open. Undo puts it back. It is not deleted."},
+        {"method": "POST", "path": "/api/bot/illustrations/<id>/unhide", "switch": "sermon_builder",
+         "about": "Show a hidden illustration again."},
         {"method": "GET", "path": "/api/bot/illustrations/<id>/download", "switch": "sermon_builder",
          "about": "Download one illustration. format=md returns the words in JSON. format=docx, or file=1, returns the file."},
         {"method": "POST", "path": "/api/bot/sermons/<id>/hide", "switch": "sermon_builder",
          "about": "Hide a draft that assigned person created. Undo puts it back."},
+        {"method": "POST", "path": "/api/bot/sermons/<id>/unhide", "switch": "sermon_builder",
+         "about": "Show a hidden sermon draft again."},
+        {"method": "POST", "path": "/api/bot/sermons/<id>/delete", "switch": "sermon_builder",
+         "about": "Soft-hide a sermon draft. Hard delete needs the Hard delete switch and {\"confirm\":\"DELETE <id>\"}."},
+        {"method": "POST", "path": "/api/bot/sermons/<id>/sections/<sid>/delete", "switch": "sermon_builder",
+         "about": "Soft-hide one section. Hard delete needs the Hard delete switch and the confirm phrase."},
+        {"method": "POST", "path": "/api/bot/illustrations/<id>/delete", "switch": "sermon_builder",
+         "about": "Soft-hide an illustration. Hard delete needs the Hard delete switch and the confirm phrase."},
+        {"method": "POST", "path": "/api/bot/vault/<id>/delete", "switch": "sermon_builder",
+         "about": "Soft-hide a research note. Hard delete needs the Hard delete switch and the confirm phrase."},
+        {"method": "POST", "path": "/api/bot/lineup/<id>/delete", "switch": "sermon_builder",
+         "about": "Clear the sermon on one lineup day. Hard delete removes that one-day plan when the Hard delete switch is on."},
         {"method": "POST", "path": "/api/bot/sermons/<id>/sections/hide", "switch": "sermon_builder",
          "about": "Hide one section. Body: {\"section_id\": N}."},
         {"method": "POST", "path": "/api/bot/sermons/<id>/sections/reorder", "switch": "sermon_builder",
@@ -706,6 +804,64 @@ def call_map(controls) -> list[dict]:
          "about": "Recent comments. ?area=event|sermon|prayer|dream|prophecy|announcement|photo|post|ticket &parent= &q= &status=visible|removed|shadowed|all."},
         {"method": "GET", "path": "/api/bot/comments/<area>/<id>", "switch": "comments",
          "about": "One comment the monitor can already see. No IP address."},
+        {"method": "POST", "path": "/api/bot/comments/<area>/<id>", "switch": "comments",
+         "about": "Reply on that item as the account the owner chose. Body: {\"body\":\"\"}. A censored word is refused. 30 replies an hour."},
+        {"method": "POST", "path": "/api/bot/comments/<area>/<id>/<cid>", "switch": "comments",
+         "about": "Edit one comment. Body: {\"body\":\"\"}."},
+        {"method": "POST", "path": "/api/bot/comments/<area>/<id>/<cid>/hide", "switch": "comments",
+         "about": "Hide one comment. Reverse puts it back."},
+        {"method": "POST", "path": "/api/bot/comments/<area>/<id>/<cid>/delete", "switch": "comments",
+         "about": "Hide one comment. Hard delete needs the Hard delete switch and {\"confirm\":\"DELETE <cid>\"}."},
+        {"method": "POST", "path": "/api/bot/content/<kind>/<id>/moderate", "switch": "moderation", "also": "office",
+         "about": "Approve, reject, or hide. Body: {\"action\":\"approve|reject|hide\"}. kind is post, event, announcement, dream, prophecy, prayer, or sermon. Church office also allows this call."},
+        {"method": "GET", "path": "/api/bot/members", "switch": "members",
+         "about": "Member directory. ?q= and ?page=. No passwords, pins, or tokens."},
+        {"method": "GET", "path": "/api/bot/members/<id>", "switch": "members",
+         "about": "One member. No password or pin."},
+        {"method": "POST", "path": "/api/bot/members", "switch": "members",
+         "about": "Add a member. Body: {\"first_name\":\"\", \"last_name\":\"\", \"email\":\"\", \"role\":\"Member|Staff|Admin\"}. The password is emailed and is not in the reply."},
+        {"method": "POST", "path": "/api/bot/members/<id>", "switch": "members",
+         "about": "Edit a member. An owner cannot be demoted or have their email changed. This bot cannot change its own role."},
+        {"method": "POST", "path": "/api/bot/members/<id>/delete", "switch": "members",
+         "about": "Soft-delete a member. Hard delete needs the Hard delete switch and {\"confirm\":\"DELETE <id>\"}. An owner cannot be deleted."},
+        {"method": "POST", "path": "/api/bot/members/registrations/<user_id>/approve", "switch": "members",
+         "about": "Approve a registration."},
+        {"method": "POST", "path": "/api/bot/members/registrations/<user_id>/reject", "switch": "members",
+         "about": "Reject a registration. The row is hidden, not erased."},
+        {"method": "GET", "path": "/api/bot/members/visitors", "switch": "members",
+         "about": "People waiting on approval, and visitor roles."},
+        {"method": "GET", "path": "/api/bot/members/export", "switch": "members_export",
+         "about": "Directory export. ?format=json or csv. No passwords."},
+        {"method": "GET", "path": "/api/bot/members/<id>/access", "switch": "members_access",
+         "about": "Tool roles on one member."},
+        {"method": "POST", "path": "/api/bot/members/<id>/access", "switch": "members_access",
+         "about": "Replace tool roles. Body: {\"roles\":[\"Greeter\"], \"template_id\": N}. Refuses the owner and this bot's own account."},
+        {"method": "GET", "path": "/api/bot/members/access/templates", "switch": "members_access",
+         "about": "Access templates."},
+        {"method": "POST", "path": "/api/bot/members/access/templates", "switch": "members_access",
+         "about": "Create an access template. Body: {\"name\":\"\", \"permissions\":[]}."},
+        {"method": "POST", "path": "/api/bot/members/access/templates/<id>", "switch": "members_access",
+         "about": "Update a template, or {\"delete\": true} to remove it."},
+        {"method": "GET", "path": "/api/bot/events", "switch": "events",
+         "about": "Calendar. ?from=YYYY-MM-DD &to=YYYY-MM-DD &campus_id=."},
+        {"method": "GET", "path": "/api/bot/events/<id>", "switch": "events",
+         "about": "One event."},
+        {"method": "POST", "path": "/api/bot/events", "switch": "events",
+         "about": "Create an event. Body: {\"event_name\":\"\", \"event_date\":\"YYYY-MM-DD\", \"event_time\":\"\", \"end_date\":\"\", \"end_time\":\"\", \"location\":\"\", \"visibility\":\"public|private\"}. The end cannot be earlier than the start."},
+        {"method": "POST", "path": "/api/bot/events/<id>", "switch": "events",
+         "about": "Edit an event."},
+        {"method": "POST", "path": "/api/bot/events/<id>/delete", "switch": "events",
+         "about": "Soft-hide an event. Hard delete needs the Hard delete switch and the confirm phrase."},
+        {"method": "GET", "path": "/api/bot/events/<id>/signups", "switch": "events",
+         "about": "Potluck signups for one event."},
+        {"method": "POST", "path": "/api/bot/events/<id>/signups", "switch": "events",
+         "about": "Add a signup. Body: {\"name\":\"\", \"item\":\"\"}."},
+        {"method": "POST", "path": "/api/bot/events/<id>/signups/<signup_id>/delete", "switch": "events",
+         "about": "Hide one signup."},
+        {"method": "POST", "path": "/api/bot/events/<id>/comments/<cid>", "switch": "comments",
+         "about": "Edit or hide an event comment. Body: {\"body\":\"\"} or {\"hide\": true}."},
+        {"method": "POST", "path": "/api/bot/events/<id>/email", "switch": "comms_send",
+         "about": "Email people who accept event mail. Body: {\"subject\":\"\", \"message\":\"\", \"user_ids\":[]}. Refused when Send email is off."},
         {"method": "GET", "path": "/api/bot/vault", "switch": "sermon_builder",
          "about": "Sermon research vault. Shared notes plus this owner's private notes. ?q= searches. ?id= opens one."},
         {"method": "POST", "path": "/api/bot/vault", "switch": "sermon_builder",
@@ -787,8 +943,16 @@ def call_map(controls) -> list[dict]:
             "about": READ_ABOUT.get(row["id"], row["detail"]),
         })
     for call in calls:
-        need = call["switch"]
+        need = call.get("switch")
+        also = call.pop("also", None)
+        if blocked_why:
+            call["allowed"] = False
+            call["why"] = blocked_why
+            continue
         call["allowed"] = True if need is None else bool(on.get(need))
+        if also and on.get(also):
+            call["allowed"] = True
+        call["why"] = "" if call["allowed"] else (need or "switch")
     return calls
 
 
@@ -811,8 +975,8 @@ def _areas() -> list[dict]:
     return rows
 
 
-def help_payload(controls, voices: list[dict] | None = None) -> dict:
-    calls = call_map(controls)
+def help_payload(controls, voices: list[dict] | None = None, blocked_why: str | None = None) -> dict:
+    calls = call_map(controls, blocked_why=blocked_why)
     areas = _areas()
     lines = []
     for call in calls:
@@ -842,10 +1006,10 @@ def help_payload(controls, voices: list[dict] | None = None) -> dict:
         "undo": "POST /api/bot/reverse with {\"log_id\": N} hides a post, sermon draft, illustration, or section, or puts the previous text, group role, worship defaults, bill, stock change, attendance check-in, or desk edit back. A recorded gift or expense is not voided. A study course, an uploaded file, an apps-menu change, a moderation action, and an insight run are not reversed.",
         "sign_in": {
             "api_key": "Does not expire. Emailed only to the API-key inbox. Never shown on the dashboard. After a reset, the previous key works for 15 minutes.",
-            "twofa_key": "Expires in 1 hour. Emailed only to the other inbox by POST /api/bot/login, and again when a new API key is issued. Asking for one does not close an open session.",
+            "twofa_key": "Expires in 1 hour. Emailed only to the other inbox by POST /api/bot/login. A second sign-in keeps the previous unused code. Asking for one does not close an open session. Up to three unused codes stay valid.",
             "session": "POST /api/bot/login/exchange returns a session. Several sessions can be open at once. Send one as Authorization: Bearer on work calls. Each session expires in 1 hour. A new sign-in does not close the others.",
             "twofa_header": "X-Bot-2FA",
             "expires_in": TWOFA_TTL_SECONDS,
-            "reset": "If the API key does not work, POST /api/bot/key/reset-request with the main inbox. A new API key is emailed there. A 2FA key is emailed to the other inbox. The old key stops working in 15 minutes.",
+            "reset": "If the API key does not work, POST /api/bot/key/reset-request with the main inbox. A new API key is emailed there. A 2FA key is not emailed until POST /api/bot/login. The old key stops working in 15 minutes.",
         },
     }

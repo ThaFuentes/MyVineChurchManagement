@@ -76,6 +76,18 @@ def create_tables(cursor):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """)
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bot_twofa_codes (
+            id         INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+            key_id     INT UNSIGNED NOT NULL,
+            code_hash  CHAR(64) NOT NULL,
+            expires_at DATETIME NOT NULL,
+            used_at    DATETIME NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_bot_twofa_key (key_id, id),
+            FOREIGN KEY (key_id) REFERENCES bot_access_keys(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """)
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS bot_admin_grants (
             user_id     INT UNSIGNED NOT NULL PRIMARY KEY,
             granted_by  INT UNSIGNED NULL,

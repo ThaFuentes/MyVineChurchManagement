@@ -100,10 +100,10 @@ def present(raw_key: str) -> tuple[dict | None, str | None, int, str | None]:
     subject, body = policy.twofa_key_mail(row.get("name") or "Bot", raw, _base_url())
     blocked = twofa_mail_problem(body, key_email)
     if blocked or raw not in body:
-        store.clear_twofa(int(row["id"]))
+        store.clear_twofa(int(row["id"]), digest)
         return None, blocked or "The 2FA email was blocked.", 500, None
     if _send(twofa_email, subject, body):
-        store.clear_twofa(int(row["id"]))
+        store.clear_twofa(int(row["id"]), digest)
         return None, "The 2FA email did not send. Sign in again.", 502, None
     return {
         "step": "twofa",
@@ -140,6 +140,7 @@ def exchange(raw_key: str, raw_twofa: str, client_label: str = "") -> tuple[dict
     raw, digest, _prefix = policy.new_session_material()
     if not store.open_session(int(row["id"]), digest, client_label):
         return None, "The session could not be opened.", 500, None
+    store.mark_twofa_used(row.get("_twofa_id"))
     return {
         "step": "session",
         "session": raw,
@@ -157,19 +158,19 @@ def _mail_fresh_twofa(row: dict, key_email: str, twofa_email: str) -> str | None
     subject, body = policy.twofa_key_mail(row.get("name") or "Bot", raw, _base_url())
     blocked = twofa_mail_problem(body, key_email)
     if blocked or raw not in body:
-        store.clear_twofa(int(row["id"]))
+        store.clear_twofa(int(row["id"]), digest)
         return blocked or "The 2FA email was blocked."
     if _send(twofa_email, subject, body):
-        store.clear_twofa(int(row["id"]))
+        store.clear_twofa(int(row["id"]), digest)
         return "The 2FA email did not send."
     return None
 
 
 def reset_bot(key_id: int) -> tuple[bool, str]:
-    """Email a new API key to the main inbox, then a 2FA key to the other inbox.
+    """Email a new API key to the main inbox.
 
-    The new API key is saved only after its email sends. The 2FA key goes to
-    the alternative inbox and is not written into the API-key email.
+    The new API key is saved only after that email sends. A 2FA key is not
+    emailed here. The next POST /api/bot/login mails one.
     """
     row = store.get_key(int(key_id))
     if not row:
@@ -190,19 +191,11 @@ def reset_bot(key_id: int) -> tuple[bool, str]:
     if not ok:
         return False, "The new API key was emailed, but it could not be saved. Reset it again."
     minutes = policy.PREV_KEY_GRACE_SECONDS // 60
-    twofa_problem = _mail_fresh_twofa(row, key_email, twofa_email)
-    if twofa_problem:
-        return True, (
-            f"A new API key was emailed to {key_email}. "
-            "The 2FA email did not send. POST /api/bot/login with the new key and the other inbox will get a 2FA key. "
-            f"The old key stops working in {minutes} minutes. "
-            "Neither secret is shown on this page."
-        )
     return True, (
         f"A new API key was emailed to {key_email}. "
-        "A 2FA key was emailed to the other inbox. "
+        "POST /api/bot/login with that key and the other inbox will get a 2FA key. "
         f"The old key stops working in {minutes} minutes. "
-        "Neither secret is shown on this page."
+        "The API key is not shown on this page."
     )
 
 

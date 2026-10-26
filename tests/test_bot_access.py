@@ -367,6 +367,8 @@ class BotPolicyTests(unittest.TestCase):
         self.assertNotIn("issued_key", page)
         self.assertNotIn("Copy this key", page)
         self.assertIn('name="twofa_email"', page)
+        self.assertIn('name="switch_bot_writes_off"', page)
+        self.assertIn("High risk. Stays on until you turn it off.", page)
         self.assertIn('name="act_as"', page)
         self.assertIn('name="admin_grant"', page)
         self.assertIn("only as that admin", page)
@@ -652,8 +654,9 @@ class BotKeyRuleTests(unittest.TestCase):
         self.assertIn("POST /api/bot/key/reset-request", text)
         self.assertIn("15 minutes", text)
         self.assertIn("Does not expire", sign["api_key"])
-        self.assertIn("A 2FA key is emailed to the other inbox", sign["reset"])
+        self.assertIn("A 2FA key is not emailed until POST /api/bot/login", sign["reset"])
         self.assertIn("main inbox", sign["reset"])
+        self.assertNotIn("A 2FA key is emailed to the other inbox", sign["reset"])
         self.assertNotIn("this session stop working", text)
 
 
@@ -669,6 +672,8 @@ class _Clock:
         self.grants = set()
         self.session_seq = 1
         self.log_seq = 1
+        self.twofa_codes = []
+        self.twofa_seq = 1
         self.unhandled = []
 
     def cursor(self):
@@ -704,6 +709,14 @@ class _Cursor:
             return self._schema
         if text.startswith("CREATE TABLE"):
             return self._noop
+        if "bot_twofa_codes" in text:
+            found = self._twofa_sql(text)
+            if found:
+                return found
+        if "seconds_left" in text and "FROM bot_sessions" in text:
+            return self._session_left
+        if "grace_live" in text:
+            return self._grace_live
         if "session_expires > NOW()" in text and text.startswith("SELECT id, session_hash, session_expires"):
             return self._legacy_live
         if text.startswith("SELECT session_hash FROM bot_sessions"):
@@ -757,6 +770,96 @@ class _Cursor:
         if text.startswith("SELECT user_id FROM bot_admin_grants"):
             return self._grants
         return None
+
+    def _twofa_sql(self, text):
+        if text.startswith("INSERT INTO bot_twofa_codes"):
+            return self._insert_twofa
+        if text.startswith("SELECT id FROM bot_twofa_codes"):
+            return self._twofa_ids
+        if text.startswith("SELECT id, code_hash"):
+            return self._twofa_match
+        if text.startswith("SELECT code_hash"):
+            return self._twofa_restore
+        if text.startswith("SELECT COUNT(*)"):
+            return self._twofa_pending
+        if "code_hash=%s" in text:
+            return self._twofa_drop_hash
+        if text.startswith("UPDATE bot_twofa_codes"):
+            return self._twofa_mark
+        return None
+
+    def _insert_twofa(self, params):
+        from datetime import timedelta
+        key_id, digest, seconds = params
+        row = {
+            "id": self.db.twofa_seq,
+            "key_id": int(key_id),
+            "code_hash": digest,
+            "expires_at": self.db.now + timedelta(seconds=int(seconds)),
+            "used_at": None,
+        }
+        self.db.twofa_seq += 1
+        self.db.twofa_codes.append(row)
+        self.lastrowid = row["id"]
+        self.rowcount = 1
+
+    def _live_codes(self, key_id, include_expired=False):
+        rows = [
+            row for row in self.db.twofa_codes
+            if row["key_id"] == int(key_id) and row["used_at"] is None
+            and (include_expired or _alive(row["expires_at"], self.db.now))
+        ]
+        rows.sort(key=lambda row: row["id"], reverse=True)
+        return rows
+
+    def _twofa_ids(self, params):
+        self._rows = [{"id": row["id"]} for row in self._live_codes(params[0])]
+
+    def _twofa_mark(self, params):
+        for row in self.db.twofa_codes:
+            if row["id"] == int(params[0]) and row["used_at"] is None:
+                row["used_at"] = self.db.now
+                self.rowcount = 1
+                return
+
+    def _twofa_drop_hash(self, params):
+        key_id, digest = params
+        self.rowcount = 0
+        for row in self.db.twofa_codes:
+            if row["key_id"] == int(key_id) and row["code_hash"] == digest and row["used_at"] is None:
+                row["used_at"] = self.db.now
+                self.rowcount += 1
+
+    def _twofa_match(self, params):
+        rows = self._live_codes(params[0], include_expired=True)[:3]
+        self._rows = [{
+            "id": row["id"],
+            "code_hash": row["code_hash"],
+            "live": 1 if _alive(row["expires_at"], self.db.now) else 0,
+        } for row in rows]
+
+    def _twofa_restore(self, params):
+        rows = self._live_codes(params[0])
+        if not rows:
+            return
+        left = rows[0]
+        seconds = int((left["expires_at"] - self.db.now).total_seconds())
+        self._rows = [{"code_hash": left["code_hash"], "seconds_left": max(seconds, 0)}]
+
+    def _twofa_pending(self, params):
+        self._rows = [{"n": len(self._live_codes(params[0]))}]
+
+    def _session_left(self, params):
+        for row in self.db.sessions:
+            if row["id"] == params[0]:
+                seconds = int((row["expires_at"] - self.db.now).total_seconds())
+                self._rows = [{"seconds_left": max(seconds, 0)}]
+                return
+
+    def _grace_live(self, params):
+        key = self.db.keys.get(params[0]) or {}
+        live = _alive(key.get("prev_key_expires"), self.db.now)
+        self._rows = [{"grace_live": 1 if live else 0}]
 
     def _schema(self, _params):
         self._rows = [{"1": 1}]
@@ -1210,6 +1313,17 @@ class BotKeyRouteTests(unittest.TestCase):
             res = self.client.get("/api/bot/whoami", headers={"Authorization": "Bearer " + token})
             self.assertEqual(res.status_code, 200, res.get_data(as_text=True))
 
+    def test_a_second_sign_in_keeps_the_first_unused_code(self):
+        self._login(self.raw)
+        first = self._line(self.sent[-1]["body"], "twofa_key:")
+        self._login(self.raw)
+        second = self._line(self.sent[-1]["body"], "twofa_key:")
+        self.assertNotEqual(first, second)
+        opened = self._exchange(self.raw, first)
+        self.assertEqual(opened.status_code, 200, opened.get_data(as_text=True))
+        again = self._exchange(self.raw, second)
+        self.assertEqual(again.status_code, 200, again.get_data(as_text=True))
+
     def test_old_key_works_during_grace_then_returns_key_unknown(self):
         from datetime import timedelta
         from app.utils.bot_policy import PREV_KEY_GRACE_SECONDS, new_session_material
@@ -1219,13 +1333,18 @@ class BotKeyRouteTests(unittest.TestCase):
         self.assertEqual(res.status_code, 200, res.get_data(as_text=True))
         body = res.get_data(as_text=True)
         data = res.get_json()["data"]
-        self.assertTrue(data["twofa_sent"])
-        new_key, twofa = self._split_pair(self.sent)
+        self.assertFalse(data["twofa_sent"])
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.sent[0]["to"], "keys@example.com")
+        new_key = self._line(self.sent[0]["body"], "api_key:")
         self.assertNotIn(new_key, body)
-        self.assertNotIn(twofa, body)
+        self.assertNotIn("twofa_key:", body)
         self.assertNotIn(self.raw, body)
         self.assertNotIn("codes@example.com", body)
         self.assertIn("15 minutes", body)
+        signed = self._login(new_key)
+        self.assertEqual(signed.status_code, 200, signed.get_data(as_text=True))
+        twofa = self._line(self.sent[-1]["body"], "twofa_key:")
         opened = self._exchange(new_key, twofa)
         self.assertEqual(opened.status_code, 200, opened.get_data(as_text=True))
         fresh_session = opened.get_json()["data"]["session"]
@@ -1267,21 +1386,24 @@ class BotKeyRouteTests(unittest.TestCase):
         self.assertIsNotNone(self.store.find_key(self.raw))
 
     def test_a_failed_twofa_mail_keeps_the_new_api_key(self):
-        self.fail_after = 1
         res = self.client.post("/api/bot/key/reset", headers={"Authorization": "Bearer " + self.raw})
         self.assertEqual(res.status_code, 200, res.get_data(as_text=True))
         data = res.get_json()["data"]
         self.assertFalse(data["twofa_sent"])
-        self.assertIn("did not send", data["message"])
+        self.assertNotIn("did not send", data["message"])
         self.assertIn("POST /api/bot/login", data["message"])
-        self.assertEqual(len(self.sent), 2)
+        self.assertEqual(len(self.sent), 1)
         new_key = self._line(self.sent[0]["body"], "api_key:")
-        self.assertEqual(self.sent[1]["to"], "codes@example.com")
+        self.assertEqual(self.sent[0]["to"], "keys@example.com")
         self.assertNotIn(new_key, res.get_data(as_text=True))
-        self.assertNotIn(self._line(self.sent[1]["body"], "twofa_key:"), res.get_data(as_text=True))
+        self.assertIsNotNone(self.store.find_key(new_key))
+        self.mail_error = "The email did not send."
+        failed = self._login(new_key)
+        self.assertEqual(failed.status_code, 502, failed.get_data(as_text=True))
+        self.assertEqual(self.sent[-1]["to"], "codes@example.com")
         self.assertIsNotNone(self.store.find_key(new_key))
         self.assertIsNone(self.db.keys[1]["twofa_hash"])
-        self.fail_after = None
+        self.mail_error = None
         fresh = self._login(new_key)
         self.assertEqual(fresh.status_code, 200, fresh.get_data(as_text=True))
         self.assertEqual(self.sent[-1]["to"], "codes@example.com")
@@ -1298,15 +1420,17 @@ class BotKeyRouteTests(unittest.TestCase):
             before = len(self.sent)
             res = self.client.post("/api/bot/key/reset", headers=header)
             self.assertEqual(res.status_code, 200, res.get_data(as_text=True))
-            self.assertTrue(res.get_json()["data"]["twofa_sent"])
-            new_key, twofa = self._split_pair(self.sent[before:])
+            self.assertFalse(res.get_json()["data"]["twofa_sent"])
+            self.assertEqual(len(self.sent), before + 1)
+            new_key = self._line(self.sent[-1]["body"], "api_key:")
+            self.assertEqual(self.sent[-1]["to"], "keys@example.com")
             text = res.get_data(as_text=True)
             self.assertNotIn(new_key, text)
-            self.assertNotIn(twofa, text)
-        self.assertEqual(len(self.sent), 6)
+            self.assertNotIn("twofa_key:", text)
+        self.assertEqual(len(self.sent), 3)
         blocked = self.client.post("/api/bot/key/reset", headers=header)
         self.assertEqual(blocked.status_code, 429)
-        self.assertEqual(len(self.sent), 6)
+        self.assertEqual(len(self.sent), 3)
 
     def test_reset_request_with_the_wrong_email_sends_nothing(self):
         from app.utils.bot_policy import RESET_REQUEST_REPLY
@@ -1322,10 +1446,15 @@ class BotKeyRouteTests(unittest.TestCase):
         self.assertEqual(right.status_code, 200)
         self.assertEqual(right.get_json()["data"]["message"], RESET_REQUEST_REPLY)
         self.assertNotIn("twofa_sent", right.get_json()["data"])
-        new_key, twofa = self._split_pair(self.sent)
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.sent[0]["to"], "keys@example.com")
+        new_key = self._line(self.sent[0]["body"], "api_key:")
         text = right.get_data(as_text=True)
         self.assertNotIn(new_key, text)
-        self.assertNotIn(twofa, text)
+        self.assertNotIn("twofa_key:", text)
+        signed = self._login(new_key)
+        self.assertEqual(signed.status_code, 200, signed.get_data(as_text=True))
+        twofa = self._line(self.sent[-1]["body"], "twofa_key:")
         opened = self._exchange(new_key, twofa)
         self.assertEqual(opened.status_code, 200, opened.get_data(as_text=True))
         session = opened.get_json()["data"]["session"]
@@ -1335,11 +1464,11 @@ class BotKeyRouteTests(unittest.TestCase):
             again = self.client.post("/api/bot/key/reset-request", json={"email": "keys@example.com"})
             self.assertEqual(again.status_code, 200)
             self.assertEqual(again.get_json()["data"]["message"], RESET_REQUEST_REPLY)
-        self.assertEqual(len(self.sent), 6)
+        self.assertEqual(len(self.sent), 4)
         quiet = self.client.post("/api/bot/key/reset-request", json={"email": "keys@example.com"})
         self.assertEqual(quiet.status_code, 200)
         self.assertEqual(quiet.get_json()["data"]["message"], RESET_REQUEST_REPLY)
-        self.assertEqual(len(self.sent), 6)
+        self.assertEqual(len(self.sent), 4)
         still = self.client.get("/api/bot/whoami", headers={"Authorization": "Bearer " + session})
         self.assertEqual(still.status_code, 200, still.get_data(as_text=True))
 
@@ -1365,9 +1494,14 @@ class BotKeyRouteTests(unittest.TestCase):
         self.assertNotIn("twofa_sent", payload)
         text = res.get_data(as_text=True)
         self.assertNotIn(self.raw, text)
-        new_key, twofa = self._split_pair(self.sent)
+        self.assertEqual(len(self.sent), 1)
+        new_key = self._line(self.sent[0]["body"], "api_key:")
+        self.assertEqual(self.sent[0]["to"], "keys@example.com")
         self.assertNotIn(new_key, text)
-        self.assertNotIn(twofa, text)
+        self.assertNotIn("twofa_key:", text)
+        signed = self._login(new_key)
+        self.assertEqual(signed.status_code, 200, signed.get_data(as_text=True))
+        twofa = self._line(self.sent[-1]["body"], "twofa_key:")
         opened = self._exchange(new_key, twofa)
         self.assertEqual(opened.status_code, 200, opened.get_data(as_text=True))
         session = opened.get_json()["data"]["session"]
@@ -1399,12 +1533,29 @@ class BotKeyRouteTests(unittest.TestCase):
         })
         header = {"Authorization": "Bearer " + raw_session}
         blocked = self.client.get("/api/bot/whoami", headers=header)
-        self.assertEqual(blocked.status_code, 403)
-        self.assertEqual(blocked.get_json()["code"], "admin_not_granted")
+        self.assertEqual(blocked.status_code, 200, blocked.get_data(as_text=True))
+        body = blocked.get_json()
+        self.assertTrue(body["ok"])
+        self.assertTrue(body["blocked"])
+        self.assertEqual(body["code"], "admin_not_granted")
+        self.assertEqual(body["missing"], ["admin_grant:4"])
+        self.assertIn("Ada Admin (ada)", body["fix"])
+        self.assertEqual(body["data"]["missing"], ["admin_grant:4"])
+        self.assertIn("name", body["data"])
+        self.assertEqual(body["expired_switches"], [])
+        work = self.client.get("/api/bot/security", headers=header)
+        self.assertEqual(work.status_code, 403)
+        self.assertEqual(work.get_json()["missing"], ["admin_grant:4"])
+        helper = self.client.get("/api/bot/help", headers=header)
+        self.assertEqual(helper.status_code, 200)
+        calls = {row["path"]: row for row in helper.get_json()["data"]["calls"]}
+        self.assertFalse(calls["/api/bot/posts"]["allowed"])
+        self.assertEqual(calls["/api/bot/posts"]["why"], "admin_grant")
         self.db.grants.add(4)
         allowed = self.client.get("/api/bot/whoami", headers=header)
         self.assertEqual(allowed.status_code, 200, allowed.get_data(as_text=True))
         self.assertTrue(allowed.get_json()["ok"])
+        self.assertFalse(allowed.get_json()["blocked"])
 
     def test_an_expired_session_on_a_work_call_says_so(self):
         from datetime import timedelta
