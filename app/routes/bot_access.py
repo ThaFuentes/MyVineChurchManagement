@@ -12,6 +12,7 @@ from flask import Blueprint, Response, abort, flash, jsonify, redirect, render_t
 from app.models.users import get_user_by_id
 from app.utils import bot_areas as areas
 from app.utils import bot_comments as comments
+from app.utils import bot_courses as courses
 from app.utils import bot_content as content
 from app.utils import bot_desks as desks
 from app.utils import bot_events as events_api
@@ -1693,15 +1694,141 @@ def api_courses():
         return err
     if request.method == "GET":
         return _finish_person(row, areas.course_list(request.args), person)
-    return _finish_person(row, areas.course_save(person["user_id"], _payload()), person)
+    return _finish_person(row, areas.course_save(person["user_id"], _body()), person)
 
 
-@bot_access_bp.route("/api/bot/courses/<int:series_id>", methods=["GET"])
+@bot_access_bp.route("/api/bot/courses/from-sermons", methods=["POST"])
+def api_course_from_sermons():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, courses.course_from_sermons(person["user_id"], _body()), person)
+
+
+@bot_access_bp.route("/api/bot/courses/<int:series_id>", methods=["GET", "POST"])
 def api_course(series_id: int):
     row, person, err = _office_desk()
     if err:
         return err
-    return _finish_person(row, areas.course_open(series_id), person)
+    if request.method == "GET":
+        return _finish_person(row, areas.course_open(series_id), person)
+    return _finish_person(
+        row,
+        courses.course_update(person["user_id"], series_id, _body(), hard_on=_hard(row)),
+        person,
+    )
+
+
+@bot_access_bp.route("/api/bot/courses/<int:series_id>/publish", methods=["POST"])
+def api_course_publish(series_id: int):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, courses.course_publish(person["user_id"], series_id, _body()), person)
+
+
+@bot_access_bp.route("/api/bot/courses/<int:series_id>/duplicate", methods=["POST"])
+def api_course_duplicate(series_id: int):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, courses.course_duplicate(person["user_id"], series_id, _body()), person)
+
+
+@bot_access_bp.route("/api/bot/courses/<int:series_id>/delete", methods=["POST"])
+def api_course_delete(series_id: int):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(
+        row,
+        courses.course_delete(person["user_id"], series_id, _body(), hard_on=_hard(row)),
+        person,
+    )
+
+
+@bot_access_bp.route("/api/bot/courses/<int:series_id>/export", methods=["GET"])
+def api_course_export(series_id: int):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _file_or_json(row, courses.course_export(series_id), person)
+
+
+@bot_access_bp.route("/api/bot/courses/<int:series_id>/progress", methods=["GET"])
+def api_course_progress(series_id: int):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, courses.course_progress(series_id), person)
+
+
+@bot_access_bp.route("/api/bot/courses/<int:series_id>/enroll", methods=["POST"])
+def api_course_enroll(series_id: int):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, courses.course_enroll(person["user_id"], series_id, _body()), person)
+
+
+@bot_access_bp.route("/api/bot/courses/<int:series_id>/unenroll", methods=["POST"])
+def api_course_unenroll(series_id: int):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, courses.course_unenroll(person["user_id"], series_id, _body()), person)
+
+
+@bot_access_bp.route("/api/bot/courses/<int:series_id>/lessons/reorder", methods=["POST"])
+def api_course_reorder_lessons(series_id: int):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(row, courses.lessons_reorder(person["user_id"], series_id, _body()), person)
+
+
+@bot_access_bp.route("/api/bot/courses/<int:series_id>/lessons/<int:lesson_id>/delete", methods=["POST"])
+def api_course_lesson_delete(series_id: int, lesson_id: int):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(
+        row,
+        courses.lesson_delete(person["user_id"], series_id, lesson_id, _body(), hard_on=_hard(row)),
+        person,
+    )
+
+
+@bot_access_bp.route("/api/bot/courses/<int:series_id>/lessons/<int:lesson_id>/export", methods=["GET"])
+def api_course_lesson_export(series_id: int, lesson_id: int):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _file_or_json(row, courses.lesson_export(series_id, lesson_id), person)
+
+
+@bot_access_bp.route("/api/bot/courses/<int:series_id>/lessons/<int:lesson_id>/blocks/reorder", methods=["POST"])
+def api_course_reorder_blocks(series_id: int, lesson_id: int):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(
+        row,
+        courses.blocks_reorder(person["user_id"], series_id, lesson_id, _body()),
+        person,
+    )
+
+
+@bot_access_bp.route("/api/bot/courses/<int:series_id>/blocks/<int:block_id>/delete", methods=["POST"])
+def api_course_block_delete(series_id: int, block_id: int):
+    row, person, err = _office_desk()
+    if err:
+        return err
+    return _finish_person(
+        row,
+        courses.block_delete(person["user_id"], series_id, block_id, _body(), hard_on=_hard(row)),
+        person,
+    )
 
 
 @bot_access_bp.route("/api/bot/modules", methods=["GET", "POST"])

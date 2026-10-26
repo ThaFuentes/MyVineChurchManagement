@@ -8,9 +8,6 @@ from html import unescape
 from io import BytesIO
 from typing import Any, Iterable
 
-from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Pt, RGBColor
 from flask import Response
 
 
@@ -204,6 +201,10 @@ def format_curriculum_lesson_markdown(series: dict, lesson: dict, blocks: list[d
 
 
 def illustration_to_docx(item: dict, *, kind: str = "illustration") -> Document:
+    from docx import Document
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Pt, RGBColor
+
     doc = Document()
     title = (item.get("title") or "Untitled").strip()
     h = doc.add_heading(title, level=0)

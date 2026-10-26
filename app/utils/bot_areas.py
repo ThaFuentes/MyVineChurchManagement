@@ -7,11 +7,28 @@ moderation queue, and an insights report.
 
 from __future__ import annotations
 
+import json
+
 from app.utils.bot_desks import secret_column
+from app.utils.bot_illustration_fields import truthy
 from app.utils.bot_sermon_common import _db, _fail, _jsonish, _limit, _ok
 
 _COURSE_STATUS = {"draft", "published", "archived"}
 _BLOCK_TYPES = {"text", "image", "video", "choice", "true_false", "fill", "scripture"}
+_BLOCK_ALIAS = {
+    "choice": "multiple_choice",
+    "multiple_choice": "multiple_choice",
+    "fill": "fill_blank",
+    "fill_in": "fill_blank",
+    "fill_blank": "fill_blank",
+    "truefalse": "true_false",
+    "true_false": "true_false",
+    "scripture": "scripture",
+    "text": "text",
+    "image": "image",
+    "video": "video",
+    "divider": "divider",
+}
 
 
 def covers() -> dict:
@@ -67,7 +84,7 @@ def covers() -> dict:
                 "curriculum_series", "curriculum_lessons", "curriculum_blocks",
                 "curriculum_choices", "curriculum_enrollments", "curriculum_progress",
             ],
-            "about": "GET /api/bot/courses lists them. GET /api/bot/courses/<id> opens lessons, blocks, and who is enrolled. POST /api/bot/upload place=course lesson_id puts a picture on a lesson.",
+            "about": "GET /api/bot/courses lists them. GET /api/bot/courses/<id> opens lessons, blocks, and who is enrolled. POST /api/bot/courses/<id> edits the whole tree. Publish, enroll, copy, export, and a sermon series turned into lessons are on that course. POST /api/bot/upload place=course lesson_id puts a picture on a lesson.",
         },
         "members": {
             "desks": ["users", "member_roles", "groups", "user_groups", "user_permissions", "campuses", "campus_members"],
@@ -216,9 +233,9 @@ def course_open(series_id: int) -> dict:
     try:
         series_rows = _rows(
             """
-            SELECT id, title, subtitle, description, audience, status, visibility,
-                   access_levels, tags, estimated_minutes, sort_order, created_by,
-                   published_at, created_at, updated_at
+            SELECT id, title, subtitle, description, cover_image, audience, status,
+                   visibility, access_levels, tags, estimated_minutes, sort_order,
+                   created_by, published_at, created_at, updated_at
             FROM curriculum_series WHERE id=%s
             """,
             (int(series_id),),
@@ -242,8 +259,8 @@ def course_open(series_id: int) -> dict:
         blocks = _rows(
             f"""
             SELECT id, lesson_id, block_type, title, body, media_url, media_alt,
-                   question_prompt, correct_answers_json, explanation, points,
-                   is_required, sort_order
+                   question_prompt, correct_answers_json, settings_json, explanation,
+                   points, is_required, sort_order
             FROM curriculum_blocks WHERE lesson_id IN ({marks})
             ORDER BY sort_order, id
             """,
@@ -268,6 +285,10 @@ def course_open(series_id: int) -> dict:
     for block in blocks:
         item = _clean_row(block)
         item["choices"] = by_block.get(int(block["id"]), [])
+        answers = _loads(block.get("correct_answers_json"), [])
+        item["correct_answers"] = answers if isinstance(answers, list) else []
+        settings = _loads(block.get("settings_json"), {})
+        item["settings"] = settings if isinstance(settings, dict) else {}
         by_lesson.setdefault(int(block["lesson_id"]), []).append(item)
     lesson_out = []
     for lesson in lessons:
@@ -304,20 +325,36 @@ def course_save(actor_id: int, body: dict) -> dict:
     lessons = body.get("lessons") if isinstance(body.get("lessons"), list) else []
     if len(lessons) > 40:
         return _fail("Send at most 40 lessons in one course.")
+    planned = _plan_lessons(lessons)
+    cover = _clip(body.get("cover_image"), 500) or None
+    if truthy(body.get("dry_run")):
+        return _ok({
+            "dry_run": True,
+            "wrote": 0,
+            "course": {
+                "title": title,
+                "subtitle": _clip(body.get("subtitle"), 500) or None,
+                "cover_image": cover,
+                "status": status,
+            },
+            "lessons": planned,
+        })
     try:
         cur = _cur()
         cur.execute(
             """
             INSERT INTO curriculum_series
-                (title, subtitle, description, audience, status, visibility, tags,
-                 estimated_minutes, sort_order, created_by, published_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                (title, subtitle, description, cover_image, audience, status,
+                 visibility, tags, estimated_minutes, sort_order, created_by,
+                 published_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                     CASE WHEN %s='published' THEN NOW() ELSE NULL END)
             """,
             (
                 title,
                 _clip(body.get("subtitle"), 500) or None,
                 _clip(body.get("description"), 20000) or None,
+                cover,
                 _clip(body.get("audience") or "everyone", 40) or "everyone",
                 status,
                 _clip(body.get("visibility") or "pastoral", 24) or "pastoral",
@@ -330,15 +367,7 @@ def course_save(actor_id: int, body: dict) -> dict:
         )
         series_id = int(cur.lastrowid)
         lesson_ids = []
-        for index, lesson in enumerate(lessons):
-            if not isinstance(lesson, dict):
-                continue
-            lesson_title = _clip(lesson.get("title"), 255)
-            if not lesson_title:
-                continue
-            lesson_status = _clip(lesson.get("status") or "draft", 24).lower()
-            if lesson_status not in _COURSE_STATUS:
-                lesson_status = "draft"
+        for lesson in planned:
             cur.execute(
                 """
                 INSERT INTO curriculum_lessons
@@ -347,16 +376,16 @@ def course_save(actor_id: int, body: dict) -> dict:
                 """,
                 (
                     series_id,
-                    lesson_title,
-                    _clip(lesson.get("summary"), 8000) or None,
-                    lesson_status,
-                    _minutes(lesson.get("estimated_minutes")),
-                    _sort(lesson.get("sort_order"), index),
+                    lesson["title"],
+                    lesson["summary"],
+                    lesson["status"],
+                    lesson["estimated_minutes"],
+                    lesson["sort_order"],
                 ),
             )
             lesson_id = int(cur.lastrowid)
             lesson_ids.append(lesson_id)
-            _save_blocks(cur, lesson_id, lesson.get("blocks"))
+            _insert_blocks(cur, lesson_id, lesson["blocks"])
     except Exception as exc:
         print(f"bot course save: {exc}")
         return _fail("That study course did not save.", 500)
@@ -395,44 +424,185 @@ def _sort(value, fallback: int = 0) -> int:
         return fallback
 
 
-def _save_blocks(cur, lesson_id: int, blocks) -> None:
-    if not isinstance(blocks, list):
-        return
-    for index, block in enumerate(blocks[:40]):
-        if not isinstance(block, dict):
+def _loads(raw, default):
+    if isinstance(raw, (list, dict)):
+        return raw
+    if not isinstance(raw, str) or not raw.strip():
+        return default
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return default
+    return parsed
+
+
+def _block_type(value) -> str:
+    name = _clip(value or "text", 32).lower().replace("-", "_").replace(" ", "_")
+    return _BLOCK_ALIAS.get(name, "text")
+
+
+def _answers(block: dict) -> list:
+    raw = block.get("correct_answers")
+    if raw in (None, ""):
+        raw = block.get("correct_answers_json")
+    if raw in (None, ""):
+        return []
+    if isinstance(raw, list):
+        items = raw
+    elif isinstance(raw, str):
+        text = raw.strip()
+        if text.startswith("["):
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                parsed = None
+            items = parsed if isinstance(parsed, list) else [text]
+        else:
+            items = [part.strip() for part in text.replace("\n", "|").split("|")]
+    else:
+        items = [raw]
+    out = []
+    for item in items:
+        piece = str(item or "").strip()
+        if not piece:
             continue
-        block_type = _clip(block.get("block_type") or "text", 32).lower()
-        if block_type not in _BLOCK_TYPES:
-            block_type = "text"
+        out.append(piece[:500])
+        if len(out) >= 40:
+            break
+    return out
+
+
+def _settings(block: dict) -> dict:
+    raw = block.get("settings")
+    if raw in (None, ""):
+        raw = block.get("settings_json")
+    data = {}
+    if isinstance(raw, dict):
+        data = raw
+    elif isinstance(raw, str) and raw.strip().startswith("{"):
+        parsed = _loads(raw, {})
+        if isinstance(parsed, dict):
+            data = parsed
+    clean = {}
+    for key, value in data.items():
+        name = str(key or "").strip()
+        if not name or secret_column(name):
+            continue
+        if isinstance(value, (dict, list)):
+            clean[name[:80]] = value
+        elif value is None:
+            clean[name[:80]] = None
+        else:
+            clean[name[:80]] = _clip(value, 2000)
+    reference = _clip(block.get("scripture_reference"), 255)
+    if reference and not clean.get("reference"):
+        clean["reference"] = reference
+    return clean
+
+
+def _plan_block(block: dict, index: int) -> dict | None:
+    if not isinstance(block, dict):
+        return None
+    block_type = _block_type(block.get("block_type"))
+    choices = []
+    raw_choices = block.get("choices") if isinstance(block.get("choices"), list) else []
+    for choice_index, choice in enumerate(raw_choices[:12]):
+        if isinstance(choice, dict):
+            label = _clip(choice.get("label"), 500)
+            correct = choice.get("is_correct") in (True, 1, "1", "true", "True", "yes")
+            sort_order = _sort(choice.get("sort_order"), choice_index)
+        else:
+            label = _clip(choice, 500)
+            correct = False
+            sort_order = choice_index
+        if not label:
+            continue
+        choices.append({"label": label, "is_correct": correct, "sort_order": sort_order})
+    if block_type == "true_false" and not choices:
+        choices = [
+            {"label": "True", "is_correct": True, "sort_order": 0},
+            {"label": "False", "is_correct": False, "sort_order": 1},
+        ]
+    return {
+        "block_type": block_type,
+        "title": _clip(block.get("title"), 255) or None,
+        "body": _clip(block.get("body"), 100000) or None,
+        "media_url": _clip(block.get("media_url"), 1000) or None,
+        "media_alt": _clip(block.get("media_alt"), 255) or None,
+        "question_prompt": _clip(block.get("question_prompt"), 4000) or None,
+        "explanation": _clip(block.get("explanation"), 4000) or None,
+        "points": _sort(block.get("points"), 1),
+        "is_required": 0 if block.get("is_required") in (False, 0, "0", "false", "False") else 1,
+        "sort_order": _sort(block.get("sort_order"), index),
+        "correct_answers": _answers(block),
+        "settings": _settings(block),
+        "choices": choices,
+    }
+
+
+def _plan_blocks(blocks) -> list:
+    if not isinstance(blocks, list):
+        return []
+    planned = []
+    for index, block in enumerate(blocks[:40]):
+        item = _plan_block(block, index)
+        if item:
+            planned.append(item)
+    return planned
+
+
+def _plan_lessons(lessons) -> list:
+    if not isinstance(lessons, list):
+        return []
+    planned = []
+    for index, lesson in enumerate(lessons[:40]):
+        if not isinstance(lesson, dict):
+            continue
+        title = _clip(lesson.get("title"), 255)
+        if not title:
+            continue
+        status = _clip(lesson.get("status") or "draft", 24).lower()
+        if status not in _COURSE_STATUS:
+            status = "draft"
+        planned.append({
+            "title": title,
+            "summary": _clip(lesson.get("summary"), 8000) or None,
+            "status": status,
+            "estimated_minutes": _minutes(lesson.get("estimated_minutes")),
+            "sort_order": _sort(lesson.get("sort_order"), index),
+            "blocks": _plan_blocks(lesson.get("blocks")),
+        })
+    return planned
+
+
+def _insert_blocks(cur, lesson_id: int, blocks: list) -> None:
+    for block in blocks:
         cur.execute(
             """
             INSERT INTO curriculum_blocks
                 (lesson_id, block_type, title, body, media_url, media_alt,
-                 question_prompt, explanation, points, is_required, sort_order)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 question_prompt, correct_answers_json, explanation, points,
+                 is_required, sort_order, settings_json)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 lesson_id,
-                block_type,
-                _clip(block.get("title"), 255) or None,
-                _clip(block.get("body"), 100000) or None,
-                _clip(block.get("media_url"), 1000) or None,
-                _clip(block.get("media_alt"), 255) or None,
-                _clip(block.get("question_prompt"), 4000) or None,
-                _clip(block.get("explanation"), 4000) or None,
-                _sort(block.get("points"), 1),
-                0 if block.get("is_required") in (False, 0, "0", "false") else 1,
-                _sort(block.get("sort_order"), index),
+                block["block_type"],
+                block["title"],
+                block["body"],
+                block["media_url"],
+                block["media_alt"],
+                block["question_prompt"],
+                json.dumps(block["correct_answers"], ensure_ascii=False),
+                block["explanation"],
+                block["points"],
+                block["is_required"],
+                block["sort_order"],
+                json.dumps(block["settings"], ensure_ascii=False),
             ),
         )
         block_id = int(cur.lastrowid)
-        choices = block.get("choices") if isinstance(block.get("choices"), list) else []
-        for choice_index, choice in enumerate(choices[:12]):
-            if not isinstance(choice, dict):
-                continue
-            label = _clip(choice.get("label"), 500)
-            if not label:
-                continue
+        for choice in block["choices"]:
             cur.execute(
                 """
                 INSERT INTO curriculum_choices (block_id, label, is_correct, sort_order)
@@ -440,9 +610,9 @@ def _save_blocks(cur, lesson_id: int, blocks) -> None:
                 """,
                 (
                     block_id,
-                    label,
-                    1 if choice.get("is_correct") in (True, 1, "1", "true") else 0,
-                    _sort(choice.get("sort_order"), choice_index),
+                    choice["label"],
+                    1 if choice["is_correct"] else 0,
+                    choice["sort_order"],
                 ),
             )
 
