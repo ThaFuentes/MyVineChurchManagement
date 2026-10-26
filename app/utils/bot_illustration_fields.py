@@ -7,6 +7,7 @@ needs_review. Kind is testimony, historical, science, or bible.
 
 from __future__ import annotations
 
+import json
 import re
 from datetime import date, datetime
 
@@ -121,6 +122,59 @@ def normalize_fact(value) -> str | None:
 def normalize_kind(value) -> str | None:
     key = re.sub(r"[\s_-]+", " ", str(value or "").strip().lower())
     return _KIND.get(key)
+
+
+def _field_tokens(raw) -> list[str]:
+    """Tag tokens. Stored tags are a JSON list or a comma-separated line."""
+    if isinstance(raw, list):
+        parts = [str(item) for item in raw]
+    else:
+        text = str(raw or "").strip()
+        parts = None
+        if text.startswith("["):
+            try:
+                parsed = json.loads(text)
+            except ValueError:
+                parsed = None
+            if isinstance(parsed, list):
+                parts = [str(item) for item in parsed]
+        if parts is None:
+            parts = re.split(r"[,;\n|]+", text)
+    cleaned = []
+    for part in parts:
+        token = str(part).strip().strip("\"'[]")
+        if token:
+            cleaned.append(token)
+    return cleaned
+
+
+def _labeled_values(notes, *labels: str) -> list[str]:
+    """Values after kind: or fact_check: in notes. A story that merely says the word is left alone."""
+    text = str(notes or "")
+    found = []
+    for label in labels:
+        pattern = re.compile(rf"(?i)\b{re.escape(label)}\b\s*[:=]\s*([A-Za-z][A-Za-z _-]{{0,40}})")
+        for match in pattern.finditer(text):
+            found.append(match.group(1).strip())
+    return found
+
+
+def infer_kind(tags, notes) -> str | None:
+    """Kind only from a tag, or from a kind: label. Do not guess from the story."""
+    for token in _field_tokens(tags) + _labeled_values(notes, "kind"):
+        kind = normalize_kind(token)
+        if kind:
+            return kind
+    return None
+
+
+def infer_fact(tags, notes) -> str | None:
+    """Fact-check only from a tag, or from a fact_check: label. Empty stays empty."""
+    for token in _field_tokens(tags) + _labeled_values(notes, "fact_check", "fact"):
+        fact = normalize_fact(token)
+        if fact:
+            return fact
+    return None
 
 
 def _canon_names() -> list[str]:

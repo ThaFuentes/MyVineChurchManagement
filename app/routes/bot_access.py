@@ -20,6 +20,7 @@ from app.utils import bot_login as login
 from app.utils import bot_members as members_api
 from app.utils import bot_office as office
 from app.utils import bot_policy as policy
+from app.utils import bot_sermon_parity as parity
 from app.utils import bot_sermons as sermons
 from app.utils import bot_store as store
 from app.utils.decorators import login_required
@@ -240,6 +241,43 @@ def _payload():
         if isinstance(data, dict):
             return data
     return request.form
+
+
+def _body() -> dict:
+    raw = _payload()
+    body = dict(raw) if raw is not None else {}
+    if str(request.args.get("dry_run") or "").strip().lower() in ("1", "true", "yes", "on"):
+        body["dry_run"] = True
+    return body
+
+
+def _file_or_json(row: dict, result: dict, person: dict):
+    payload = result.get("download") if result.get("ok") else None
+    if not payload:
+        return _finish_person(row, result, person)
+    log = result.get("log") or {}
+    if log:
+        store.write_log(
+            int(row["id"]),
+            log.get("action") or "bot_sermon_export",
+            ok=True,
+            detail=log.get("detail") or "",
+            target_type=log.get("target_type"),
+            target_id=log.get("target_id"),
+            snapshot=log.get("snapshot"),
+        )
+    data = payload["bytes"]
+    return Response(
+        data,
+        mimetype=payload["mimetype"],
+        headers={
+            "Content-Type": payload["mimetype"],
+            "Content-Disposition": payload["disposition"],
+            "Content-Length": str(len(data)),
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 def _security_payload() -> dict:
@@ -648,6 +686,23 @@ def api_help():
     return _json(True, payload, surface=surface)
 
 
+@bot_access_bp.route("/api/bot/capabilities", methods=["GET"])
+def api_capabilities():
+    row, err = _require_key()
+    if err:
+        return err
+    calls = policy.call_map(row.get("controls"))
+    allowed = []
+    blocked = []
+    for call in calls:
+        item = {"method": call.get("method"), "path": call.get("path"), "switch": call.get("switch")}
+        if call.get("allowed"):
+            allowed.append(item)
+        else:
+            blocked.append(item)
+    return _json(True, {"calls": len(calls), "allowed": allowed, "blocked": blocked})
+
+
 @bot_access_bp.route("/api/bot/whoami", methods=["GET"])
 @bot_access_bp.route("/api/bot/me", methods=["GET"])
 def api_whoami():
@@ -849,6 +904,280 @@ def api_read(area: str):
     return _json(True, data)
 
 
+def _named(person: dict) -> str:
+    return str(person.get("role") or "")
+
+
+@bot_access_bp.route("/api/bot/sermons/defaults", methods=["GET", "POST"])
+def api_sermon_defaults():
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(
+        row, parity.sermon_defaults(person["user_id"], _body(), request.method != "GET"), person,
+    )
+
+
+@bot_access_bp.route("/api/bot/sermons/import", methods=["POST"])
+def api_sermon_import():
+    row, person, err = _desk()
+    if err:
+        return err
+    body = _body()
+    upload = request.files.get("file") or request.files.get("document")
+    if upload is not None and (upload.filename or ""):
+        raw = upload.read() or b""
+        filename = upload.filename or "sermon.docx"
+    else:
+        text = body.get("text") or body.get("content") or ""
+        raw = text.encode("utf-8") if isinstance(text, str) else bytes(text or b"")
+        filename = str(body.get("filename") or "sermon.txt")
+    return _finish_person(row, parity.import_sermon(person["user_id"], body, raw, filename), person)
+
+
+@bot_access_bp.route("/api/bot/sermons/bulk", methods=["POST"])
+def api_sermon_bulk():
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(
+        row, parity.bulk_sermons(person["user_id"], _body(), hard_on=_hard(row)), person,
+    )
+
+
+@bot_access_bp.route("/api/bot/sermon-templates", methods=["GET", "POST"])
+def api_sermon_templates():
+    row, person, err = _desk()
+    if err:
+        return err
+    if request.method == "GET":
+        return _finish_person(row, parity.list_templates(person["user_id"]), person)
+    return _finish_person(row, parity.save_template(person["user_id"], _body()), person)
+
+
+@bot_access_bp.route("/api/bot/sermon-templates/<int:template_id>", methods=["GET", "POST"])
+def api_sermon_template(template_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    if request.method == "GET":
+        return _finish_person(row, parity.list_templates(person["user_id"], template_id), person)
+    return _finish_person(row, parity.save_template(person["user_id"], _body(), template_id), person)
+
+
+@bot_access_bp.route("/api/bot/sermon-templates/<int:template_id>/delete", methods=["POST"])
+def api_sermon_template_delete(template_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, parity.delete_template(person["user_id"], template_id, _body()), person)
+
+
+@bot_access_bp.route("/api/bot/sermon-templates/<int:template_id>/refresh", methods=["POST"])
+def api_sermon_template_refresh(template_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, parity.refresh_template(person["user_id"], template_id, _body()), person)
+
+
+@bot_access_bp.route("/api/bot/sermon-notes", methods=["GET", "POST"])
+def api_sermon_notes():
+    row, person, err = _desk()
+    if err:
+        return err
+    if request.method == "GET":
+        return _finish_person(row, parity.list_notes(person["user_id"]), person)
+    return _finish_person(row, parity.save_note(person["user_id"], _body()), person)
+
+
+@bot_access_bp.route("/api/bot/sermon-notes/<int:note_id>", methods=["GET", "POST"])
+def api_sermon_note(note_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    if request.method == "GET":
+        return _finish_person(row, parity.list_notes(person["user_id"], note_id), person)
+    return _finish_person(row, parity.save_note(person["user_id"], _body(), note_id), person)
+
+
+@bot_access_bp.route("/api/bot/sermon-notes/<int:note_id>/delete", methods=["POST"])
+def api_sermon_note_delete(note_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, parity.delete_note(person["user_id"], note_id), person)
+
+
+@bot_access_bp.route("/api/bot/sermon-notes/<int:note_id>/to-illustration", methods=["POST"])
+def api_sermon_note_illustration(note_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, parity.note_to_illustration(person["user_id"], note_id, _body()), person)
+
+
+@bot_access_bp.route("/api/bot/series", methods=["GET", "POST"])
+def api_series():
+    row, person, err = _desk()
+    if err:
+        return err
+    if request.method == "GET":
+        return _finish_person(row, parity.list_series(person["user_id"]), person)
+    return _finish_person(row, parity.save_series(person["user_id"], _body()), person)
+
+
+@bot_access_bp.route("/api/bot/series/<int:series_id>", methods=["GET", "POST"])
+def api_series_one(series_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    if request.method == "GET":
+        return _finish_person(row, parity.list_series(person["user_id"], series_id), person)
+    return _finish_person(row, parity.save_series(person["user_id"], _body(), series_id), person)
+
+
+@bot_access_bp.route("/api/bot/series/<int:series_id>/lessons", methods=["GET", "POST"])
+def api_series_lessons(series_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(
+        row,
+        parity.series_lessons(series_id, _body() if request.method != "GET" else None, request.method != "GET"),
+        person,
+    )
+
+
+@bot_access_bp.route("/api/bot/series/<int:series_id>/lessons/reorder", methods=["POST"])
+def api_series_lesson_order(series_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, parity.reorder_series_lessons(series_id, _body()), person)
+
+
+@bot_access_bp.route("/api/bot/research", methods=["GET", "POST"])
+def api_research():
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(
+        row,
+        parity.research_requests(
+            person["user_id"], _body() if request.method != "GET" else {"limit": request.args.get("limit")},
+            None, request.method != "GET", hard_on=_hard(row),
+        ),
+        person,
+    )
+
+
+@bot_access_bp.route("/api/bot/research/<int:request_id>", methods=["GET", "POST"])
+def api_research_one(request_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(
+        row,
+        parity.research_requests(person["user_id"], _body(), request_id, request.method != "GET", hard_on=_hard(row)),
+        person,
+    )
+
+
+@bot_access_bp.route("/api/bot/rites", methods=["GET", "POST"])
+def api_rites():
+    row, person, err = _desk()
+    if err:
+        return err
+    kind = {"kind": request.args.get("kind")} if request.method == "GET" else _body()
+    return _finish_person(
+        row, parity.rites(person["user_id"], kind, None, request.method != "GET", hard_on=_hard(row)), person,
+    )
+
+
+@bot_access_bp.route("/api/bot/rites/<int:rite_id>", methods=["GET", "POST"])
+def api_rite(rite_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(
+        row,
+        parity.rites(person["user_id"], _body(), rite_id, request.method != "GET", hard_on=_hard(row)),
+        person,
+    )
+
+
+@bot_access_bp.route("/api/bot/bible/chapter", methods=["GET"])
+def api_bible_chapter():
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, parity.bible_chapter(
+        request.args.get("book") or "",
+        request.args.get("chapter"),
+        request.args.get("translation"),
+    ), person)
+
+
+@bot_access_bp.route("/api/bot/bible/strongs", methods=["GET"])
+def api_bible_strongs():
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, parity.bible_strongs(request.args.get("q") or request.args.get("number") or ""), person)
+
+
+@bot_access_bp.route("/api/bot/bible/translation", methods=["GET", "POST"])
+def api_bible_translation():
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(
+        row, parity.bible_translation(person["user_id"], _body(), request.method != "GET"), person,
+    )
+
+
+@bot_access_bp.route("/api/bot/bible/highlights", methods=["POST"])
+def api_bible_highlights():
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, parity.bible_mark(person["user_id"], _body(), "highlight"), person)
+
+
+@bot_access_bp.route("/api/bot/bible/favorites", methods=["POST"])
+def api_bible_favorites():
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, parity.bible_mark(person["user_id"], _body(), "favorite"), person)
+
+
+@bot_access_bp.route("/api/bot/notifications", methods=["GET", "POST"])
+def api_notifications():
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "notifications")
+    if denied:
+        return denied
+    person, missing = _sermon_person(row)
+    if missing:
+        return missing
+    return _finish_person(
+        row, parity.notifications_for(person["user_id"], _body(), request.method != "GET"), person,
+    )
+
+
+@bot_access_bp.route("/api/bot/media", methods=["GET"])
+def api_media():
+    row, person, err = _office_desk()
+    if err:
+        return err
+    facts = _facts(row)
+    return _finish_person(row, parity.media_list(person["user_id"], facts.get("role") or ""), person)
+
+
 @bot_access_bp.route("/api/bot/sermons", methods=["GET", "POST"])
 def api_sermons():
     row, person, err = _desk()
@@ -866,7 +1195,7 @@ def api_sermons():
             sermons.list_builder_sermons(request.args.get("q") or "", request.args.get("limit"), person["user_id"]),
             person,
         )
-    return _finish_person(row, sermons.create_builder_sermon(person["user_id"], _payload()), person)
+    return _finish_person(row, sermons.create_builder_sermon(person["user_id"], _body()), person)
 
 
 @bot_access_bp.route("/api/bot/sermons/<int:sermon_id>", methods=["GET", "POST"])
@@ -884,7 +1213,7 @@ def api_sermon_sections(sermon_id: int):
     row, person, err = _desk()
     if err:
         return err
-    return _finish_person(row, sermons.save_section(sermon_id, _payload(), person["user_id"]), person)
+    return _finish_person(row, sermons.save_section(sermon_id, _body(), person["user_id"]), person)
 
 
 @bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/sections/link", methods=["POST"])
@@ -919,6 +1248,121 @@ def api_sermon_section_reorder(sermon_id: int):
     if err:
         return err
     return _finish_person(row, sermons.reorder_sections(sermon_id, _payload(), person["user_id"]), person)
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/sections/unhide", methods=["POST"])
+def api_sermon_section_unhide(sermon_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, parity.unhide_sections(sermon_id, _body(), person["user_id"]), person)
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/collaborators", methods=["GET", "POST"])
+def api_sermon_collaborators(sermon_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    if request.method == "GET":
+        return _finish_person(row, parity.list_collaborators(sermon_id, person["user_id"]), person)
+    return _finish_person(row, parity.add_collaborator(sermon_id, _body(), person["user_id"]), person)
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/collaborators/<int:user_id>/delete", methods=["POST"])
+def api_sermon_collaborator_delete(sermon_id: int, user_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, parity.remove_collaborator(sermon_id, user_id, person["user_id"]), person)
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/insert", methods=["POST"])
+def api_sermon_insert(sermon_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, parity.insert_into_sermon(sermon_id, _body(), person["user_id"]), person)
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/export", methods=["GET"])
+def api_sermon_export(sermon_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _file_or_json(
+        row,
+        parity.export_sermon(sermon_id, person["user_id"], request.args.get("format") or "txt"),
+        person,
+    )
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/brief", methods=["GET"])
+def api_sermon_brief(sermon_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, parity.sermon_brief(sermon_id, person["user_id"]), person)
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/ai/<tool>", methods=["POST"])
+def api_sermon_ai(sermon_id: int, tool: str):
+    row, person, err = _desk()
+    if err:
+        return err
+    denied = _need(row, "sermon_ai")
+    if denied:
+        return denied
+    return _finish_person(row, parity.sermon_ai(sermon_id, tool, _body(), person["user_id"]), person)
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/history", methods=["GET"])
+def api_sermon_history(sermon_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(row, parity.sermon_history(sermon_id, person["user_id"], int(row["id"])), person)
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/history/restore", methods=["POST"])
+def api_sermon_restore(sermon_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    return _finish_person(
+        row, parity.restore_sermon(sermon_id, _body(), person["user_id"], int(row["id"])), person,
+    )
+
+
+@bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/comments", methods=["POST"])
+def api_sermon_comment(sermon_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "comments")
+    if denied:
+        return denied
+    person, missing = _sermon_person(row)
+    if missing:
+        return missing
+    return _finish_person(
+        row, parity.add_sermon_comment(sermon_id, _body(), person["user_id"], _named(person)), person,
+    )
+
+
+@bot_access_bp.route("/api/bot/service-plans/<int:plan_id>/assignments", methods=["GET", "POST"])
+def api_plan_assignments(plan_id: int):
+    row, person, err = _desk()
+    if err:
+        return err
+    if request.method != "GET":
+        denied = _need(row, "worship")
+        if denied:
+            return denied
+    return _finish_person(
+        row,
+        parity.plan_assignments(plan_id, _body() if request.method != "GET" else None, request.method != "GET"),
+        person,
+    )
 
 
 @bot_access_bp.route("/api/bot/sermons/<int:sermon_id>/hide", methods=["POST"])
@@ -959,11 +1403,17 @@ def api_illustration_tags():
     return _finish_person(row, sermons.rename_illustration_tags(person["user_id"], _payload()), person)
 
 
-@bot_access_bp.route("/api/bot/illustrations/<int:illus_id>", methods=["POST"])
+@bot_access_bp.route("/api/bot/illustrations/<int:illus_id>", methods=["GET", "POST"])
 def api_illustration(illus_id: int):
     row, person, err = _desk()
     if err:
         return err
+    if request.method == "GET":
+        return _finish_person(
+            row,
+            sermons.list_illustrations("", None, illus_id, person["user_id"]),
+            person,
+        )
     return _finish_person(row, sermons.update_illustration_item(person["user_id"], illus_id, _payload()), person)
 
 

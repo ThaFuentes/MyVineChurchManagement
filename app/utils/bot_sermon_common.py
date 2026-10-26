@@ -8,6 +8,7 @@ from datetime import date, datetime, time
 from decimal import Decimal
 
 TEXT_CAP = 20000
+SECTION_BODY_CAP = 1_000_000
 SNAP_CAP = 60000
 VERSE_CAP = 40
 SECTION_TYPES = (
@@ -41,6 +42,7 @@ SECTION_FIELDS = (
     "translation",
     "source",
     "notes",
+    "tags",
     "illustration_id",
 )
 ILLUSTRATION_FIELDS = (
@@ -108,14 +110,66 @@ _SPEAKER_ROLES = {
 }
 
 
-def as_html(text: str) -> str:
+def as_html(text: str, cap: int | None = None) -> str:
     """Wrap plain words so the sermon builder shows them. Leave real HTML alone."""
-    raw = (text or "")[:TEXT_CAP]
+    raw = (text or "")[: TEXT_CAP if cap is None else int(cap)]
     lead = raw.lstrip()[:12].lower()
     if lead.startswith(_HTML_STARTS):
         return raw
     body = html.escape(raw).replace("\n", "<br>")
     return f"<p>{body}</p>"
+
+
+def section_html(text: str) -> str:
+    """Sermon section bodies. Headers and titles stay on the shorter cap."""
+    return as_html(text, SECTION_BODY_CAP)
+
+
+def section_tags_text(raw) -> str:
+    if isinstance(raw, list):
+        parts = [str(item).strip() for item in raw if str(item).strip()]
+        return ", ".join(parts)[:500]
+    return (_clip(raw, 500) or "")
+
+
+def normalize_section_list(raw) -> tuple[list[dict] | None, str | None]:
+    """Check a create-with-sections list. This does not write."""
+    if raw in (None, ""):
+        return [], None
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            return None, "sections must be a list."
+    if raw is None:
+        return [], None
+    if not isinstance(raw, list):
+        return None, "sections must be a list."
+    if len(raw) > 80:
+        return None, "Send 80 sections or fewer in one call."
+    rows = []
+    for item in raw:
+        if not isinstance(item, dict):
+            return None, "Each section must be an object."
+        section_type = str(item.get("section_type") or "point").strip().lower()
+        if section_type not in SECTION_TYPES:
+            return None, (
+                "section_type must be introduction, point, scripture, application, "
+                "illustration, conclusion, or other."
+            )
+        content = item.get("content")
+        rows.append({
+            "section_type": section_type,
+            "title": _clip(item.get("title"), 500) or section_type.replace("_", " ").title(),
+            "content": "" if content is None else str(content)[:SECTION_BODY_CAP],
+            "scripture_reference": _clip(item.get("scripture_reference"), 500) or "",
+            "translation": _clip(item.get("translation") or item.get("scripture_translation"), 40) or "",
+            "source": _clip(item.get("source"), 500) or "",
+            "notes": _clip(item.get("notes"), TEXT_CAP) or "",
+            "tags": section_tags_text(item.get("tags")),
+            "illustration_id": _int_or_none(item.get("illustration_id")),
+        })
+    return rows, None
 
 
 def verse_span(start: int, end: int, cap: int = VERSE_CAP):
@@ -288,6 +342,70 @@ def _db():
     return get_db()
 
 
+def backfill_illustration_fields(limit: int = 2000) -> int:
+    """Fill empty book, chapter, kind, and fact-check from text already stored.
+
+    Book and chapter come from the scripture line, then the source, then notes
+    when a chapter is present. Kind and fact-check come only from a tag or a
+    labeled note. A story that merely uses the word is left empty.
+    """
+    from app.utils.bot_illustration_fields import infer_fact, infer_kind, parse_scripture
+
+    cur = _db().cursor()
+    cur.execute(
+        """
+        SELECT id, scripture_reference, source, notes, tags,
+               scripture_book, scripture_chapter, kind, fact_check
+        FROM illustration_library
+        WHERE removed_at IS NULL
+          AND (
+                scripture_book IS NULL OR scripture_book = ''
+             OR scripture_chapter IS NULL
+             OR kind IS NULL OR kind = ''
+             OR fact_check IS NULL OR fact_check = ''
+          )
+        ORDER BY id
+        LIMIT %s
+        """,
+        (int(limit),),
+    )
+    updated = 0
+    for row in cur.fetchall() or []:
+        sets: dict = {}
+        book_empty = not str(row.get("scripture_book") or "").strip()
+        chapter_empty = row.get("scripture_chapter") in (None, "")
+        if book_empty or chapter_empty:
+            parsed = {"book": None, "chapter": None}
+            for field in ("scripture_reference", "source", "notes"):
+                parsed = parse_scripture(row.get(field))
+                if not parsed.get("book"):
+                    continue
+                if field == "scripture_reference" or parsed.get("chapter"):
+                    break
+                parsed = {"book": None, "chapter": None}
+            if book_empty and parsed.get("book"):
+                sets["scripture_book"] = parsed["book"]
+            if chapter_empty and parsed.get("chapter"):
+                sets["scripture_chapter"] = int(parsed["chapter"])
+        if not str(row.get("kind") or "").strip():
+            kind = infer_kind(row.get("tags"), row.get("notes"))
+            if kind:
+                sets["kind"] = kind
+        if not str(row.get("fact_check") or "").strip():
+            fact = infer_fact(row.get("tags"), row.get("notes"))
+            if fact:
+                sets["fact_check"] = fact
+        if not sets:
+            continue
+        assignments = ", ".join(f"{key}=%s" for key in sets)
+        cur.execute(
+            f"UPDATE illustration_library SET {assignments} WHERE id=%s",
+            tuple(sets[key] for key in sets) + (int(row["id"]),),
+        )
+        updated += 1
+    return updated
+
+
 def ensure_soft_columns() -> str | None:
     """Add removed_at when the sermon tables exist and the column does not."""
     global _ready
@@ -327,6 +445,7 @@ def ensure_soft_columns() -> str | None:
             ("illustration_library", "fact_check", "VARCHAR(20) NULL"),
             ("illustration_library", "kind", "VARCHAR(20) NULL"),
             ("sermon_sections", "translation", "VARCHAR(40) NULL"),
+            ("sermon_sections", "tags", "VARCHAR(500) NULL"),
         )
         for table, column, definition in extra:
             cur.execute(
@@ -365,6 +484,69 @@ def ensure_soft_columns() -> str | None:
         except Exception as exc:
             if "1061" not in str(exc) and "Duplicate" not in str(exc):
                 raise
+        for table, column in (
+            ("sermon_sections", "content"),
+            ("illustration_library", "content"),
+            ("sermon_templates", "structure"),
+        ):
+            cur.execute(
+                """
+                SELECT DATA_TYPE, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s
+                """,
+                (table, column),
+            )
+            spec = cur.fetchone() or {}
+            kind = str(spec.get("DATA_TYPE") or "").lower()
+            if not kind or kind in ("mediumtext", "longtext"):
+                continue
+            null_sql = "NULL" if str(spec.get("IS_NULLABLE") or "").upper() == "YES" else "NOT NULL"
+            cur.execute(f"ALTER TABLE {table} MODIFY COLUMN {column} MEDIUMTEXT {null_sql}")
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sermon_prep_notes (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                user_id INT UNSIGNED NOT NULL,
+                sermon_id INT UNSIGNED NULL,
+                body MEDIUMTEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                removed_at DATETIME NULL,
+                KEY idx_prep_note_user (user_id),
+                KEY idx_prep_note_sermon (sermon_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sermon_series_links (
+                sermon_id INT UNSIGNED NOT NULL,
+                series_id INT UNSIGNED NOT NULL,
+                created_by INT UNSIGNED NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (sermon_id, series_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bot_research_requests (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                body TEXT NULL,
+                notes TEXT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'open',
+                assigned_to INT UNSIGNED NULL,
+                sermon_id INT UNSIGNED NULL,
+                created_by INT UNSIGNED NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                removed_at DATETIME NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """
+        )
+        try:
+            backfill_illustration_fields()
+        except Exception as exc:
+            print(f"bot illustration backfill: {exc}")
         _ready = True
         return None
     except Exception as exc:

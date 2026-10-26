@@ -7,6 +7,7 @@ from datetime import date, timedelta
 from app.utils.bot_sermon_common import (
     SECTION_TYPES,
     SHARE_VISIBILITY,
+    SECTION_BODY_CAP,
     TEXT_CAP,
     _blank_name,
     _clip,
@@ -243,7 +244,7 @@ def create_illustration_item(actor_id: int, body: dict) -> dict:
         return _fail(problem, 500, "illustration.create")
     body = body or {}
     title = str(body.get("title") or "").strip()[:500]
-    content = str(body.get("content") or "").strip()[:TEXT_CAP]
+    content = str(body.get("content") or "").strip()[:SECTION_BODY_CAP]
     if not title or not content:
         return _fail("An illustration needs a title and the story.", 400)
     visibility = str(body.get("visibility") or "pastoral_group").strip().lower()
@@ -326,7 +327,7 @@ def update_illustration_item(actor_id: int | None, illus_id: int, body: dict) ->
                 return _fail("An illustration needs a title.", 400)
             changes["title"] = title
         if "content" in body:
-            content = str(body.get("content") or "").strip()[:TEXT_CAP]
+            content = str(body.get("content") or "").strip()[:SECTION_BODY_CAP]
             if not content:
                 return _fail("An illustration needs the story.", 400)
             changes["content"] = content
@@ -648,7 +649,7 @@ def create_vault_item(actor_id: int, body: dict) -> dict:
         return _fail(problem, 500, "vault.create")
     body = body or {}
     title = str(body.get("title") or "").strip()[:500]
-    content = str(body.get("content") or "").strip()[:TEXT_CAP]
+    content = str(body.get("content") or "").strip()[:SECTION_BODY_CAP]
     if not title or not content:
         return _fail("A research note needs a title and some words.", 400)
     visibility = str(body.get("visibility") or "pastoral_group").strip().lower()
@@ -718,7 +719,7 @@ def update_vault_item(actor_id: int | None, item_id: int, body: dict) -> dict:
                 return _fail("A research note needs a title.", 400)
             changes["title"] = title
         if "content" in body:
-            content = str(body.get("content") or "").strip()[:TEXT_CAP]
+            content = str(body.get("content") or "").strip()[:SECTION_BODY_CAP]
             if not content:
                 return _fail("A research note needs some words.", 400)
             changes["content"] = content

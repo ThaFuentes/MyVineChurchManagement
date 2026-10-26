@@ -415,6 +415,7 @@ def _split_body_into_points(body: str) -> list[dict[str, str]]:
         chunks = _split_by_scripture_heads(body) or chunks
 
     # Re-split only generic / untitled mega-blobs — keep real Point/Story titles intact
+    from app.utils.bot_sermon_common import SECTION_BODY_CAP
     expanded: list[dict] = []
     for c in chunks:
         content = c.get('content') or ''
@@ -426,7 +427,7 @@ def _split_body_into_points(body: str) -> list[dict[str, str]]:
             or low.startswith('sermon content')
         )
         # Named points/stories can be long on purpose; only explode if extreme
-        limit = 4500 if generic else 20000
+        limit = 4500 if generic else SECTION_BODY_CAP
         if len(content) > limit:
             soft = _split_long_prose(content, title or 'Sermon Content')
             if len(soft) > 1:

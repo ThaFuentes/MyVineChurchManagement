@@ -11,11 +11,15 @@ import html
 from app.utils.bot_sermon_common import (
     HIDE_SNAPSHOT_KEY,
     HIDE_TABLES,
+    SECTION_BODY_CAP,
     SECTION_FIELDS,
     SECTION_TYPES,
     SERMON_FIELDS,
     SERMON_VISIBILITY,
     TEXT_CAP,
+    normalize_section_list,
+    section_html,
+    section_tags_text,
     ILLUSTRATION_FIELDS,
     VAULT_FIELDS,
     _blank_name,
@@ -169,7 +173,7 @@ def sermon_detail(sermon_id: int, actor_id: int | None = None) -> dict:
         cur.execute(
             """
             SELECT id, sort_order, section_type, title, content, scripture_reference,
-                   translation, source, notes, illustration_id
+                   translation, source, notes, tags, illustration_id
             FROM sermon_sections
             WHERE sermon_id=%s AND removed_at IS NULL
             ORDER BY sort_order, id
@@ -180,8 +184,8 @@ def sermon_detail(sermon_id: int, actor_id: int | None = None) -> dict:
         for sec in cur.fetchall() or []:
             item = _plain(sec)
             content = item.get("content") or ""
-            if len(content) > TEXT_CAP:
-                item["content"] = content[:TEXT_CAP]
+            if len(content) > SECTION_BODY_CAP:
+                item["content"] = content[:SECTION_BODY_CAP]
                 item["content_truncated"] = True
             sections.append(item)
         data = _plain(row)
@@ -193,6 +197,45 @@ def sermon_detail(sermon_id: int, actor_id: int | None = None) -> dict:
     except Exception as exc:
         print(f"bot sermon detail: {exc}")
         return _fail("That sermon could not be read.", 500, "sermon.detail")
+
+
+_DEFAULT_HEADER = "[DEFAULT] Sermon Header"
+_DEFAULT_FOOTER = "[DEFAULT] Sermon Footer"
+
+
+def _default_header_footer(actor_id: int) -> dict:
+    """Read the saved default header and footer. This does not change them."""
+    cur = _db().cursor()
+    cur.execute(
+        """
+        SELECT title, content
+        FROM illustration_library
+        WHERE title IN (%s, %s) AND removed_at IS NULL
+          AND (user_id=%s OR user_id IS NULL)
+        ORDER BY user_id IS NULL, id DESC
+        """,
+        (_DEFAULT_HEADER, _DEFAULT_FOOTER, int(actor_id)),
+    )
+    found = {"header": "", "footer": ""}
+    for row in cur.fetchall() or []:
+        title = row.get("title")
+        if title == _DEFAULT_HEADER and not found["header"]:
+            found["header"] = row.get("content") or ""
+        elif title == _DEFAULT_FOOTER and not found["footer"]:
+            found["footer"] = row.get("content") or ""
+    return found
+
+
+def _sections_from_template(template_id: int, actor_id: int):
+    cur = _db().cursor()
+    cur.execute(
+        "SELECT id, structure FROM sermon_templates WHERE id=%s AND (user_id=%s OR user_id IS NULL)",
+        (int(template_id), int(actor_id)),
+    )
+    row = cur.fetchone()
+    if not row:
+        return None, "That sermon template was not found."
+    return normalize_section_list(row.get("structure"))
 
 
 def create_builder_sermon(actor_id: int, body: dict) -> dict:
@@ -214,16 +257,46 @@ def create_builder_sermon(actor_id: int, body: dict) -> dict:
     if derr:
         return _fail(derr, 400)
     passage, passage_set = passage_from(body or {})
+    sections, section_error = normalize_section_list(body.get("sections"))
+    if section_error:
+        return _fail(section_error, 400)
+    template_id = _int_or_none(body.get("template_id"))
+    if template_id and not sections:
+        loaded, template_error = _sections_from_template(template_id, int(actor_id))
+        if template_error:
+            return _fail(template_error, 400)
+        sections = loaded
+    header = _clip(body.get("header_text"), TEXT_CAP)
+    footer = _clip(body.get("footer_text"), TEXT_CAP)
+    if truthy(body.get("use_default_header")) or truthy(body.get("use_default_footer")):
+        defaults = _default_header_footer(int(actor_id))
+        if truthy(body.get("use_default_header")) and not header:
+            header = _clip(defaults.get("header"), TEXT_CAP)
+        if truthy(body.get("use_default_footer")) and not footer:
+            footer = _clip(defaults.get("footer"), TEXT_CAP)
+    preview = {
+        "title": title,
+        "visibility": visibility,
+        "primary_passage": _clip(passage, 500) if passage_set else None,
+        "service_date": service_date,
+        "header_text": header,
+        "footer_text": footer,
+        "sections": sections,
+        "template_id": template_id,
+        "wrote": 0,
+    }
+    if truthy(body.get("dry_run")):
+        return _ok({"dry_run": True, **preview})
     try:
         from app.models.pastoral.sermons import create_sermon
         sermon_id = create_sermon({
             "title": title,
             "preacher_id": preacher_id,
-            "primary_passage": _clip(passage, 500) if passage_set else None,
+            "primary_passage": preview["primary_passage"],
             "service_date": service_date,
             "visibility": visibility,
-            "header_text": _clip(body.get("header_text"), TEXT_CAP),
-            "footer_text": _clip(body.get("footer_text"), TEXT_CAP),
+            "header_text": header,
+            "footer_text": footer,
             "conclusion_text": _clip(body.get("conclusion_text"), TEXT_CAP),
             "series_tags": _clip(body.get("series_tags"), 500),
             "notes": _clip(body.get("notes"), TEXT_CAP),
@@ -233,14 +306,39 @@ def create_builder_sermon(actor_id: int, body: dict) -> dict:
         return _fail("That sermon could not be saved.", 500, "sermon.create")
     if not sermon_id:
         return _fail("That sermon could not be saved.", 500, "sermon.create")
+    section_ids = []
+    try:
+        for item in sections:
+            section_id, _order = _insert_section(
+                int(sermon_id),
+                item["section_type"],
+                item["title"],
+                section_html(item.get("content") or ""),
+                item.get("scripture_reference") or "",
+                item.get("source") or "",
+                item.get("notes") or "",
+                item.get("illustration_id"),
+                item.get("translation") or "",
+                item.get("tags") or "",
+            )
+            section_ids.append(section_id)
+    except Exception as exc:
+        print(f"bot sermon sections: {exc}")
+        return _fail("The sermon was saved, but a section could not be saved.", 500, "sermon.create")
     return _ok(
-        {"sermon_id": int(sermon_id), "title": title, "visibility": visibility},
+        {
+            "sermon_id": int(sermon_id),
+            "title": title,
+            "visibility": visibility,
+            "section_ids": section_ids,
+            "template_id": template_id,
+        },
         {
             "action": "sermon.create",
             "target_type": "pastoral_sermon",
             "target_id": int(sermon_id),
             "detail": title,
-            "snapshot": {"sermon_id": int(sermon_id)},
+            "snapshot": {"sermon_id": int(sermon_id), "section_ids": section_ids},
         },
     )
 
@@ -331,6 +429,8 @@ def save_section(sermon_id: int, body: dict, actor_id: int | None = None) -> dic
         if denied:
             return denied
         body = body or {}
+        if truthy(body.get("dry_run")):
+            return _dry_section(int(sermon_id), body, actor_id)
         if body.get("section_id") not in (None, "", 0, "0"):
             return _update_section(int(sermon_id), body, actor_id)
         refusal = link_without_section(body)
@@ -354,8 +454,49 @@ def _section_translation(body: dict) -> str | None:
     return None
 
 
+def _dry_section(sermon_id: int, body: dict, actor_id: int | None) -> dict:
+    """Validate one section change and write nothing."""
+    _row, denied = _guard_sermon(sermon_id, actor_id, write=True)
+    if denied:
+        return denied
+    if body.get("section_id") not in (None, "", 0, "0"):
+        try:
+            section_id = int(body.get("section_id"))
+        except (TypeError, ValueError):
+            return _fail("section_id must be a number.", 400)
+        cur = _db().cursor()
+        cur.execute(
+            "SELECT id FROM sermon_sections WHERE id=%s AND sermon_id=%s AND removed_at IS NULL",
+            (section_id, int(sermon_id)),
+        )
+        if not cur.fetchone():
+            return _fail("That section is not on this sermon.", 404)
+    section_type = str(body.get("section_type") or "point").strip().lower()
+    if "section_type" in body and section_type not in SECTION_TYPES:
+        return _fail(
+            "section_type must be introduction, point, scripture, application, illustration, conclusion, or other.",
+            400,
+        )
+    if body.get("section_id") in (None, "", 0, "0") and section_type not in SECTION_TYPES:
+        return _fail(
+            "section_type must be introduction, point, scripture, application, illustration, conclusion, or other.",
+            400,
+        )
+    content = body.get("content")
+    return _ok({
+        "dry_run": True,
+        "wrote": 0,
+        "sermon_id": int(sermon_id),
+        "section_type": section_type if "section_type" in body or body.get("section_id") in (None, "", 0, "0") else None,
+        "title": _clip(body.get("title"), 500),
+        "content_length": len(str(content or "")[:SECTION_BODY_CAP]),
+        "tags": section_tags_text(body.get("tags")) if "tags" in body else None,
+        "illustration_id": body.get("illustration_id"),
+    })
+
+
 def _insert_section(sermon_id, section_type, title, content, scripture_reference, source, notes,
-                    illustration_id=None, translation=None):
+                    illustration_id=None, translation=None, tags=""):
     cur = _db().cursor()
     cur.execute(
         "SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM sermon_sections WHERE sermon_id=%s",
@@ -366,8 +507,8 @@ def _insert_section(sermon_id, section_type, title, content, scripture_reference
         """
         INSERT INTO sermon_sections (
             sermon_id, sort_order, section_type, title, content,
-            scripture_reference, translation, source, notes, illustration_id
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            scripture_reference, translation, source, notes, tags, illustration_id
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         (
             int(sermon_id),
@@ -379,6 +520,7 @@ def _insert_section(sermon_id, section_type, title, content, scripture_reference
             (translation or "")[:40],
             source or "",
             notes or "",
+            (tags or "")[:500],
             illustration_id,
         ),
     )
@@ -422,11 +564,12 @@ def _add_text_section(sermon_id: int, body: dict) -> dict:
         sermon_id,
         section_type,
         title,
-        as_html(str(raw or "")),
+        section_html(str(raw or "")),
         _clip(body.get("scripture_reference"), 500) or "",
         source,
         _clip(body.get("notes"), TEXT_CAP) or "",
         translation=translation or "",
+        tags=section_tags_text(body.get("tags")),
     )
     return _section_log(sermon_id, section_id, title, section_type)
 
@@ -461,7 +604,7 @@ def _add_illustration_section(sermon_id: int, body: dict, actor_id: int | None =
         sermon_id,
         "illustration",
         title,
-        as_html(row.get("content") or ""),
+        section_html(row.get("content") or ""),
         _clip(body.get("scripture_reference"), 500) or "",
         row.get("source") or "",
         _clip(body.get("notes"), TEXT_CAP) or "",
@@ -558,6 +701,35 @@ def _link_fields(sermon_id: int, section_id: int, body: dict, actor_id: int | No
     return {"illustration_id": illus_id}, None
 
 
+def _fit_snapshot(snapshot: dict) -> tuple[dict, str | None]:
+    """Keep the save when the body is longer than the undo log. Drop those words from the log."""
+    if not _too_big(snapshot):
+        return snapshot, None
+    before = dict(snapshot.get("before") or {})
+    after = dict(snapshot.get("after") or {})
+    omitted = []
+    for bucket in (before, after):
+        for key, value in list(bucket.items()):
+            if isinstance(value, str) and len(value) > 2000:
+                bucket.pop(key, None)
+                omitted.append(key)
+    slim = {
+        "section_id": snapshot.get("section_id"),
+        "sermon_id": snapshot.get("sermon_id"),
+        "before": before,
+        "after": after,
+        "undo_omitted": sorted(set(omitted)),
+    }
+    note = "The section body is longer than the undo log, so reverse will not put those words back."
+    if _too_big(slim):
+        slim = {
+            "section_id": snapshot.get("section_id"),
+            "sermon_id": snapshot.get("sermon_id"),
+            "undo_omitted": slim["undo_omitted"],
+        }
+    return slim, note
+
+
 def _update_section(sermon_id: int, body: dict, actor_id: int | None = None) -> dict:
     try:
         section_id = int(body.get("section_id"))
@@ -566,7 +738,7 @@ def _update_section(sermon_id: int, body: dict, actor_id: int | None = None) -> 
     cur = _db().cursor()
     cur.execute(
         """
-        SELECT id, section_type, title, content, scripture_reference, translation, source, notes, illustration_id
+        SELECT id, section_type, title, content, scripture_reference, translation, source, notes, tags, illustration_id
         FROM sermon_sections
         WHERE id=%s AND sermon_id=%s AND removed_at IS NULL
         """,
@@ -589,7 +761,7 @@ def _update_section(sermon_id: int, body: dict, actor_id: int | None = None) -> 
     if "title" in body:
         changes["title"] = _clip(body.get("title"), 500) or ""
     if "content" in body:
-        changes["content"] = as_html(str(body.get("content") or ""))
+        changes["content"] = section_html(str(body.get("content") or ""))
     if "scripture_reference" in body:
         changes["scripture_reference"] = _clip(body.get("scripture_reference"), 500) or ""
     translation = _section_translation(body)
@@ -601,16 +773,30 @@ def _update_section(sermon_id: int, body: dict, actor_id: int | None = None) -> 
         changes["source"] = _clip(body.get("source"), 500) or ""
     if "notes" in body:
         changes["notes"] = _clip(body.get("notes"), TEXT_CAP) or ""
+    if "tags" in body:
+        changes["tags"] = section_tags_text(body.get("tags"))
     if not changes:
         return _fail("Send the words to change on that section.", 400)
     before = {key: _jsonish(row.get(key)) for key in changes}
     after = {key: _jsonish(value) for key, value in changes.items()}
-    snapshot = {"section_id": section_id, "sermon_id": int(sermon_id), "before": before, "after": after}
-    if _too_big(snapshot):
-        return _fail("That change is too large to undo, so it was not saved.", 400)
+    snapshot, undo_note = _fit_snapshot({
+        "section_id": section_id,
+        "sermon_id": int(sermon_id),
+        "before": before,
+        "after": after,
+    })
     _update_fields("sermon_sections", section_id, changes, SECTION_FIELDS)
+    shown = dict(after)
+    stored = shown.get("content")
+    if isinstance(stored, str) and len(stored) > TEXT_CAP:
+        shown.pop("content", None)
+        shown["content_length"] = len(stored)
+        shown["content_stored"] = True
+    if undo_note:
+        shown["undo_body"] = False
+        shown["note"] = undo_note
     return _ok(
-        {"sermon_id": int(sermon_id), "section_id": section_id, **after},
+        {"sermon_id": int(sermon_id), "section_id": section_id, **shown},
         {
             "action": "section.update",
             "target_type": "sermon_section",
@@ -683,7 +869,7 @@ def save_section_as_illustration(sermon_id: int, body: dict, actor_id: int | Non
             return _fail("That section needs a title and some words to save as an illustration.", 400)
         created = create_illustration_item(int(actor_id), {
             "title": title,
-            "content": content[:TEXT_CAP],
+            "content": content[:SECTION_BODY_CAP],
             "source": body.get("source") if "source" in body else row.get("source"),
             "notes": body.get("notes") if "notes" in body else row.get("notes"),
             "tags": body.get("tags"),

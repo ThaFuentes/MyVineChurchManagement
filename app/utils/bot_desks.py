@@ -280,6 +280,9 @@ CLOSED_TABLES = (
     "maya_bot_perm_log",
     "illustration_tags",
     "illustration_tag_links",
+    "sermon_prep_notes",
+    "sermon_series_links",
+    "bot_research_requests",
 )
 
 
