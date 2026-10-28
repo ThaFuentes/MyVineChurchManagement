@@ -56,19 +56,14 @@ public_bp.register_blueprint(sermons_bp)
 @public_bp.before_request
 def block_guest_bot_posts():
     """Captcha + honeypot for guest prayer/comment posts. Signed-in members skip."""
-    from urllib.parse import urlparse
     from app.utils.guest_guard import should_guard_public_post, allow_guest_post
 
     if not should_guard_public_post():
         return None
     if allow_guest_post(request.form):
         return None
-    back = request.referrer or ''
-    host = request.host or ''
-    parsed = urlparse(back) if back else None
-    if not back or (parsed and parsed.netloc and parsed.netloc != host):
-        back = url_for('public.public_dashboard.public_dashboard')
-    return redirect(back)
+    from app.utils.safe_redirect import local_target
+    return redirect(local_target(request.referrer, url_for('public.public_dashboard.public_dashboard')))
 
 def _safe_giving_options(rows):
     from werkzeug.utils import secure_filename
