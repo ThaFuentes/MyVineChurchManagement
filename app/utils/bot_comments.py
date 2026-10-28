@@ -30,6 +30,16 @@ AREAS = {
         "title_col": "title",
         "parent_public": ("visibility",),
     },
+    "sermon_drive": {
+        "table": "sermon_drive_comments",
+        "parent": "sermon_drive_items",
+        "parent_col": "item_id",
+        "text_col": "comment",
+        "name_col": "contributor_name",
+        "date_col": "date_added",
+        "title_col": "title",
+        "parent_public": (),
+    },
     "prayer": {
         "table": "prayers_added",
         "parent": "prayers",
@@ -334,14 +344,17 @@ def _spec(area: str):
 
 
 def reply_comment(area: str, parent_id: int, text: str, actor: dict) -> dict:
+    from app.utils.comment_moderation import sanitize_comment_body
     spec, err = _spec(area)
     if err:
         return err
-    body = (text or "").strip()
+    limit = 2000 if spec.get("area") == "sermon_drive" else 4000
+    raw = text or ""
+    if len(raw.strip()) > limit:
+        return _fail("That comment is too long.", 400, "bot_comment_reply")
+    body = sanitize_comment_body(raw, limit)
     if not body:
         return _fail("Write a comment.", 400, "bot_comment_reply")
-    if len(body) > 4000:
-        return _fail("That comment is too long.", 400, "bot_comment_reply")
     blocked = comment_blocked(body)
     if blocked:
         out = _fail(blocked, 400, "bot_comment_reply")
@@ -383,11 +396,15 @@ def reply_comment(area: str, parent_id: int, text: str, actor: dict) -> dict:
 
 
 def edit_comment(area: str, parent_id: int, comment_id: int, text: str) -> dict:
+    from app.utils.comment_moderation import sanitize_comment_body
     spec, err = _spec(area)
     if err:
         err["action"] = "bot_comment_edit"
         return err
-    body = (text or "").strip()
+    limit = 2000 if (spec.get("area") == "sermon_drive") else 4000
+    if len((text or "").strip()) > limit:
+        return _fail("That comment is too long.", 400, "bot_comment_edit")
+    body = sanitize_comment_body(text, limit)
     blocked = comment_blocked(body)
     if blocked:
         out = _fail(blocked, 400, "bot_comment_edit")
@@ -405,9 +422,10 @@ def edit_comment(area: str, parent_id: int, comment_id: int, text: str) -> dict:
         row = cur.fetchone()
         if not row:
             return _fail("That comment was not found.", 404, "bot_comment_edit")
+        edited = ", edited_by_moderator=1" if "edited_by_moderator" in cols else ""
         cur.execute(
-            f"UPDATE {spec['table']} SET {spec['text_col']}=%s WHERE id=%s",
-            (body[:4000], int(comment_id)),
+            f"UPDATE {spec['table']} SET {spec['text_col']}=%s{edited} WHERE id=%s AND {spec['parent_col']}=%s",
+            (body[:limit], int(comment_id), int(parent_id)),
         )
         return _ok(
             {"area": spec["area"], "comment_id": int(comment_id)},
@@ -464,6 +482,55 @@ def set_comment_removed(area: str, comment_id: int, removed: bool) -> tuple[bool
     except Exception as exc:
         print(f"bot comment flag: {type(exc).__name__}")
         return False, "That comment could not be updated."
+
+
+def shadow_comment(area: str, parent_id: int, comment_id: int, shadowed: bool) -> dict:
+    """Hide a comment from everyone except the person who wrote it. The address is not returned."""
+    spec, err = _spec(area)
+    if err:
+        err["action"] = "bot_comment_shadow"
+        return err
+    try:
+        cols = _columns(spec["table"])
+        if "shadowed" not in cols:
+            return _fail("That area cannot shadow a comment.", 400, "bot_comment_shadow")
+        cur = _db().cursor()
+        cur.execute(
+            f"SELECT id FROM {spec['table']} WHERE id=%s AND {spec['parent_col']}=%s",
+            (int(comment_id), int(parent_id)),
+        )
+        if not cur.fetchone():
+            return _fail("That comment was not found.", 404, "bot_comment_shadow")
+        sets = ["shadowed=%s"]
+        params = [1 if shadowed else 0]
+        if shadowed and "shadow_ip" in cols and "ip_address" in cols:
+            sets.append("shadow_ip=ip_address")
+        elif shadowed and "shadow_ip" in cols and "ip" in cols:
+            sets.append("shadow_ip=ip")
+        elif not shadowed and "shadow_ip" in cols:
+            sets.append("shadow_ip=NULL")
+        if shadowed and "shadow_user_id" in cols and "user_id" in cols:
+            sets.append("shadow_user_id=user_id")
+        elif not shadowed and "shadow_user_id" in cols:
+            sets.append("shadow_user_id=NULL")
+        params.extend((int(comment_id), int(parent_id)))
+        cur.execute(
+            f"UPDATE {spec['table']} SET {', '.join(sets)} WHERE id=%s AND {spec['parent_col']}=%s",
+            tuple(params),
+        )
+        return _ok(
+            {"area": spec["area"], "comment_id": int(comment_id), "shadowed": bool(shadowed)},
+            {
+                "action": "bot_comment_shadow",
+                "target_type": spec["table"],
+                "target_id": int(comment_id),
+                "detail": "Shadowed." if shadowed else "Unshadowed.",
+                "snapshot": {"id": int(comment_id), "area": spec["area"], "shadowed": bool(shadowed)},
+            },
+        )
+    except Exception as exc:
+        print(f"bot comment shadow: {type(exc).__name__}")
+        return _fail("That comment could not be updated.", 500, "bot_comment_shadow")
 
 
 def hide_comment(area: str, parent_id: int, comment_id: int, body: dict, hard_on: bool) -> dict:

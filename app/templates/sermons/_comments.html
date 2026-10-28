@@ -1,0 +1,136 @@
+<section id="sermon-comments" class="sermon-comments glass-panel" style="margin-top:1.25rem;">
+  <h2 class="section-title" style="margin-top:0;">
+    Comments{% if comments %} · {{ comments|length }}{% endif %}
+  </h2>
+  {% if can_moderate and comment_console_url %}
+  <p class="help-text"><a href="{{ comment_console_url }}">All comments</a> opens every video, post, and message in one list.</p>
+  {% endif %}
+
+  {% if comments_open %}
+  <form method="post" action="{{ url_for('public.public_sermons.library_comment', item_id=message.id) }}" class="styled-form">
+    {% include 'partials/csrf_field.html' %}
+    {% if playlist %}
+    <input type="hidden" name="playlist" value="1">
+    {% if playlist.year %}<input type="hidden" name="year" value="{{ playlist.year }}">{% endif %}
+    {% endif %}
+    <input type="hidden" name="action" value="comment">
+    {% if account_name %}
+    <p class="help-text">Commenting as {{ account_name | censor }}</p>
+    {% else %}
+    <div class="form-group">
+      <label for="comment-name">Your name</label>
+      <input id="comment-name" name="contributor_name" type="text" class="form-input" required maxlength="60" autocomplete="name">
+    </div>
+    {% endif %}
+    <div class="form-group">
+      <label for="comment-body">Comment</label>
+      <textarea id="comment-body" name="comment" rows="3" class="form-input" required maxlength="2000"></textarea>
+    </div>
+    {% include 'partials/guest_captcha.html' %}
+    <button type="submit" class="btn btn-primary">Post comment</button>
+  </form>
+  {% else %}
+  <p class="help-text">Comments are closed right now.</p>
+  {% endif %}
+
+  {% if comments %}
+  <div style="margin-top:1.25rem;">
+    {% for c in comments if not c.parent_id and (can_moderate or not c.removed) %}
+    <article class="sermon-comment" style="display:flex; gap:0.75rem; margin:0 0 1rem;">
+      <span aria-hidden="true" style="flex:0 0 auto; width:2.25rem; height:2.25rem; border-radius:999px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.08); font-weight:700;">{{ (c.name or 'G')[:1] | censor }}</span>
+      <div>
+        <p style="margin:0;">
+          <strong>{{ c.name | censor }}</strong>
+          <small class="help-text">{{ c.date }}</small>
+        </p>
+        <p style="margin:0.25rem 0 0;">{{ c.comment | censor | nl2br }}{% if c.edited_by_moderator %} <em class="help-text">(edited by a moderator)</em>{% endif %}</p>
+        {% if c.shadowed %}<p class="help-text">Shadowed. Only the person who wrote it can see it.</p>{% endif %}
+        {% if c.removed %}<p class="help-text">Removed from the page.</p>{% endif %}
+        {% if can_moderate %}
+        <form method="post" action="{{ url_for('public.public_sermons.library_comment', item_id=message.id) }}" class="styled-form" style="margin-top:0.45rem;">
+          {% include 'partials/csrf_field.html' %}
+          {% if playlist %}
+          <input type="hidden" name="playlist" value="1">
+          {% if playlist.year %}<input type="hidden" name="year" value="{{ playlist.year }}">{% endif %}
+          {% endif %}
+          <input type="hidden" name="comment_id" value="{{ c.id }}">
+          <label class="help-text" for="moderate-comment-{{ c.id }}">Edit this comment</label>
+          <textarea id="moderate-comment-{{ c.id }}" name="new_text" rows="2" class="form-input" maxlength="2000">{{ c.comment }}</textarea>
+          <div class="public-list-actions" style="margin-top:0.35rem;">
+            <button type="submit" class="btn-secondary btn-small" name="action" value="edit">Save edit</button>
+            {% if c.removed %}
+            <button type="submit" class="btn-secondary btn-small" name="action" value="restore">Put back</button>
+            {% else %}
+            <button type="submit" class="btn-secondary btn-small" name="action" value="{{ 'unshadow' if c.shadowed else 'shadow' }}">{{ 'Unshadow' if c.shadowed else 'Shadow' }}</button>
+            <button type="submit" class="btn-secondary btn-small" name="action" value="delete">Remove</button>
+            {% endif %}
+          </div>
+        </form>
+        {% endif %}
+        {% if comments_open and not c.removed %}
+        <button type="button" class="btn-secondary btn-small" style="margin-top:0.4rem;" onclick="var box=document.getElementById('sermon-reply-{{ c.id }}'); if(box){ box.hidden=!box.hidden; }">Reply</button>
+        <form id="sermon-reply-{{ c.id }}" method="post" action="{{ url_for('public.public_sermons.library_comment', item_id=message.id) }}" class="styled-form" hidden style="margin-top:0.6rem;">
+          {% include 'partials/csrf_field.html' %}
+          {% if playlist %}
+          <input type="hidden" name="playlist" value="1">
+          {% if playlist.year %}<input type="hidden" name="year" value="{{ playlist.year }}">{% endif %}
+          {% endif %}
+          <input type="hidden" name="action" value="reply">
+          <input type="hidden" name="parent_id" value="{{ c.id }}">
+          {% if not account_name %}
+          <div class="form-group">
+            <label for="reply-name-{{ c.id }}">Your name</label>
+            <input id="reply-name-{{ c.id }}" name="contributor_name" type="text" class="form-input" required maxlength="60" autocomplete="name">
+          </div>
+          {% endif %}
+          <div class="form-group">
+            <label for="reply-body-{{ c.id }}">Reply</label>
+            <textarea id="reply-body-{{ c.id }}" name="comment" rows="2" class="form-input" required maxlength="2000"></textarea>
+          </div>
+          {% include 'partials/guest_captcha.html' %}
+          <button type="submit" class="btn btn-secondary btn-small">Post reply</button>
+        </form>
+        {% endif %}
+      </div>
+    </article>
+    {% for reply in comments if reply.parent_id == c.id and (can_moderate or not reply.removed) %}
+    <article class="sermon-comment" style="display:flex; gap:0.75rem; margin:0 0 1rem 3rem;">
+      <span aria-hidden="true" style="flex:0 0 auto; width:2rem; height:2rem; border-radius:999px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.08); font-weight:700;">{{ (reply.name or 'G')[:1] | censor }}</span>
+      <div>
+        <p style="margin:0;">
+          <strong>{{ reply.name | censor }}</strong>
+          <small class="help-text">{{ reply.date }}</small>
+        </p>
+        <p style="margin:0.25rem 0 0;">{{ reply.comment | censor | nl2br }}{% if reply.edited_by_moderator %} <em class="help-text">(edited by a moderator)</em>{% endif %}</p>
+        {% if reply.shadowed %}<p class="help-text">Shadowed. Only the person who wrote it can see it.</p>{% endif %}
+        {% if reply.removed %}<p class="help-text">Removed from the page.</p>{% endif %}
+        {% if can_moderate %}
+        <form method="post" action="{{ url_for('public.public_sermons.library_comment', item_id=message.id) }}" class="styled-form" style="margin-top:0.45rem;">
+          {% include 'partials/csrf_field.html' %}
+          {% if playlist %}
+          <input type="hidden" name="playlist" value="1">
+          {% if playlist.year %}<input type="hidden" name="year" value="{{ playlist.year }}">{% endif %}
+          {% endif %}
+          <input type="hidden" name="comment_id" value="{{ reply.id }}">
+          <label class="help-text" for="moderate-reply-{{ reply.id }}">Edit this reply</label>
+          <textarea id="moderate-reply-{{ reply.id }}" name="new_text" rows="2" class="form-input" maxlength="2000">{{ reply.comment }}</textarea>
+          <div class="public-list-actions" style="margin-top:0.35rem;">
+            <button type="submit" class="btn-secondary btn-small" name="action" value="edit">Save edit</button>
+            {% if reply.removed %}
+            <button type="submit" class="btn-secondary btn-small" name="action" value="restore">Put back</button>
+            {% else %}
+            <button type="submit" class="btn-secondary btn-small" name="action" value="{{ 'unshadow' if reply.shadowed else 'shadow' }}">{{ 'Unshadow' if reply.shadowed else 'Shadow' }}</button>
+            <button type="submit" class="btn-secondary btn-small" name="action" value="delete">Remove</button>
+            {% endif %}
+          </div>
+        </form>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
+    {% endfor %}
+  </div>
+  {% elif comments_open %}
+  <p class="help-text" style="margin-top:1rem;">No comments yet. Be the first.</p>
+  {% endif %}
+</section>

@@ -1,0 +1,11 @@
+{% extends "base_public.html" %}
+
+{% block title %}{{ message.title }}{% endblock %}
+
+{% block content %}
+<p class="help-text" style="margin:0 0 0.75rem;">
+  <a href="{{ url_for('public.public_sermons.public_sermons') }}">← Sermons</a>
+</p>
+<h1 class="page-title">{{ message.title | censor }}</h1>
+{% include 'sermons/_listen_body.html' %}
+{% endblock %}

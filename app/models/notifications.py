@@ -57,6 +57,7 @@ def content_url(kind: str, item_id: int | None, author_username: str | None = No
         'prayer': ('prayers.view_prayer', 'prayer_id'),
         'event': ('events.view_event', 'event_id'),
         'sermon': ('sermons.view_sermon', 'sermon_id'),
+        'sermon_drive': ('sermons.library_listen', 'item_id'),
         'announcement': ('announcements.view_announcement', 'ann_id'),
         'dream': ('dreams.view_dream', 'dream_id'),
         'prophecy': ('prophecies.view_prophecy', 'prophecy_id'),

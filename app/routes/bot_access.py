@@ -2075,6 +2075,20 @@ def api_comment_hide(area: str, parent_id: int, comment_id: int):
     return _finish(row, comments.hide_comment(area, parent_id, comment_id, {}, False))
 
 
+@bot_access_bp.route("/api/bot/comments/<area>/<int:parent_id>/<int:comment_id>/shadow", methods=["POST"])
+def api_comment_shadow(area: str, parent_id: int, comment_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "comments")
+    if denied:
+        return denied
+    body = _payload()
+    raw = body.get("shadowed", body.get("action", "shadow"))
+    off = str(raw).strip().lower() in ("0", "false", "unshadow", "off", "no")
+    return _finish(row, comments.shadow_comment(area, parent_id, comment_id, not off))
+
+
 @bot_access_bp.route("/api/bot/comments/<area>/<int:parent_id>/<int:comment_id>/delete", methods=["POST"])
 def api_comment_remove(area: str, parent_id: int, comment_id: int):
     row, err = _require_key()

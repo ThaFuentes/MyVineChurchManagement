@@ -1,0 +1,48 @@
+{% if playlist %}
+<p class="help-text" style="margin:0 0 0.75rem;">
+  Playing {{ playlist.position }} of {{ playlist.total }}.
+  {% if playlist.prev_id %}
+  <a href="{{ url_for('sermons.library_listen', item_id=playlist.prev_id, playlist=1, year=playlist.year or None) }}">Previous</a>
+  {% endif %}
+  {% if playlist.next_id %}
+  <a href="{{ url_for('sermons.library_listen', item_id=playlist.next_id, playlist=1, year=playlist.year or None) }}">Next</a>
+  {% endif %}
+</p>
+{% endif %}
+<article class="glass-panel">
+  <div class="public-list-meta">
+    {% if message.preached_label %}<strong>Preached:</strong> {{ message.preached_label }}<br>{% endif %}
+    {% if message.speaker %}<strong>By:</strong> {{ message.speaker | censor }}<br>{% endif %}
+    {% if message.series %}<strong>Series:</strong> {{ message.series | censor }}<br>{% endif %}
+    {% if message.scripture %}<strong>Scripture:</strong> {{ message.scripture | censor }}{% endif %}
+  </div>
+  {% if message.summary %}
+  <p class="public-list-body">{{ message.summary | censor }}</p>
+  {% endif %}
+  {% if message.visibility == 'leaders' %}
+  <p class="help-text">This message is for church leaders.</p>
+  {% endif %}
+  {% if message.missing %}
+  <p class="help-text">This file is no longer in the Drive folder.</p>
+  {% endif %}
+
+  {% if message.play_url %}
+  <iframe src="{{ message.play_url }}" title="{{ message.title | censor }}" allow="autoplay" referrerpolicy="no-referrer"
+          style="width:100%; max-width:720px; height:{% if message.kind == 'video' %}420{% else %}240{% endif %}px; border:0; border-radius:12px;"></iframe>
+  {% elif message.lock_message %}
+  <p>{{ message.lock_message }}</p>
+  {% if not session.user_id %}
+  <p><a class="btn btn-primary" href="{{ url_for('auth.login') }}">Sign in to listen</a></p>
+  {% endif %}
+  {% endif %}
+
+  {% if message.can_edit %}
+  <p style="margin-top:1rem;">
+    <a class="btn btn-secondary btn-small" href="{{ url_for('sermons.library_edit', item_id=message.id) }}">Edit details</a>
+  </p>
+  {% endif %}
+</article>
+
+{% if message.can_listen %}
+{% include 'sermons/_comments.html' %}
+{% endif %}

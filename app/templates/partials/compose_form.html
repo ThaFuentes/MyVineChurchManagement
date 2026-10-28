@@ -72,8 +72,8 @@
           <textarea id="compose-sermon-body" name="details" rows="5" placeholder="Paste the message, outline, or notes." data-compose-text></textarea>
         </div>
         <p class="compose-hint">
-          {% if endpoint_exists('sermons.upload_sermon') %}
-          <a href="{{ url_for('sermons.upload_sermon') }}">Upload an audio or manuscript file instead</a>
+          {% if endpoint_exists('sermons.sermons') %}
+          <a href="{{ url_for('sermons.sermons') }}">Browse the message library</a>
           {% endif %}
         </p>
       {% elif t.key == 'book' %}

@@ -1,12 +1,15 @@
 {% extends "sermons/base_sermons.html" %}
 
+{% block page_title %}Posted uploads{% endblock %}
+
+{% block page_description %}
+Files posted on this site. Church messages from Drive are on the sermon page.
+{% endblock %}
+
 {% block sermons_content %}
-{% set page_heading = 'Sermons' %}
-{% if session.user_role in ['Staff', 'Admin', 'Owner'] %}
-  {% set page_action_url = url_for('sermons.upload_sermon') %}
-  {% set page_action_label = 'Add a sermon' %}
-{% endif %}
-{% include 'partials/page_hero.html' %}
+<p>
+  <a href="{{ url_for('sermons.upload_sermon') }}" class="btn btn-primary">Add a sermon</a>
+</p>
 
 <div class="member-feed">
   {% if sermons %}

@@ -105,6 +105,9 @@
                         <td>{{ c.content_type|capitalize }}</td>
                         <td style="max-width:160px;">
                             <strong>{{ c.parent_title or ('#' ~ c.parent_id) }}</strong>
+                            {% if c.content_type == 'sermon_drive' and c.section_url %}
+                            <br><a href="{{ c.section_url }}">Watch / listen</a>
+                            {% endif %}
                         </td>
                         <td>{{ c.name or 'Anonymous' }}</td>
                         <td style="max-width:360px; white-space:pre-wrap; font-size:0.88rem;">{{ c.body or '' }}</td>

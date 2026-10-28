@@ -27,6 +27,7 @@ MANAGER_COMMENTS_ENDPOINTS = {
     'event': ('the_gathering.events.event_comments', 'event_id'),
     'prayer': ('the_gathering.prayers.prayer_comments', 'prayer_id'),
     'sermon': ('the_gathering.sermons.sermon_comments', 'sermon_id'),
+    'sermon_drive': ('sermons.library_listen', 'item_id'),
     'dream': ('the_gathering.dreams.dream_comments', 'dream_id'),
     'prophecy': ('the_gathering.prophecies.prophecy_comments', 'prophecy_id'),
     'announcement': ('the_gathering.announcements.announcement_comments', 'announcement_id'),
@@ -49,6 +50,13 @@ def manager_view_url(content_type, item_id):
         return url_for('the_gathering.dashboard.dashboard')
     endpoint, param = mapping
     return url_for(endpoint, **{param: item_id})
+
+
+def comment_console_allowed(role, gathering_ok=False) -> bool:
+    """Who may open the list of every comment. Staff included. Members are not."""
+    if gathering_ok:
+        return True
+    return (role or '') in ('Staff', 'Admin', 'Owner')
 
 
 def manager_comments_url(content_type, parent_id):

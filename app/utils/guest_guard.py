@@ -98,5 +98,11 @@ def allow_guest_post(form) -> bool:
 def should_guard_public_post() -> bool:
     if request.method != 'POST' or guest_is_signed_in():
         return False
-    action = (request.form.get('action') or '').strip()
+    # The Drive message route treats a missing action as a comment and
+    # lowercases the action before it saves. Check this path first so a
+    # guest cannot skip the captcha by leaving the action off or changing its case.
+    path = (request.path or '').rstrip('/')
+    if path.startswith('/public/sermons/library/') and path.endswith('/comment'):
+        return True
+    action = (request.form.get('action') or '').strip().lower()
     return action in GUEST_POST_ACTIONS

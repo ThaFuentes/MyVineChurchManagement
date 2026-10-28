@@ -1,0 +1,8 @@
+{% extends "sermons/base_sermons.html" %}
+
+{% block page_title %}{{ message.title | censor }}{% endblock %}
+{% block page_description %}{% endblock %}
+
+{% block sermons_content %}
+{% include 'sermons/_listen_body.html' %}
+{% endblock %}

@@ -87,6 +87,9 @@ def moderation_desk():
         return redirect(url_for('church.moderation_desk'))
 
     comments = fetch_moderation_comments_queue(limit=80, status_filter='all')
+    from app.models.notifications import content_url
+    for comment in comments:
+        comment['page_url'] = content_url(comment.get('content_type'), comment.get('parent_id'))
     from app.models.social import list_recent_wall_posts
     posts = list_recent_wall_posts(session.get('user_id'), limit=24)
     prayers = []

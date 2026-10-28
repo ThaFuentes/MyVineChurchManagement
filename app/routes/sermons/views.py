@@ -30,10 +30,22 @@ sermons_bp = Blueprint('sermons', __name__, url_prefix='/sermons')
 
 
 # ----------------------------------------------------------------------
-# Main Sermons List – /sermons
+# Message library – /sermons
+# Drive files stay on Google. This page is the site overview.
 # ----------------------------------------------------------------------
 @sermons_bp.route('/')
 def sermons():
+    from .drive_pages import render_library
+    return render_library()
+
+
+# ----------------------------------------------------------------------
+# Earlier uploads posted on this site – /sermons/posted
+# ----------------------------------------------------------------------
+@sermons_bp.route('/posted')
+@login_required
+@role_required(STAFF_ROLES)
+def posted_sermons():
     is_logged_in = 'user_id' in session
     user_id = session.get('user_id')
 
@@ -76,7 +88,7 @@ def sermons():
     public_count = sum(1 for s in sermons_list if s.get('visibility') == 'public')
     private_count = sum(1 for s in sermons_list if s.get('visibility') == 'private')
 
-    template = 'public/sermons/sermons.html' if not is_logged_in else 'sermons/sermons.html'
+    template = 'sermons/sermons.html'
     return render_template(
         template,
         sermons=sermons_list,
@@ -164,12 +176,13 @@ def upload_sermon():
             log_change(user_id, 'create_sermon', target_id=sermon_id,
                        change_details=f"Uploaded sermon '{title}' (visibility: {visibility})")
             flash('Sermon uploaded successfully.', 'success')
+            return redirect(url_for('sermons.posted_sermons'))
 
         except Exception as e:
             flash('Upload failed.', 'error')
             print(f"Upload sermon error: {e}\n{traceback.format_exc()}")
 
-        return redirect(url_for('sermons.sermons'))
+        return redirect(url_for('sermons.posted_sermons'))
 
     return render_template('sermons/add_sermon.html')
 
@@ -243,12 +256,13 @@ def edit_sermon(sermon_id):
             log_change(user_id, 'update_sermon', target_id=sermon_id,
                        change_details=f"Updated sermon '{title}' (visibility: {visibility})")
             flash('Sermon updated successfully.', 'success')
+            return redirect(url_for('sermons.posted_sermons'))
 
         except Exception as e:
             flash('Error updating sermon.', 'error')
             print(f"Edit sermon error: {e}\n{traceback.format_exc()}")
 
-        return redirect(url_for('sermons.sermons'))
+        return redirect(url_for('sermons.posted_sermons'))
 
     return render_template('sermons/add_sermon.html', sermon=sermon, is_edit=True)
 
@@ -280,12 +294,13 @@ def delete_sermon(sermon_id):
         log_change(user_id, 'delete_sermon', target_id=sermon_id,
                    change_details=f"Deleted sermon '{sermon['title']}'")
         flash('Sermon deleted successfully.', 'success')
+        return redirect(url_for('sermons.posted_sermons'))
 
     except Exception as e:
         flash('Error deleting sermon.', 'error')
         print(f"Delete sermon error: {e}\n{traceback.format_exc()}")
 
-    return redirect(url_for('sermons.sermons'))
+    return redirect(url_for('sermons.posted_sermons'))
 
 
 # ----------------------------------------------------------------------
@@ -380,3 +395,7 @@ def delete_comment(sermon_id, comment_id):
         flash('Error deleting comment.', 'error')
 
     return redirect(url_for('sermons.sermons'))
+
+
+from .drive_pages import register as register_drive_pages
+register_drive_pages(sermons_bp)

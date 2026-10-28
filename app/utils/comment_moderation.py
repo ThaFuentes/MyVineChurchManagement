@@ -41,6 +41,17 @@ COMMENT_TYPES = {
         'label': 'Sermon comment',
         'manager_section': 'sermons',
     },
+    'sermon_drive': {
+        'table': 'sermon_drive_comments',
+        'parent_col': 'item_id',
+        'text_col': 'comment',
+        'name_col': 'contributor_name',
+        'ip_col': 'ip_address',
+        'user_col': 'user_id',
+        'date_col': 'date_added',
+        'label': 'Message comment',
+        'manager_section': 'sermons',
+    },
     'dream': {
         'table': 'dream_comments',
         'parent_col': 'dream_id',
@@ -105,6 +116,7 @@ PARENT_JOINS = {
     'event': ('events e', 'e.id = c.event_id', 'e.event_name'),
     'prayer': ('prayers p', 'p.id = c.prayer_request_id', 'p.title'),
     'sermon': ('sermons s', 's.id = c.sermon_id', 's.title'),
+    'sermon_drive': ('sermon_drive_items i', 'i.id = c.item_id', 'i.title'),
     'dream': ('dreams d', 'd.id = c.dream_id', 'd.title'),
     'prophecy': ('prophecies pr', 'pr.id = c.prophecy_id', 'pr.title'),
     'announcement': ('announcements a', 'a.id = c.announcement_id', 'a.title'),
@@ -209,12 +221,14 @@ def get_comment_stats():
         'event': 'event_comments',
         'prayer': 'prayer_comments',
         'sermon': 'sermon_comments',
+        'sermon_drive': 'sermon_drive_comments',
         'dream': 'dream_comments',
         'prophecy': 'prophecy_comments',
         'announcement': 'announcement_comments',
         'photo': 'photo_comments',
     }
     stats['photo_comments'] = {'total': 0, 'shadowed': 0}
+    stats['sermon_drive_comments'] = {'total': 0, 'shadowed': 0}
     for ctype, cfg in COMMENT_TYPES.items():
         key = key_map.get(ctype)
         if not key:
@@ -322,11 +336,28 @@ def fetch_manager_comments(content_type, parent_id, search=None, status_filter='
     return rows
 
 
+def sanitize_comment_body(value, limit=2000) -> str:
+    """Plain comment text. Invisible characters and control bytes are dropped.
+
+    The stored text stays readable for members and moderators. Pages escape it.
+    An address is not part of this text.
+    """
+    import unicodedata
+    chars = []
+    for ch in str(value or ''):
+        if unicodedata.category(ch) == 'Cf':
+            continue
+        if ch in '\n\t' or ch >= ' ':
+            chars.append(ch)
+    text = unicodedata.normalize('NFKC', ''.join(chars)).strip()
+    return text[:limit]
+
+
 def validate_comment_moderation_form(form_data):
     """Validate manager moderation POST."""
-    action = (form_data.get('action') or '').strip()
+    action = (form_data.get('action') or '').strip().lower()
     comment_id = (form_data.get('comment_id') or '').strip()
-    new_text = (form_data.get('new_text') or '').strip()
+    new_text = ''
 
     if not action or not comment_id or not comment_id.isdigit():
         flash('Invalid moderation request.', 'error')
@@ -336,9 +367,19 @@ def validate_comment_moderation_form(form_data):
         flash('Unknown moderation action.', 'error')
         return None
 
-    if action == 'edit' and not new_text:
-        flash('Edited comment text cannot be empty.', 'error')
-        return None
+    if action == 'edit':
+        from app.utils.helpers import CENSORED_WORD_MESSAGE, contains_censored_word
+        raw = str(form_data.get('new_text') or '')
+        if len(raw.strip()) > 2000:
+            flash('Keep the comment under 2000 characters.', 'error')
+            return None
+        new_text = sanitize_comment_body(raw, 2000)
+        if not new_text:
+            flash('Edited comment text cannot be empty.', 'error')
+            return None
+        if contains_censored_word(new_text):
+            flash(CENSORED_WORD_MESSAGE, 'error')
+            return None
 
     return {
         'action': action,
@@ -564,6 +605,8 @@ def map_comments_legacy(comments):
             'date': c['created_at_nice'],
             'parent_id': c['parent_id'],
             'edited_by_moderator': c.get('edited_by_moderator'),
+            'shadowed': c.get('shadowed') or 0,
+            'removed': c.get('removed') or 0,
         }
         for c in comments
     ]

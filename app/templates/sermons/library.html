@@ -1,0 +1,90 @@
+{% extends "sermons/base_sermons.html" %}
+
+{% block sermons_content %}
+{% set page_heading = 'Sermons' %}
+{% set page_lede = 'Messages from our ministers and guest speakers.' %}
+{% include 'partials/page_hero.html' %}
+
+<p class="help-text">Details you save here stay on this site. The Drive files are not changed or downloaded.</p>
+
+{% if is_staff %}
+<div class="public-list-actions" style="margin-bottom:1rem;">
+  <form method="post" action="{{ url_for('sermons.library_refresh') }}" class="inline-form">
+    {% include 'partials/csrf_field.html' %}
+    <button type="submit" class="btn btn-secondary btn-small">Refresh from Drive</button>
+  </form>
+  <a href="{{ url_for('sermons.posted_sermons') }}" class="btn-secondary btn-small">Posted uploads</a>
+  {% if comment_console_url %}
+  <a href="{{ comment_console_url }}" class="btn-secondary btn-small">All comments</a>
+  {% endif %}
+</div>
+<form method="post" action="{{ url_for('sermons.library_schedule') }}" class="styled-form" style="margin-bottom:1rem;">
+  {% include 'partials/csrf_field.html' %}
+  <div class="form-group">
+    <label for="refresh-hours">How often to read Drive</label>
+    <select id="refresh-hours" name="refresh_hours" class="form-input">
+      {% for hours, label in refresh_choices %}
+      <option value="{{ hours }}" {% if refresh_hours == hours %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <p class="help-text">
+      Once a week fits a Sunday upload. Pick daily or every 8 hours if messages go up more often.
+      Opening the library or a message uses this schedule. It does not read Drive on every play.
+      Refresh from Drive reads it now.
+    </p>
+  </div>
+  <button type="submit" class="btn btn-secondary btn-small">Save schedule</button>
+</form>
+<form method="post" action="{{ url_for('sermons.library_default_visibility') }}" class="styled-form" style="margin-bottom:1rem;">
+  {% include 'partials/csrf_field.html' %}
+  <div class="form-group">
+    <label for="default-visibility">New messages from Drive</label>
+    <select id="default-visibility" name="visibility" class="form-input">
+      {% for value, label in visibility_choices %}
+      <option value="{{ value }}" {% if default_visibility == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <p class="help-text">
+      New files start with this. Admin and Owner keeps a new message locked until you change it.
+      Messages already in the library stay as they are.
+    </p>
+  </div>
+  <button type="submit" class="btn btn-secondary btn-small">Save default</button>
+</form>
+<form method="post" action="{{ url_for('sermons.library_visibility_all') }}" class="styled-form" style="margin-bottom:1rem;"
+      onsubmit="return confirm('Set every message in the library to this?');">
+  {% include 'partials/csrf_field.html' %}
+  <div class="form-group">
+    <label for="all-visibility">Set every message</label>
+    <select id="all-visibility" name="visibility" class="form-input">
+      {% for value, label in visibility_choices %}
+      <option value="{{ value }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+    <p class="help-text">
+      This changes who can listen on every message right now. Titles you edited stay.
+      Hidden messages stay hidden. Drive files are not changed.
+    </p>
+  </div>
+  <button type="submit" class="btn btn-secondary btn-small">Apply to all</button>
+</form>
+{% endif %}
+
+{% include 'sermons/_library_cards.html' %}
+
+{% if is_owner %}
+<section class="content-section" style="margin-top:1.5rem;">
+  <h2 class="section-title">Drive folder</h2>
+  <form method="post" action="{{ url_for('sermons.library_source') }}" class="styled-form">
+    {% include 'partials/csrf_field.html' %}
+    <div class="form-group">
+      <label for="drive-folder">Folder link or id</label>
+      <input id="drive-folder" name="folder" type="text" class="form-input" value="" autocomplete="off"
+             placeholder="paste a new folder id">
+      <p class="help-text">Saved on this site only. It is not shown on the message pages.</p>
+    </div>
+    <button type="submit" class="btn btn-secondary btn-small">Save folder</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

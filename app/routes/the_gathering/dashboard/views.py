@@ -11,14 +11,19 @@
 from flask import render_template, session, redirect, url_for, flash, request
 
 from . import dashboard_bp
-from ..permissions import gathering_place_required
+from ..permissions import gathering_place_required, user_can_access_gathering_place
 from .queries import (
     get_dashboard_stats,
     get_recent_activity,
     get_pending_moderation,
     get_pending_prayer_submissions,
 )
-from .utils import format_manager_datetime, manager_view_url, manager_comments_url
+from .utils import (
+    comment_console_allowed,
+    format_manager_datetime,
+    manager_comments_url,
+    manager_view_url,
+)
 from app.models.db import get_db
 from app.utils.comment_moderation import fetch_moderation_comments_queue, handle_manager_comments_post
 
@@ -63,9 +68,19 @@ def dashboard():
 
 
 @dashboard_bp.route('/moderation', methods=['GET', 'POST'])
-@gathering_place_required
 def moderation_queue():
     """Unified moderation hub - inline actions on all comments plus pending prayers."""
+    if 'user_id' not in session:
+        flash('Please log in to access the Gathering Place Manager.', 'error')
+        return redirect(url_for('auth.login'))
+    if not comment_console_allowed(session.get('user_role'), user_can_access_gathering_place()):
+        flash(
+            'Site moderation is granted under Members → People tools '
+            '(Site moderation, or Prayers / Sermons / Events moderate). '
+            'The old Gathering Place Managers group still works too.',
+            'error',
+        )
+        return redirect(url_for('dashboard.dashboard'))
     status_filter = request.args.get('filter', 'all')
     search = request.args.get('search', '').strip() or None
 

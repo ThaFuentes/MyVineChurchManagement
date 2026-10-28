@@ -1,0 +1,75 @@
+{% if years %}
+<p class="public-list-meta" style="margin:0 0 1rem;">
+  {% if active_year %}
+  <a href="{{ url_for(request.endpoint) }}">All</a>
+  {% else %}
+  <strong>All</strong>
+  {% endif %}
+  {% for y in years %}
+    ·
+    {% if active_year == y %}
+    <strong>{{ y }}</strong>
+    {% else %}
+    <a href="{{ url_for(request.endpoint, year=y) }}">{{ y }}</a>
+    {% endif %}
+  {% endfor %}
+</p>
+{% endif %}
+
+{% if playlist_url %}
+<p style="margin:0 0 1rem;">
+  <a class="btn btn-primary" href="{{ playlist_url }}">{{ playlist_label or 'Watch / listen to all' }}</a>
+</p>
+{% endif %}
+
+{% if messages %}
+<div class="public-card-grid">
+  {% for message in messages %}
+  <article class="glass-panel public-list-card sermon-card">
+    <h3>
+      <a href="{{ url_for('sermons.library_listen', item_id=message.id) }}">{{ message.title | censor }}</a>
+    </h3>
+    <div class="public-list-meta">
+      {% if message.preached_label %}<strong>Preached:</strong> {{ message.preached_label }}<br>{% endif %}
+      {% if message.speaker %}<strong>By:</strong> {{ message.speaker | censor }}<br>{% endif %}
+      {% if message.series %}<strong>Series:</strong> {{ message.series | censor }}<br>{% endif %}
+      {% if message.scripture %}<strong>Scripture:</strong> {{ message.scripture | censor }}{% endif %}
+    </div>
+    {% if message.summary %}
+    <p class="public-list-body">{{ message.summary | censor | truncate(220) }}</p>
+    {% endif %}
+    {% if message.comment_count %}
+    <p class="help-text">{{ message.comment_count }} comment{% if message.comment_count != 1 %}s{% endif %}</p>
+    {% endif %}
+    {% if message.can_edit or can_moderate_comments %}
+    <p class="help-text"><a href="{{ url_for('sermons.library_listen', item_id=message.id) }}#sermon-comments">Moderate comments</a></p>
+    {% endif %}
+    {% if message.missing %}
+    <p class="help-text">This file is no longer in the Drive folder.</p>
+    {% elif message.visibility == 'leaders' %}
+    <p class="help-text">This message is for church leaders.</p>
+    {% elif message.lock_message %}
+    <p class="help-text">{{ message.lock_message }}</p>
+    {% endif %}
+    <div class="public-list-actions">
+      {% if message.can_listen %}
+      <a href="{{ url_for('sermons.library_listen', item_id=message.id) }}" class="btn btn-primary">Listen</a>
+      {% elif not session.user_id %}
+      <a href="{{ url_for('auth.login') }}" class="btn btn-primary">Sign in to listen</a>
+      {% endif %}
+      {% if message.can_edit %}
+      <a href="{{ url_for('sermons.library_edit', item_id=message.id) }}" class="btn-secondary btn-small">Edit</a>
+      {% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="glass-panel public-empty">
+  {% if active_year %}
+  No messages for {{ active_year }}.
+  {% else %}
+  No messages in the library yet.
+  {% endif %}
+</div>
+{% endif %}

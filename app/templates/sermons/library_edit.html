@@ -1,0 +1,80 @@
+{% extends "sermons/base_sermons.html" %}
+
+{% block page_title %}Edit message{% endblock %}
+
+{% block page_description %}
+Details you save here stay on this site. The Drive file is not changed or downloaded.
+{% endblock %}
+
+{% block sermons_content %}
+<section class="content-section">
+  <form method="post" action="{{ url_for('sermons.library_edit', item_id=message.id) }}" class="styled-form">
+    {% include 'partials/csrf_field.html' %}
+
+    {% if message.drive_name %}
+    <div class="form-group">
+      <label>File name on Drive</label>
+      <p class="help-text">{{ message.drive_name }}</p>
+    </div>
+    {% endif %}
+
+    <div class="form-group">
+      <label for="title">Title <span class="required">*</span></label>
+      <input type="text" id="title" name="title" class="form-input" required maxlength="255"
+             value="{{ message.title }}">
+    </div>
+
+    <div class="form-group">
+      <label for="speaker">Speaker</label>
+      <input type="text" id="speaker" name="speaker" class="form-input" maxlength="160"
+             value="{{ message.speaker }}">
+    </div>
+
+    <div class="form-group">
+      <label for="preached_on">Date preached</label>
+      <input type="date" id="preached_on" name="preached_on" class="form-input"
+             value="{{ message.preached_on }}">
+    </div>
+
+    <div class="form-group">
+      <label for="series">Series</label>
+      <input type="text" id="series" name="series" class="form-input" maxlength="160"
+             value="{{ message.series }}">
+    </div>
+
+    <div class="form-group">
+      <label for="scripture">Scripture</label>
+      <input type="text" id="scripture" name="scripture" class="form-input" maxlength="255"
+             value="{{ message.scripture }}">
+    </div>
+
+    <div class="form-group">
+      <label for="summary">Summary</label>
+      <textarea id="summary" name="summary" rows="5" class="form-input" maxlength="4000">{{ message.summary }}</textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="visibility">Who can listen</label>
+      <select id="visibility" name="visibility" class="form-input">
+        <option value="public" {% if message.visibility == 'public' %}selected{% endif %}>Anyone</option>
+        <option value="members" {% if message.visibility == 'members' %}selected{% endif %}>Signed-in members</option>
+        <option value="leaders" {% if message.visibility == 'leaders' %}selected{% endif %}>Admin and Owner</option>
+      </select>
+      <p class="help-text">Anyone can listen unless you lock this message. Staff can still open it to check the player.</p>
+    </div>
+
+    <div class="form-group">
+      <label>
+        <input type="checkbox" name="hidden" value="1" {% if message.hidden %}checked{% endif %}>
+        Hide from the library (staff can still open it)
+      </label>
+    </div>
+
+    {% if message.missing %}
+    <p class="help-text">This file is no longer in the Drive folder. Saving here does not put it back.</p>
+    {% endif %}
+
+    <button type="submit" class="btn btn-primary">Save details</button>
+  </form>
+</section>
+{% endblock %}

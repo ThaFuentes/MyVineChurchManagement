@@ -13,9 +13,8 @@ from flask import render_template, abort, request, flash, redirect, url_for, ses
 import pymysql
 
 from . import sermons_bp
-from .queries import get_public_sermons, get_public_sermon
+from .queries import get_public_sermon
 from .forms import validate_guest_comment_form
-from .utils import censor_public_content
 
 from app.models.db import get_db
 from app.utils.helpers import censor_text
@@ -29,36 +28,15 @@ from app.utils.comment_moderation import (
 # ----------------------------------------------------------------------
 @sermons_bp.route('/')
 def public_sermons():
-    """Public sermons listing - logged-in users are redirected to private dashboard."""
-    if 'user_id' in session:
-        return redirect(url_for('sermons.sermons'))
+    """Message library. Guests and members see the same Drive overview in their own shell."""
+    if 'user_id' not in session:
+        from app.utils.community_participation import can_view_community_public
+        if not can_view_community_public('sermons'):
+            flash('Sermons are not available to visitors on this site.', 'info')
+            return redirect(url_for('public.public_dashboard.public_dashboard'))
 
-    from app.utils.community_participation import can_view_community_public
-    if not can_view_community_public('sermons'):
-        flash('Sermons are not available to visitors on this site.', 'info')
-        return redirect(url_for('public.public_dashboard.public_dashboard'))
-
-    # Guest view only
-    sermons = get_public_sermons()
-    sermons = censor_public_content(sermons)
-
-    # Prepare data for template - SAFE date formatting + creator_name fallback
-    for s in sermons:
-        # Safe date formatting (handles both datetime objects and strings)
-        uploaded_at = s.get('uploaded_at')
-        if uploaded_at:
-            if hasattr(uploaded_at, 'strftime'):
-                s['datetime'] = uploaded_at.strftime('%B %d, %Y')
-            else:
-                # It's a string (common with pymysql)
-                s['datetime'] = str(uploaded_at)[:10]  # take YYYY-MM-DD part
-        else:
-            s['datetime'] = 'Unknown'
-
-        # Creator name - use creator_name first, then fallback
-        s['posted_by'] = s.get('creator_name') or 'Anonymous'
-
-    return render_template('public/sermons/sermons.html', sermons=sermons)
+    from app.routes.sermons.drive_pages import render_library
+    return render_library()
 
 
 # ----------------------------------------------------------------------
@@ -128,6 +106,13 @@ def public_sermon_detail(sermon_id):
 
     return render_template('public/sermons/view_sermon.html',
                            sermon=sermon, comments_enabled=comments_enabled)
+
+
+@sermons_bp.route('/library/<int:item_id>/comment', methods=['POST'])
+def library_comment(item_id):
+    """Guest and member comments on a Drive message. The public path stays open to visitors."""
+    from app.routes.sermons.drive_pages import post_library_comment
+    return post_library_comment(item_id)
 
 
 # print(" MYVINECHURCH.ONLINE public/sermons/views.py loaded successfully (comments key fixed + Events gold standard applied)")

@@ -23,6 +23,7 @@ COMMENT_TABLES = (
     'prayers_added',
     'page_photo_comments',
     'community_post_comments',
+    'sermon_drive_comments',
 )
 
 
