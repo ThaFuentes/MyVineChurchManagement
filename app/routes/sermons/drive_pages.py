@@ -31,11 +31,13 @@ from app.utils.sermon_drive import (
     list_speakers,
     listen_count,
     listen_counts,
+    may_set_sermon_privacy,
     maybe_sync,
     merge_named_people,
     open_local_copy,
     parse_search,
     parse_sort,
+    parse_visibility,
     parse_who,
     people_from_rows,
     present,
@@ -52,6 +54,7 @@ from app.utils.sermon_drive import (
     save_item_details,
     save_refresh_hours,
     save_sermon_reaction,
+    set_item_visibility,
     sermon_reaction_totals,
     sermon_reactions,
     share_message_link,
@@ -165,12 +168,15 @@ def _clean_year(value):
     return year
 
 
-def _scope_rows(rows, *, logged_in, role, who, query):
+def _scope_rows(rows, *, logged_in, role, who, query, user_id=None):
     """Messages this person can see, the Message from list, and the active name.
 
     A name that is not on that list is dropped, so a typed filter is not echoed.
     """
-    visible = [row for row in rows or [] if can_see(row, logged_in=logged_in, role=role)]
+    visible = [
+        row for row in rows or []
+        if can_see(row, logged_in=logged_in, role=role, user_id=user_id)
+    ]
     people = people_from_rows(visible)
     if role in EDITORS:
         try:
@@ -202,6 +208,28 @@ def _message_settings():
     return redirect(url_for('settings.messages'))
 
 
+def _account_id(user):
+    return user.get('id') if user else None
+
+
+def _form_keeping_privacy(form, row):
+    """Drop a privacy change from someone who cannot set who listens."""
+    data = form.to_dict(flat=True) if hasattr(form, 'to_dict') else dict(form)
+    data['visibility'] = row.get('visibility') or 'public'
+    if _flag_hidden(row):
+        data['hidden'] = '1'
+    else:
+        data.pop('hidden', None)
+    return data
+
+
+def _flag_hidden(row):
+    try:
+        return int(row.get('hidden') or 0) == 1
+    except (TypeError, ValueError):
+        return bool(row.get('hidden'))
+
+
 _SPEAKER_NOTES = frozenset({
     'Choose a speaker from the list.',
     'Choose a member from the list.',
@@ -217,9 +245,11 @@ _SPEAKER_NOTES = frozenset({
 def render_library():
     maybe_sync()
     year, sort, query, who = _library_filters()
-    logged_in, role, _user = _viewer()
+    logged_in, role, user = _viewer()
+    account_id = _account_id(user)
     people, who, who_label, matched = _scope_rows(
         list_items(sort), logged_in=logged_in, role=role, who=who, query=query,
+        user_id=account_id,
     )
     years = []
     seen_years = set()
@@ -233,7 +263,7 @@ def render_library():
     for row in matched:
         if year and row_year(row) != year:
             continue
-        shown.append(present(row, logged_in=logged_in, role=role))
+        shown.append(present(row, logged_in=logged_in, role=role, user_id=account_id))
     totals = sermon_reaction_totals([item.get('id') for item in shown])
     started = listen_counts([item.get('id') for item in shown])
     for item in shown:
@@ -283,16 +313,17 @@ def library_listen(item_id):
     maybe_sync()
     row = get_item(item_id)
     logged_in, role, user = _viewer()
-    if not row or not can_see(row, logged_in=logged_in, role=role):
+    account_id = _account_id(user)
+    if not row or not can_see(row, logged_in=logged_in, role=role, user_id=account_id):
         abort(404)
-    can_play = can_listen(row, logged_in=logged_in, role=role)
-    account_id = user.get('id') if user else None
+    can_play = can_listen(row, logged_in=logged_in, role=role, user_id=account_id)
     can_moderate = _can_moderate_comments(role, account_id)
     year, sort, query, who = _library_filters()
     playlist = None
     if request.args.get('playlist') == '1' and can_play:
         _people, who, _label, matched = _scope_rows(
             list_items(sort), logged_in=logged_in, role=role, who=who, query=query,
+            user_id=account_id,
         )
         playlist = playlist_spot(
             matched,
@@ -301,6 +332,7 @@ def library_listen(item_id):
             role=role,
             year=year,
             sort=sort,
+            user_id=account_id,
         )
         if playlist is not None:
             playlist['who'] = who
@@ -315,8 +347,10 @@ def library_listen(item_id):
     template = 'sermons/listen.html' if logged_in else 'public/sermons/listen.html'
     return render_template(
         template,
-        message=present(row, logged_in=logged_in, role=role),
+        message=present(row, logged_in=logged_in, role=role, user_id=account_id),
         listen_count=started,
+        can_set_privacy=bool(can_play and may_set_sermon_privacy(account_id, role, row)),
+        visibility_choices=VISIBILITY_CHOICES,
         reactions=reactions,
         reaction_choices=SERMON_REACTIONS,
         comments=drive_comment_thread(
@@ -339,11 +373,15 @@ def library_play():
     """Open the first message this person can play, and keep going from there."""
     maybe_sync()
     year, sort, query, who = _library_filters()
-    logged_in, role, _user = _viewer()
+    logged_in, role, user = _viewer()
+    account_id = _account_id(user)
     _people, who, _label, matched = _scope_rows(
         list_items(sort), logged_in=logged_in, role=role, who=who, query=query,
+        user_id=account_id,
     )
-    chosen = playlist_rows(matched, logged_in=logged_in, role=role, year=year)
+    chosen = playlist_rows(
+        matched, logged_in=logged_in, role=role, year=year, user_id=account_id,
+    )
     if not chosen:
         flash('There is nothing to play yet.', 'info')
         return redirect(url_for('sermons.sermons', q=query or None, who=who or None))
@@ -365,7 +403,8 @@ def post_library_comment(item_id):
     maybe_sync()
     row = get_item(item_id)
     logged_in, role, user = _viewer()
-    if not row or not can_listen(row, logged_in=logged_in, role=role):
+    account_id = _account_id(user)
+    if not row or not can_listen(row, logged_in=logged_in, role=role, user_id=account_id):
         abort(404)
     keep_playlist = request.form.get('playlist') == '1' or request.args.get('playlist') == '1'
     year, sort, query, who = _library_filters()
@@ -419,14 +458,18 @@ def library_edit(item_id):
     row = get_item(item_id)
     if not row:
         abort(404)
+    logged_in, role, user = _viewer()
+    privacy_form = request.form
+    if request.method == 'POST' and not may_set_sermon_privacy(_account_id(user), role):
+        privacy_form = _form_keeping_privacy(request.form, row)
     if request.method == 'POST':
-        ok, errors = save_item_details(item_id, request.form, session.get('user_id'))
+        ok, errors = save_item_details(item_id, privacy_form, session.get('user_id'))
         for err in errors:
             flash(err, 'error')
         if ok:
             flash('Message details saved on this site.', 'success')
             return redirect(url_for('sermons.library_listen', item_id=item_id))
-        fields, _ignored = clean_edit(request.form)
+        fields, _ignored = clean_edit(privacy_form)
         form_row = dict(row)
         form_row.update(fields)
         form_row['preached_on'] = (request.form.get('preached_on') or '').strip()[:10]
@@ -438,6 +481,7 @@ def library_edit(item_id):
         message=message,
         speakers=list_speakers(),
         accounts=list_accounts(),
+        can_set_privacy=may_set_sermon_privacy(_account_id(user), role),
     )
 
 
@@ -474,7 +518,15 @@ def library_schedule():
 @login_required
 @role_required(STAFF_ROLES)
 def library_default_visibility():
-    status, visibility = save_default_visibility(request.form.get('visibility'))
+    raw = request.form.get('visibility')
+    if parse_visibility(raw) is None:
+        flash('Choose who can listen to new messages.', 'error')
+        return _message_settings()
+    _logged_in, role, user = _viewer()
+    if not may_set_sermon_privacy(_account_id(user), role):
+        flash('You do not have permission to change who can listen.', 'error')
+        return _message_settings()
+    status, visibility = save_default_visibility(raw)
     if status == 'ok':
         flash(
             f'New messages from Drive will start as {VISIBILITY_LABELS[visibility]}. '
@@ -491,7 +543,15 @@ def library_default_visibility():
 @login_required
 @role_required(STAFF_ROLES)
 def library_visibility_all():
-    status, visibility = apply_visibility_to_all(request.form.get('visibility'))
+    raw = request.form.get('visibility')
+    if parse_visibility(raw) is None:
+        flash('Choose who can listen.', 'error')
+        return _message_settings()
+    _logged_in, role, user = _viewer()
+    if not may_set_sermon_privacy(_account_id(user), role):
+        flash('You do not have permission to change who can listen.', 'error')
+        return _message_settings()
+    status, visibility = apply_visibility_to_all(raw)
     if status == 'ok':
         flash(f'Every message is now set to {VISIBILITY_LABELS[visibility]}.', 'success')
     elif status == 'error':
@@ -643,8 +703,9 @@ def _copy_listener(logged_in, role):
 def library_copy(item_id):
     """Play a saved copy for someone who can already listen. Only after Drive is missing it."""
     row = get_item(item_id)
-    logged_in, role, _user = _viewer()
-    if not row or not can_listen(row, logged_in=logged_in, role=role):
+    logged_in, role, user = _viewer()
+    account_id = _account_id(user)
+    if not row or not can_listen(row, logged_in=logged_in, role=role, user_id=account_id):
         abort(404)
     try:
         missing = int(row.get('missing_on_drive') or 0)
@@ -670,7 +731,7 @@ def library_copy_save(item_id):
     """Store one message this person can already hear. Guests are sent to login."""
     account_id, logged_in, role = _keeper()
     row = get_item(item_id)
-    if not row or not can_listen(row, logged_in=logged_in, role=role):
+    if not row or not can_listen(row, logged_in=logged_in, role=role, user_id=account_id):
         abort(404)
     _flash_copy(save_item_copy(item_id, account_id))
     return _back_to_listen(item_id)
@@ -726,9 +787,12 @@ def library_share(item_id):
     """Put a link to this sermon on the member's page. Playback stays on Drive."""
     logged_in, role, user = _viewer()
     row = get_item(item_id)
-    if not logged_in or not user or not row or not can_listen(row, logged_in=logged_in, role=role):
+    account_id = _account_id(user)
+    if not logged_in or not user or not row or not can_listen(
+        row, logged_in=logged_in, role=role, user_id=account_id,
+    ):
         abort(404)
-    card = present(row, logged_in=True, role=role)
+    card = present(row, logged_in=True, role=role, user_id=account_id)
     ok, note = share_message_link(
         user.get('id'),
         item_id,
@@ -752,7 +816,10 @@ def library_react(item_id):
     """Amen, pray, love, or like. Only someone who can already hear the message."""
     logged_in, role, user = _viewer()
     row = get_item(item_id)
-    if not logged_in or not user or not row or not can_listen(row, logged_in=logged_in, role=role):
+    account_id = _account_id(user)
+    if not logged_in or not user or not row or not can_listen(
+        row, logged_in=logged_in, role=role, user_id=account_id,
+    ):
         abort(404)
     react = (request.form.get('reaction') or '').strip().lower()
     allowed = {key for key, _label, _icon in SERMON_REACTIONS}
@@ -775,6 +842,30 @@ def library_react(item_id):
     ) + '#sermon-actions')
 
 
+@login_required
+def library_privacy(item_id):
+    """Who can listen. Owner and Admin, a granted permission, or the assigned member."""
+    row = get_item(item_id)
+    logged_in, role, user = _viewer()
+    account_id = _account_id(user)
+    if not row or not can_see(row, logged_in=logged_in, role=role, user_id=account_id):
+        abort(404)
+    if not can_listen(row, logged_in=logged_in, role=role, user_id=account_id):
+        abort(404)
+    if not may_set_sermon_privacy(account_id, role, row):
+        flash('You do not have permission to change who can listen.', 'error')
+        return _back_to_listen(item_id)
+    visibility = parse_visibility(request.form.get('visibility'))
+    if visibility is None:
+        flash('Choose who can listen.', 'error')
+        return _back_to_listen(item_id)
+    if set_item_visibility(item_id, visibility):
+        flash('Who can listen was saved.', 'success')
+    else:
+        flash('That choice could not be saved just now.', 'error')
+    return _back_to_listen(item_id)
+
+
 def register(bp):
     @bp.record_once
     def _player_header(state):
@@ -785,6 +876,7 @@ def register(bp):
     bp.add_url_rule('/library/speakers/add', 'library_speaker_add', library_speaker_add, methods=['POST'])
     bp.add_url_rule('/library/speakers', 'library_speakers', library_speakers, methods=['GET', 'POST'])
     bp.add_url_rule('/library/<int:item_id>/share', 'library_share', library_share, methods=['POST'])
+    bp.add_url_rule('/library/<int:item_id>/privacy', 'library_privacy', library_privacy, methods=['POST'])
     bp.add_url_rule('/library/<int:item_id>/react', 'library_react', library_react, methods=['POST'])
     bp.add_url_rule(
         '/library/source-update', 'library_source_update', library_source_update, methods=['POST']

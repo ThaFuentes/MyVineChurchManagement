@@ -875,7 +875,17 @@ def _folder_closed(row):
     return not _flag(row.get('source_enabled'))
 
 
-def can_listen(row, *, logged_in, role):
+def _assigned_listener(row, user_id):
+    """The member account this message was assigned to. A posted id does not count."""
+    try:
+        linked = int(row.get('speaker_user_id') or 0)
+        viewer = int(user_id)
+    except (TypeError, ValueError):
+        return False
+    return linked > 0 and linked == viewer
+
+
+def can_listen(row, *, logged_in, role, user_id=None):
     role = _viewer_role(logged_in, role)
     editor = role in EDITORS
     if _folder_closed(row):
@@ -885,6 +895,8 @@ def can_listen(row, *, logged_in, role):
     # A missing Drive file stays staff-only unless a host copy was saved.
     if _flag(row.get('missing_on_drive')) and not local_copy_name(row):
         return editor
+    if logged_in and _assigned_listener(row, user_id):
+        return True
     visibility = (row.get('visibility') or 'public').lower()
     if editor:
         return True
@@ -897,7 +909,7 @@ def can_listen(row, *, logged_in, role):
     return False
 
 
-def can_see(row, *, logged_in, role):
+def can_see(row, *, logged_in, role, user_id=None):
     """Leaders-only, hidden, missing, and unknown locks stay off the page for everyone else."""
     role = _viewer_role(logged_in, role)
     if _folder_closed(row):
@@ -910,7 +922,7 @@ def can_see(row, *, logged_in, role):
     if visibility not in VISIBILITIES:
         return role in EDITORS
     if visibility == 'leaders':
-        return can_listen(row, logged_in=logged_in, role=role)
+        return can_listen(row, logged_in=logged_in, role=role, user_id=user_id)
     return True
 
 
@@ -930,10 +942,10 @@ def _preached_parts(value):
     return parsed, label
 
 
-def present(row, *, logged_in, role):
+def present(row, *, logged_in, role, user_id=None):
     """Card for a template. Folder ids are left out. The player URL is added only when they can listen."""
     role = _viewer_role(logged_in, role)
-    listen = can_listen(row, logged_in=logged_in, role=role)
+    listen = can_listen(row, logged_in=logged_in, role=role, user_id=user_id)
     visibility = (row.get('visibility') or 'public').lower()
     if visibility not in VISIBILITIES:
         visibility = 'public'
@@ -975,20 +987,20 @@ def present(row, *, logged_in, role):
     }
 
 
-def playlist_rows(rows, *, logged_in, role, year=''):
+def playlist_rows(rows, *, logged_in, role, year='', user_id=None):
     """Messages this person can play, in library order. Locked rows stay out."""
     chosen = []
     for row in rows or []:
         if year and row_year(row) != year:
             continue
-        if can_listen(row, logged_in=logged_in, role=role):
+        if can_listen(row, logged_in=logged_in, role=role, user_id=user_id):
             chosen.append(row)
     return chosen
 
 
-def playlist_spot(rows, item_id, *, logged_in, role, year='', sort='date'):
+def playlist_spot(rows, item_id, *, logged_in, role, year='', sort='date', user_id=None):
     """Where this message sits in the play-all list. File ids are left out."""
-    chosen = playlist_rows(rows, logged_in=logged_in, role=role, year=year)
+    chosen = playlist_rows(rows, logged_in=logged_in, role=role, year=year, user_id=user_id)
     ids = []
     for row in chosen:
         try:
@@ -1183,6 +1195,60 @@ def drive_comment_thread(item_id, viewer_ip, viewer_user_id, *, for_moderator=Fa
     except Exception as exc:
         log.warning('sermon drive comments failed: %s', type(exc).__name__)
         return []
+
+
+def may_set_sermon_privacy(user_id, role, row=None):
+    """Owner and Admin always. A granted key covers the library. An assigned member covers that message."""
+    from app.utils.permissions import role_has_full_access
+    if role_has_full_access(role):
+        return True
+    if not user_id:
+        return False
+    granted = False
+    try:
+        from app.models.db import get_db
+        from app.utils.permissions import user_has_permission_for_user
+        cur = get_db().cursor()
+        granted = bool(user_has_permission_for_user(
+            cur, int(user_id), role, 'set_sermon_privacy',
+        ))
+    except Exception as exc:
+        log.warning('sermon privacy check failed: %s', type(exc).__name__)
+        granted = False
+    if granted:
+        return True
+    if not row:
+        return False
+    return _assigned_listener(row, user_id)
+
+
+def set_item_visibility(item_id, visibility):
+    """Change who can listen. The speaker, the hidden flag, and the Drive file stay put."""
+    visibility = parse_visibility(visibility)
+    if visibility is None:
+        return False
+    try:
+        item_id = int(item_id)
+    except (TypeError, ValueError):
+        return False
+    if item_id < 1:
+        return False
+    try:
+        ensure_schema()
+        from app.models.db import get_db
+        cur = get_db().cursor()
+        cur.execute(
+            """
+            UPDATE sermon_drive_items
+               SET visibility=%s, site_edited=1
+             WHERE id=%s
+            """,
+            (visibility, item_id),
+        )
+        return True
+    except Exception as exc:
+        log.warning('sermon privacy save failed: %s', type(exc).__name__)
+        return False
 
 
 def parse_visibility(raw):
@@ -1527,6 +1593,7 @@ def list_items(sort='date'):
                    i.local_name, i.speaker_id,
                    s.label AS source_label,
                    sp.display_name AS speaker_label,
+                   sp.user_id AS speaker_user_id,
                    (SELECT COUNT(*) FROM sermon_drive_comments c
                      WHERE c.item_id = i.id
                        AND COALESCE(c.removed, 0) = 0
@@ -1554,7 +1621,8 @@ def get_item(item_id):
                    i.summary, i.series, i.preached_on, i.visibility, i.hidden, i.site_edited,
                    i.missing_on_drive, i.local_name, i.speaker_id,
                    s.label AS source_label, s.enabled AS source_enabled,
-                   sp.display_name AS speaker_label
+                   sp.display_name AS speaker_label,
+                   sp.user_id AS speaker_user_id
               FROM sermon_drive_items i
               LEFT JOIN sermon_drive_sources s ON s.id = i.source_id
               LEFT JOIN sermon_speakers sp ON sp.id = i.speaker_id

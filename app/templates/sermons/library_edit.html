@@ -51,7 +51,7 @@ Details you save here stay on this site. The Drive file is not changed.
         <option value="{{ account.id }}">{{ account.name }}</option>
         {% endfor %}
       </select>
-      <p class="help-text">Pick their account when they have one. Every message under this speaker stays with that account, including other spellings such as Tim and Tim Lien.</p>
+      <p class="help-text">Pick their account when they have one. That member can then choose who hears every message under this name. Someone without an account cannot change that. Other spellings, such as Tim and Tim Lien, stay on the same account.</p>
     </div>
 
     <div class="form-group">
@@ -77,6 +77,7 @@ Details you save here stay on this site. The Drive file is not changed.
       <textarea id="summary" name="summary" rows="5" class="form-input" maxlength="4000">{{ message.summary }}</textarea>
     </div>
 
+    {% if can_set_privacy %}
     <div class="form-group">
       <label for="visibility">Who can listen</label>
       <select id="visibility" name="visibility" class="form-input">
@@ -84,7 +85,7 @@ Details you save here stay on this site. The Drive file is not changed.
         <option value="members" {% if message.visibility == 'members' %}selected{% endif %}>Signed-in members</option>
         <option value="leaders" {% if message.visibility == 'leaders' %}selected{% endif %}>Admin and Owner</option>
       </select>
-      <p class="help-text">Anyone can listen unless you lock this message. Staff can still open it to check the player.</p>
+      <p class="help-text">Anyone can listen unless you lock this message. Staff can still open it to check the player. Owner and Admin can always change this. Someone else needs the sermon privacy permission.</p>
     </div>
 
     <div class="form-group">
@@ -93,6 +94,9 @@ Details you save here stay on this site. The Drive file is not changed.
         Hide from the library (staff can still open it)
       </label>
     </div>
+    {% else %}
+    <p class="help-text">Who can listen is set separately. Owner, Admin, a person granted that permission, or the assigned member can change it.</p>
+    {% endif %}
 
     {% if message.missing %}
     <p class="help-text">This file is no longer in the Drive folder. Saving here does not put it back.</p>

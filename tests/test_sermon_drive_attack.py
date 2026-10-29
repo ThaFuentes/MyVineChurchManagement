@@ -28,6 +28,7 @@ from app.utils.sermon_drive import (
     parse_folder_html,
     parse_refresh_hours,
     parse_visibility,
+    VISIBILITY_CHOICES,
     plan_sync,
     play_url,
     present,
@@ -710,6 +711,7 @@ class RenderTests(unittest.TestCase):
             'sermons/_message_settings.html',
             is_owner=True,
             can_keep_copy=True,
+            can_set_privacy=True,
             unsaved_count=1,
             **shared,
         )
@@ -718,9 +720,12 @@ class RenderTests(unittest.TestCase):
         self.assertIn('value=""', owner)
         self.assertNotIn(FOLDER, owner)
         self.assertIn('How often to read Drive', owner)
+        self.assertIn('Set every message', owner)
         staff = self._render('sermons/_message_settings.html', is_owner=False, can_keep_copy=False, **shared)
         self.assertNotIn('name="folder"', staff)
-        self.assertGreaterEqual(staff.count('name="csrf_token"'), 3)
+        self.assertNotIn('Set every message', staff)
+        self.assertIn('How often to read Drive', staff)
+        self.assertGreaterEqual(staff.count('name="csrf_token"'), 1)
 
 
 class TokenTests(unittest.TestCase):
@@ -1453,6 +1458,142 @@ class ListenCounterTests(unittest.TestCase):
             self.assertNotIn('export=download', page)
             self.assertNotIn('listener_key', page)
         for page in (html, one, quiet):
+            self.assertNotIn(FILE, page)
+
+
+class SermonPrivacyTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = _library_app()
+        cls.client = cls.app.test_client()
+
+    def _session(self, **keys):
+        with self.client.session_transaction() as sess:
+            sess.clear()
+            sess.update(keys)
+
+    def test_only_the_assigned_member_or_a_grant_can_change_who_listens(self):
+        saved = Mock(return_value=True)
+        row = _row(speaker_user_id=4)
+        with patch('app.models.users.get_user_by_id', return_value={'id': 4, 'role': 'Member'}), \
+                patch('app.routes.sermons.drive_pages.get_item', return_value=row), \
+                patch('app.routes.sermons.drive_pages.set_item_visibility', saved):
+            self._session(user_id=4, user_role='Owner')
+            posted = self.client.post('/sermons/library/7/privacy', data={
+                'visibility': 'members',
+                'hidden': '1',
+                'user_id': '999',
+                'drive_file_id': FILE,
+            })
+        self.assertEqual(posted.status_code, 302)
+        self.assertIn('/sermons/library/7', posted.headers['Location'])
+        saved.assert_called_once_with(7, 'members')
+
+        saved.reset_mock()
+        with patch('app.models.users.get_user_by_id', return_value={'id': 9, 'role': 'Member'}), \
+                patch('app.routes.sermons.drive_pages.get_item', return_value=row), \
+                patch('app.routes.sermons.drive_pages.may_set_sermon_privacy', return_value=False), \
+                patch('app.routes.sermons.drive_pages.set_item_visibility', saved):
+            self._session(user_id=9, user_role='Owner')
+            denied = self.client.post('/sermons/library/7/privacy', data={
+                'visibility': 'leaders', 'user_id': '4',
+            })
+        self.assertEqual(denied.status_code, 302)
+        saved.assert_not_called()
+        with self.client.session_transaction() as sess:
+            self.assertIn('You do not have permission to change who can listen.', str(sess.get('_flashes')))
+
+        saved.reset_mock()
+        with patch('app.models.users.get_user_by_id', return_value={'id': 9, 'role': 'Member'}), \
+                patch('app.routes.sermons.drive_pages.get_item', return_value=_row(visibility='leaders', speaker_user_id=4)), \
+                patch('app.routes.sermons.drive_pages.set_item_visibility', saved):
+            self._session(user_id=9, user_role='Admin')
+            missing = self.client.post('/sermons/library/7/privacy', data={'visibility': 'public', 'user_id': '4'})
+        self.assertEqual(missing.status_code, 404)
+        saved.assert_not_called()
+
+        self._session()
+        guest = self.client.post('/sermons/library/7/privacy', data={'visibility': 'members', 'user_id': '4'})
+        self.assertEqual(guest.status_code, 302)
+        self.assertIn('/login', guest.headers['Location'])
+
+    def test_staff_without_the_grant_cannot_change_privacy(self):
+        seen = {}
+
+        def fake_save(item_id, form, user_id):
+            seen['form'] = dict(form)
+            seen['user_id'] = user_id
+            return True, []
+
+        with patch('app.utils.decorators.get_user_by_id', return_value={'id': 4, 'role': 'Staff'}), \
+                patch('app.models.users.get_user_by_id', return_value={'id': 4, 'role': 'Staff'}), \
+                patch('app.routes.sermons.drive_pages.may_set_sermon_privacy', return_value=False), \
+                patch('app.routes.sermons.drive_pages.save_item_details', fake_save), \
+                patch('app.routes.sermons.drive_pages.get_item', return_value=_row(visibility='public', hidden=0)):
+            self._session(user_id=4, user_role='Owner')
+            edited = self.client.post('/sermons/library/7/edit', data={
+                'title': 'Hello',
+                'visibility': 'leaders',
+                'hidden': '1',
+                'user_id': '999',
+            })
+        self.assertEqual(edited.status_code, 302)
+        self.assertEqual(seen['user_id'], 4)
+        self.assertEqual(seen['form']['visibility'], 'public')
+        self.assertNotIn('hidden', seen['form'])
+
+        bulk = Mock(return_value=('ok', 'members'))
+        with patch('app.utils.decorators.get_user_by_id', return_value={'id': 4, 'role': 'Staff'}), \
+                patch('app.models.users.get_user_by_id', return_value={'id': 4, 'role': 'Staff'}), \
+                patch('app.routes.sermons.drive_pages.may_set_sermon_privacy', return_value=False), \
+                patch('app.routes.sermons.drive_pages.apply_visibility_to_all', bulk):
+            self._session(user_id=4, user_role='Member')
+            response = self.client.post('/sermons/library/visibility-all', data={'visibility': 'members'})
+        self.assertEqual(response.status_code, 302)
+        bulk.assert_not_called()
+
+        with patch('app.utils.decorators.get_user_by_id', return_value={'id': 2, 'role': 'Owner'}), \
+                patch('app.models.users.get_user_by_id', return_value={'id': 2, 'role': 'Owner'}), \
+                patch('app.routes.sermons.drive_pages.apply_visibility_to_all', bulk):
+            self._session(user_id=2, user_role='Member')
+            allowed = self.client.post('/sermons/library/visibility-all', data={'visibility': 'members'})
+        self.assertEqual(allowed.status_code, 302)
+        bulk.assert_called_once_with('members')
+
+    def test_the_privacy_form_is_only_for_someone_who_can_set_it(self):
+        playing = present(_row(title='Hope'), logged_in=True, role='Member')
+        with patch('app.utils.helpers.get_censored_words', return_value=[]), \
+                self.app.test_request_context('/sermons/library/7'):
+            body = self.app.jinja_env.get_template('sermons/_listen_body.html').render(
+                message=playing,
+                can_set_privacy=True,
+                visibility_choices=VISIBILITY_CHOICES,
+                listen_count=0,
+            )
+            quiet = self.app.jinja_env.get_template('sermons/_listen_body.html').render(
+                message=playing,
+                listen_count=0,
+            )
+            from app.utils.sermon_drive import edit_view
+            locked = self.app.jinja_env.get_template('sermons/library_edit.html').render(
+                message=edit_view(_row()),
+            )
+            open_form = self.app.jinja_env.get_template('sermons/library_edit.html').render(
+                message=edit_view(_row()),
+                can_set_privacy=True,
+            )
+        self.assertIn('Who can listen', body)
+        self.assertIn('name="visibility"', body)
+        self.assertIn('Signed-in members', body)
+        self.assertIn(f'https://drive.google.com/file/d/{FILE}/preview', body)
+        self.assertNotIn('name="visibility"', quiet)
+        self.assertNotIn('name="visibility"', locked)
+        self.assertIn('name="visibility"', open_form)
+        for page in (body, quiet, locked, open_form):
+            self.assertNotIn(FOLDER, page)
+            self.assertNotIn('export=download', page)
+            self.assertNotIn('speaker_user_id', page)
+        for page in (locked, open_form):
             self.assertNotIn(FILE, page)
 
 

@@ -61,6 +61,30 @@
   {% endif %}
   </div>
 
+  {% if can_set_privacy %}
+  <div id="sermon-privacy" class="msg-bar">
+    <p class="msg-bar-label">Who can listen</p>
+    <form method="post" action="{{ url_for('sermons.library_privacy', item_id=message.id) }}" class="styled-form">
+      {% include 'partials/csrf_field.html' %}
+      {% if playlist %}
+      <input type="hidden" name="playlist" value="1">
+      {% if playlist.year %}<input type="hidden" name="year" value="{{ playlist.year }}">{% endif %}
+      {% if playlist.sort|default('date') != 'date' %}<input type="hidden" name="sort" value="{{ playlist.sort }}">{% endif %}
+      {% if playlist.who|default('') %}<input type="hidden" name="who" value="{{ playlist.who }}">{% endif %}
+      {% if playlist.q|default('') %}<input type="hidden" name="q" value="{{ playlist.q }}">{% endif %}
+      {% endif %}
+      <label for="sermon-privacy-choice" class="sr-only">Who can listen</label>
+      <select id="sermon-privacy-choice" name="visibility" class="form-input">
+        {% for value, label in visibility_choices|default([]) %}
+        <option value="{{ value }}" {% if message.visibility == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-secondary btn-small">Save who can listen</button>
+    </form>
+    <p class="help-text">This blocks visitors, or other signed-in members. Staff can still open it. The Drive file is not changed.</p>
+  </div>
+  {% endif %}
+
   {% if message.can_listen %}
   <div id="sermon-actions" class="msg-bar">
     <p class="msg-bar-label">React</p>

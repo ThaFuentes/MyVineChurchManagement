@@ -868,5 +868,52 @@ class ListenCountTests(unittest.TestCase):
         self.assertEqual(closed.call_count, 2)
 
 
+class PrivacyTests(unittest.TestCase):
+    def test_the_assigned_member_can_hear_and_privacy_is_a_separate_grant(self):
+        from app.utils.sermon_drive import may_set_sermon_privacy, set_item_visibility
+
+        row = _row(visibility='leaders', speaker_user_id=4)
+        self.assertTrue(can_listen(row, logged_in=True, role='Member', user_id=4))
+        self.assertTrue(can_see(row, logged_in=True, role='Member', user_id=4))
+        self.assertFalse(can_listen(row, logged_in=True, role='Member', user_id=9))
+        self.assertFalse(can_see(row, logged_in=True, role='Member'))
+        hidden = _row(hidden=1, speaker_user_id=4)
+        self.assertFalse(can_listen(hidden, logged_in=True, role='Member', user_id=4))
+        closed = _row(visibility='public', source_enabled=0, speaker_user_id=4)
+        self.assertFalse(can_listen(closed, logged_in=True, role='Member', user_id=4))
+        card = present(row, logged_in=True, role='Member', user_id=4)
+        self.assertTrue(card['can_listen'])
+        self.assertNotIn('speaker_user_id', card)
+        self.assertNotIn(FOLDER, json.dumps(card))
+
+        db = Mock(side_effect=AssertionError('db'))
+        with patch('app.models.db.get_db', db):
+            self.assertTrue(may_set_sermon_privacy(1, 'Owner', row))
+            self.assertTrue(may_set_sermon_privacy(1, 'Admin'))
+        db.assert_not_called()
+        with patch('app.models.db.get_db', db):
+            self.assertTrue(may_set_sermon_privacy(4, 'Member', row))
+            self.assertFalse(may_set_sermon_privacy(9, 'Member', row))
+            self.assertFalse(may_set_sermon_privacy(9, 'Staff'))
+
+        with patch('app.models.db.get_db', return_value=SimpleNamespace(cursor=lambda: _Cursor())), \
+                patch('app.utils.permissions.user_has_permission_for_user', return_value=True) as granted:
+            self.assertTrue(may_set_sermon_privacy(9, 'Staff', _row()))
+        granted.assert_called_once()
+        self.assertEqual(granted.call_args.args[3], 'set_sermon_privacy')
+
+        cur = _Cursor()
+        with patch('app.utils.sermon_drive.ensure_schema'), \
+                patch('app.models.db.get_db', return_value=SimpleNamespace(cursor=lambda: cur)):
+            self.assertTrue(set_item_visibility(7, 'members'))
+            self.assertFalse(set_item_visibility(7, 'secret'))
+            self.assertFalse(set_item_visibility(7, None))
+        sql, params = cur.calls[0]
+        self.assertEqual(params, ('members', 7))
+        self.assertIn('visibility=%s', sql)
+        self.assertNotIn('hidden', sql.lower())
+        self.assertEqual(len(cur.calls), 1)
+
+
 if __name__ == '__main__':
     unittest.main()

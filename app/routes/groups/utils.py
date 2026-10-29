@@ -37,6 +37,7 @@ KNOWN_PERMISSIONS = {
     'edit_sermons': 'Edit sermons',
     'delete_sermons': 'Delete sermons',
     'moderate_sermons': 'Moderate any sermon',
+    'set_sermon_privacy': 'Set who can listen to a message',
 
     'view_prayers': 'View prayers admin',
     'create_prayers': 'Submit prayers',

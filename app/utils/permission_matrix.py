@@ -176,6 +176,7 @@ AREA_MATRIX = [
             {'id': 'edit', 'label': 'Can edit sermons', 'keys': ['edit_sermons']},
             {'id': 'delete', 'label': 'Can delete sermons', 'keys': ['delete_sermons']},
             {'id': 'moderate', 'label': 'Can moderate any sermon', 'keys': ['moderate_sermons']},
+            {'id': 'privacy', 'label': 'Can set who can listen', 'keys': ['set_sermon_privacy']},
         ],
     },
     {

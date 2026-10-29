@@ -8,6 +8,7 @@ from app.utils.sermon_drive import (
     current_default_visibility,
     current_refresh_hours,
     list_sources,
+    may_set_sermon_privacy,
     unsaved_count,
 )
 
@@ -34,5 +35,6 @@ def messages():
         is_owner=role == 'Owner',
         is_staff=True,
         can_keep_copy=can_keep,
+        can_set_privacy=may_set_sermon_privacy(account_id, role),
         unsaved_count=unsaved_count(_copy_listener(True, role)) if can_keep else 0,
     )
