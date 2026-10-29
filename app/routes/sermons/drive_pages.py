@@ -29,6 +29,8 @@ from app.utils.sermon_drive import (
     list_items,
     list_sources,
     list_speakers,
+    listen_count,
+    listen_counts,
     maybe_sync,
     merge_named_people,
     open_local_copy,
@@ -37,6 +39,7 @@ from app.utils.sermon_drive import (
     parse_who,
     people_from_rows,
     present,
+    record_listen,
     save_drive_comment,
     save_item_copy,
     save_next_copy,
@@ -232,11 +235,15 @@ def render_library():
             continue
         shown.append(present(row, logged_in=logged_in, role=role))
     totals = sermon_reaction_totals([item.get('id') for item in shown])
+    started = listen_counts([item.get('id') for item in shown])
     for item in shown:
         try:
-            item['reaction_total'] = totals.get(int(item.get('id')), 0)
+            item_id = int(item.get('id'))
+            item['reaction_total'] = totals.get(item_id, 0)
+            item['listen_count'] = started.get(item_id, 0)
         except (TypeError, ValueError):
             item['reaction_total'] = 0
+            item['listen_count'] = 0
     template = 'sermons/library.html' if logged_in else 'public/sermons/library.html'
     account_id = session.get('user_id') if logged_in else None
     can_moderate_comments = _can_moderate_comments(role, account_id)
@@ -301,10 +308,15 @@ def library_listen(item_id):
     reactions = sermon_reactions(item_id, account_id) if can_play else {
         'counts': {}, 'mine': '', 'total': 0, 'shares': 0,
     }
+    started = 0
+    if can_play:
+        record_listen(item_id, account_id, request.remote_addr)
+        started = listen_count(item_id)
     template = 'sermons/listen.html' if logged_in else 'public/sermons/listen.html'
     return render_template(
         template,
         message=present(row, logged_in=logged_in, role=role),
+        listen_count=started,
         reactions=reactions,
         reaction_choices=SERMON_REACTIONS,
         comments=drive_comment_thread(

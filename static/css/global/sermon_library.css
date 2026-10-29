@@ -191,6 +191,16 @@
   opacity: 0.82;
 }
 
+.msg-listens {
+  margin: 0.35rem 0 0;
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+
+.msg-listens i {
+  margin-right: 0.3rem;
+}
+
 .msg-actions,
 .msg-reacts,
 .msg-bar {

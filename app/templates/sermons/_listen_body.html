@@ -24,6 +24,12 @@
         {% if message.series %} · {{ message.series | censor }}{% endif %}
         {% if message.source_label %} · {{ message.source_label | censor }}{% endif %}
       </p>
+      {% if message.can_listen %}
+      <p class="msg-listens"><i class="fa-solid fa-headphones" aria-hidden="true"></i>
+        {% set started = listen_count|default(0) %}
+        {% if started == 1 %}1 person started listening{% elif started > 1 %}{{ started }} people started listening{% else %}Be the first to listen{% endif %}
+      </p>
+      {% endif %}
     </div>
   </header>
   {% if message.summary %}

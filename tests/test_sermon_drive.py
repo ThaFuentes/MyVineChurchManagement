@@ -827,5 +827,46 @@ class MessageFromTests(unittest.TestCase):
         )
 
 
+class ListenCountTests(unittest.TestCase):
+    def test_each_person_is_counted_once_and_the_address_is_not_stored(self):
+        from app.utils.sermon_drive import listen_counts, listener_key, record_listen
+
+        self.assertEqual(listener_key(4, '203.0.113.9'), 'u:4')
+        self.assertEqual(listener_key('4', '203.0.113.9'), 'u:4')
+        guest = listener_key(None, '203.0.113.9')
+        self.assertEqual(guest, listener_key(0, '203.0.113.9'))
+        self.assertTrue(guest.startswith('g:'))
+        self.assertEqual(len(guest), 34)
+        self.assertNotIn('203.0.113.9', guest)
+        self.assertIsNone(listener_key(None, None))
+        self.assertIsNone(listener_key(None, ''))
+        self.assertIsNone(listener_key(None, 'not an ip'))
+        self.assertIsNone(listener_key(None, '203.0.113.9\n1'))
+        self.assertIsNone(listener_key('', 'x'))
+        self.assertIsNone(listener_key(None, '12'))
+
+        cur = _Cursor(alls=[[{'item_id': 7, 'n': 2}]])
+        db = SimpleNamespace(cursor=lambda: cur, commit=Mock())
+        with patch('app.utils.sermon_drive.ensure_schema'), \
+                patch('app.models.db.get_db', return_value=db):
+            self.assertTrue(record_listen(7, 4, '203.0.113.9'))
+            self.assertTrue(record_listen(7, None, '203.0.113.9'))
+            self.assertFalse(record_listen(7, None, None))
+            totals = listen_counts([7, 'nope', None])
+        self.assertEqual(totals, {7: 2})
+        joined = json.dumps(cur.calls)
+        self.assertNotIn('203.0.113.9', joined)
+        inserts = [params for sql, params in cur.calls if 'INSERT IGNORE' in sql]
+        self.assertEqual(inserts, [(7, 'u:4'), (7, guest)])
+        self.assertEqual(len(inserts), 2)
+
+        closed = Mock(side_effect=KeyError('MYSQL_HOST'))
+        with patch('app.models.db.get_db', closed):
+            self.assertEqual(listen_counts([]), {})
+            self.assertEqual(listen_counts([7]), {})
+            self.assertFalse(record_listen(7, 4, '203.0.113.9'))
+        self.assertEqual(closed.call_count, 2)
+
+
 if __name__ == '__main__':
     unittest.main()

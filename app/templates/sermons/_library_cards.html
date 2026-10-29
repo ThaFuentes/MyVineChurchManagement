@@ -63,6 +63,9 @@
         {% if message.series %} · {{ message.series | censor }}{% endif %}
         {% if message.source_label %} · {{ message.source_label | censor }}{% endif %}
       </p>
+      {% if message.listen_count %}
+      <p class="msg-listens"><i class="fa-solid fa-headphones" aria-hidden="true"></i> {% if message.listen_count == 1 %}1 person started listening{% else %}{{ message.listen_count }} people started listening{% endif %}</p>
+      {% endif %}
       {% if message.summary %}
       <p class="msg-summary">{{ message.summary | censor | truncate(180) }}</p>
       {% endif %}

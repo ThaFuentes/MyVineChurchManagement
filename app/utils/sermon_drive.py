@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import datetime
+import hashlib
 import html
 import logging
 import os
@@ -360,6 +361,101 @@ def sermon_reaction_totals(item_ids):
     except Exception as exc:
         log.warning('sermon reaction totals failed: %s', type(exc).__name__)
         return {}
+
+
+_LISTEN_IP = re.compile(r'\A[0-9A-Fa-f:.%]{3,45}\Z')
+
+
+def listener_key(user_id, ip):
+    """One stable key per account, or per guest address. The address is not the key."""
+    try:
+        number = int(user_id)
+    except (TypeError, ValueError):
+        number = 0
+    if number > 0:
+        key = f'u:{number}'
+        return key if len(key) <= 40 else None
+    text = ip if isinstance(ip, str) else ''
+    if not _LISTEN_IP.fullmatch(text):
+        return None
+    digest = hashlib.sha256(b'sermon-listen\x00' + text.encode('ascii')).hexdigest()[:32]
+    return 'g:' + digest
+
+
+def record_listen(item_id, user_id, ip):
+    """Count this person once for this message. A repeat open does not add another."""
+    key = listener_key(user_id, ip)
+    if not key:
+        return False
+    try:
+        item_id = int(item_id)
+    except (TypeError, ValueError):
+        return False
+    if item_id < 1:
+        return False
+    try:
+        ensure_schema()
+        from app.models.db import get_db
+        db = get_db()
+        cur = db.cursor()
+        cur.execute(
+            """
+            INSERT IGNORE INTO sermon_drive_listens (item_id, listener_key)
+            VALUES (%s, %s)
+            """,
+            (item_id, key),
+        )
+        db.commit()
+        return True
+    except Exception as exc:
+        log.warning('sermon listen record failed: %s', type(exc).__name__)
+        return False
+
+
+def listen_counts(item_ids):
+    """How many people started each message. A miss leaves every card at zero."""
+    ids = []
+    for raw in item_ids or []:
+        try:
+            number = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if number > 0:
+            ids.append(number)
+    if not ids:
+        return {}
+    try:
+        from app.models.db import get_db
+        cur = get_db().cursor()
+        marks = ','.join(['%s'] * len(ids))
+        cur.execute(
+            f"""
+            SELECT item_id, COUNT(*) AS n
+              FROM sermon_drive_listens
+             WHERE item_id IN ({marks})
+             GROUP BY item_id
+            """,
+            tuple(ids),
+        )
+        totals = {}
+        for row in cur.fetchall() or []:
+            found = row.get('item_id') if isinstance(row, dict) else row[0]
+            count = row.get('n') if isinstance(row, dict) else row[1]
+            totals[int(found)] = int(count or 0)
+        return totals
+    except Exception as exc:
+        log.warning('sermon listen counts failed: %s', type(exc).__name__)
+        return {}
+
+
+def listen_count(item_id):
+    try:
+        item_id = int(item_id)
+    except (TypeError, ValueError):
+        return 0
+    if item_id < 1:
+        return 0
+    return listen_counts([item_id]).get(item_id, 0)
 
 
 def share_message_link(user_id, item_id, title, speaker, note, page_url):

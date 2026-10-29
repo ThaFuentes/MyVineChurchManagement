@@ -105,6 +105,17 @@ CREATE_COMMENTS = """
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """
 
+CREATE_LISTENS = """
+    CREATE TABLE IF NOT EXISTS sermon_drive_listens (
+        id           INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+        item_id      INT UNSIGNED NOT NULL,
+        listener_key VARCHAR(40) NOT NULL,
+        started_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_sermon_listen (item_id, listener_key),
+        KEY idx_sermon_listen_item (item_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+"""
+
 
 def _has_column(cursor, table, column):
     cursor.execute(
@@ -122,6 +133,7 @@ def create_tables(cursor):
     cursor.execute(CREATE_SOURCES)
     cursor.execute(CREATE_ITEMS)
     cursor.execute(CREATE_COMMENTS)
+    cursor.execute(CREATE_LISTENS)
     cursor.execute(CREATE_SPEAKERS)
     cursor.execute(CREATE_SPEAKER_NAMES)
     if not _has_column(cursor, 'sermon_drive_sources', 'refresh_hours'):

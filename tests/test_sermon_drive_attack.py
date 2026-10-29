@@ -1324,6 +1324,138 @@ class LibraryFinderTests(unittest.TestCase):
         self.assertNotIn(FILE, json.dumps(shared.call_args.args))
 
 
+class ListenCounterTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = _library_app()
+        cls.client = cls.app.test_client()
+
+    def _session(self, **keys):
+        with self.client.session_transaction() as sess:
+            sess.clear()
+            sess.update(keys)
+
+    def test_opening_the_player_counts_that_account_once(self):
+        recorded = Mock(return_value=True)
+        counted = Mock(return_value=3)
+        captured = {}
+
+        def grab(name, **kwargs):
+            captured['listen_count'] = kwargs.get('listen_count')
+            captured['message'] = kwargs.get('message')
+            return 'player'
+
+        with patch('app.models.users.get_user_by_id', return_value={'id': 4, 'role': 'Member'}), \
+                patch('app.routes.sermons.drive_pages.maybe_sync'), \
+                patch('app.routes.sermons.drive_pages.get_item', return_value=_row()), \
+                patch('app.routes.sermons.drive_pages.drive_comment_thread', return_value=[]), \
+                patch('app.routes.sermons.drive_pages.record_listen', recorded), \
+                patch('app.routes.sermons.drive_pages.listen_count', counted), \
+                patch('app.routes.sermons.drive_pages.render_template', grab):
+            self._session(user_id=4, user_role='Owner')
+            response = self.client.get('/sermons/library/7?user_id=999')
+        self.assertEqual(response.status_code, 200)
+        recorded.assert_called_once_with(7, 4, '127.0.0.1')
+        counted.assert_called_once_with(7)
+        self.assertEqual(captured['listen_count'], 3)
+        self.assertNotIn('999', json.dumps(recorded.call_args.args))
+        self.assertTrue(captured['message']['play_url'].endswith('/preview'))
+        self.assertNotIn(FOLDER, json.dumps(captured['message']))
+
+        recorded.reset_mock()
+        counted.reset_mock()
+        with patch('app.routes.sermons.drive_pages.maybe_sync'), \
+                patch('app.routes.sermons.drive_pages.get_item', return_value=_row()), \
+                patch('app.routes.sermons.drive_pages.drive_comment_thread', return_value=[]), \
+                patch('app.routes.sermons.drive_pages.record_listen', recorded), \
+                patch('app.routes.sermons.drive_pages.listen_count', counted), \
+                patch('app.routes.sermons.drive_pages.render_template', grab):
+            self._session()
+            guest = self.client.get('/sermons/library/7?user_id=4')
+        self.assertEqual(guest.status_code, 200)
+        recorded.assert_called_once_with(7, None, '127.0.0.1')
+
+        recorded.reset_mock()
+        with patch('app.models.users.get_user_by_id', return_value={'id': 9, 'role': 'Staff'}), \
+                patch('app.routes.sermons.drive_pages.maybe_sync'), \
+                patch('app.routes.sermons.drive_pages.get_item', return_value=_row(hidden=1)), \
+                patch('app.routes.sermons.drive_pages.drive_comment_thread', return_value=[]), \
+                patch('app.routes.sermons.drive_pages.record_listen', recorded), \
+                patch('app.routes.sermons.drive_pages.listen_count', return_value=1), \
+                patch('app.routes.sermons.drive_pages.render_template', return_value='player'):
+            self._session(user_id=9, user_role='Member')
+            staff = self.client.get('/sermons/library/7')
+        self.assertEqual(staff.status_code, 200)
+        recorded.assert_called_once_with(7, 9, '127.0.0.1')
+
+    def test_a_locked_page_does_not_count_and_the_library_does_not_record(self):
+        recorded = Mock(side_effect=AssertionError('recorded'))
+        with patch('app.models.users.get_user_by_id', return_value={'id': 4, 'role': 'Member'}), \
+                patch('app.routes.sermons.drive_pages.maybe_sync'), \
+                patch('app.routes.sermons.drive_pages.get_item', return_value=_row(visibility='leaders')), \
+                patch('app.routes.sermons.drive_pages.record_listen', recorded):
+            self._session(user_id=4, user_role='Owner')
+            denied = self.client.get('/sermons/library/7?user_id=4')
+        self.assertEqual(denied.status_code, 404)
+        recorded.assert_not_called()
+
+        recorded = Mock(side_effect=AssertionError('recorded'))
+        captured = {}
+
+        def grab(name, **kwargs):
+            captured['counts'] = [item.get('listen_count') for item in kwargs['messages']]
+            return 'ok'
+
+        rows = [_row(title='Hope'), _row(id=8, title='Evening')]
+        with patch('app.routes.sermons.drive_pages.maybe_sync'), \
+                patch('app.routes.sermons.drive_pages.list_items', return_value=rows), \
+                patch('app.routes.sermons.drive_pages.listen_counts', return_value={7: 2}), \
+                patch('app.routes.sermons.drive_pages.record_listen', recorded), \
+                patch('app.routes.sermons.drive_pages.render_template', grab):
+            self._session()
+            listed = self.client.get('/sermons/')
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(captured['counts'], [2, 0])
+        recorded.assert_not_called()
+
+    def test_the_count_is_a_number_on_the_card_and_the_player(self):
+        card = present(_row(title='Hope'), logged_in=False, role='')
+        card['listen_count'] = 2
+        with patch('app.utils.helpers.get_censored_words', return_value=[]), \
+                self.app.test_request_context('/sermons/'):
+            html = self.app.jinja_env.get_template('sermons/_library_cards.html').render(
+                messages=[card], years=[], active_year='',
+            )
+            card['listen_count'] = 1
+            one = self.app.jinja_env.get_template('sermons/_library_cards.html').render(
+                messages=[card], years=[], active_year='',
+            )
+            card['listen_count'] = 0
+            quiet = self.app.jinja_env.get_template('sermons/_library_cards.html').render(
+                messages=[card], years=[], active_year='',
+            )
+            playing = present(_row(title='Hope'), logged_in=True, role='Member')
+            body = self.app.jinja_env.get_template('sermons/_listen_body.html').render(
+                message=playing, listen_count=4,
+            )
+            first = self.app.jinja_env.get_template('sermons/_listen_body.html').render(
+                message=playing, listen_count=0,
+            )
+        self.assertIn('2 people started listening', html)
+        self.assertIn('1 person started listening', one)
+        self.assertNotIn('started listening', quiet)
+        self.assertIn('4 people started listening', body)
+        self.assertIn('Be the first to listen', first)
+        self.assertIn(f'https://drive.google.com/file/d/{FILE}/preview', body)
+        self.assertNotIn('export=download', body)
+        for page in (html, one, quiet, body, first):
+            self.assertNotIn(FOLDER, page)
+            self.assertNotIn('export=download', page)
+            self.assertNotIn('listener_key', page)
+        for page in (html, one, quiet):
+            self.assertNotIn(FILE, page)
+
+
 class _Cursor:
     def __init__(self, ones=None, alls=None):
         self.ones = list(ones or [])
