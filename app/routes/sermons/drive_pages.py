@@ -30,8 +30,12 @@ from app.utils.sermon_drive import (
     list_sources,
     list_speakers,
     maybe_sync,
+    merge_named_people,
     open_local_copy,
+    parse_search,
     parse_sort,
+    parse_who,
+    people_from_rows,
     present,
     save_drive_comment,
     save_item_copy,
@@ -44,9 +48,15 @@ from app.utils.sermon_drive import (
     save_folder_id,
     save_item_details,
     save_refresh_hours,
+    save_sermon_reaction,
+    sermon_reaction_totals,
+    sermon_reactions,
+    share_message_link,
     sync_now,
     valid_year,
     with_drive_frame,
+    row_matches_library,
+    SERMON_REACTIONS,
 )
 from .utils import STAFF_ROLES
 
@@ -145,6 +155,50 @@ def _sort_kw(sort):
     return chosen
 
 
+def _clean_year(value):
+    year = (value or '').strip()
+    if year and not valid_year(year):
+        return ''
+    return year
+
+
+def _scope_rows(rows, *, logged_in, role, who, query):
+    """Messages this person can see, the Message from list, and the active name.
+
+    A name that is not on that list is dropped, so a typed filter is not echoed.
+    """
+    visible = [row for row in rows or [] if can_see(row, logged_in=logged_in, role=role)]
+    people = people_from_rows(visible)
+    if role in EDITORS:
+        try:
+            people = merge_named_people(people, list_speakers())
+        except Exception:
+            pass
+    known = {person['key'] for person in people}
+    if who not in known:
+        who = ''
+    matched = [row for row in visible if row_matches_library(row, who=who, query=query)]
+    label = ''
+    for person in people:
+        if person['key'] == who:
+            label = person['label']
+            break
+    return people, who, label, matched
+
+
+def _library_filters():
+    return (
+        _clean_year(request.values.get('year')),
+        _requested_sort(),
+        parse_search(request.values.get('q')),
+        parse_who(request.values.get('who')),
+    )
+
+
+def _message_settings():
+    return redirect(url_for('settings.messages'))
+
+
 _SPEAKER_NOTES = frozenset({
     'Choose a speaker from the list.',
     'Choose a member from the list.',
@@ -159,30 +213,34 @@ _SPEAKER_NOTES = frozenset({
 
 def render_library():
     maybe_sync()
-    year = (request.args.get('year') or '').strip()
-    if year and not valid_year(year):
-        year = ''
-    sort = _requested_sort()
+    year, sort, query, who = _library_filters()
     logged_in, role, _user = _viewer()
-    rows = []
+    people, who, who_label, matched = _scope_rows(
+        list_items(sort), logged_in=logged_in, role=role, who=who, query=query,
+    )
     years = []
     seen_years = set()
-    for row in list_items(sort):
-        if not can_see(row, logged_in=logged_in, role=role):
-            continue
+    for row in matched:
         item_year = row_year(row)
-        if item_year and item_year not in seen_years:
+        if item_year and valid_year(item_year) and item_year not in seen_years:
             seen_years.add(item_year)
             years.append(item_year)
-        if year and item_year != year:
-            continue
-        rows.append(present(row, logged_in=logged_in, role=role))
     years.sort(reverse=True)
+    shown = []
+    for row in matched:
+        if year and row_year(row) != year:
+            continue
+        shown.append(present(row, logged_in=logged_in, role=role))
+    totals = sermon_reaction_totals([item.get('id') for item in shown])
+    for item in shown:
+        try:
+            item['reaction_total'] = totals.get(int(item.get('id')), 0)
+        except (TypeError, ValueError):
+            item['reaction_total'] = 0
     template = 'sermons/library.html' if logged_in else 'public/sermons/library.html'
     account_id = session.get('user_id') if logged_in else None
     can_moderate_comments = _can_moderate_comments(role, account_id)
-    can_keep_copy = _can_keep_copy(role, account_id)
-    playable = [item for item in rows if item.get('can_listen')]
+    playable = [item for item in shown if item.get('can_listen')]
     has_video = any(item.get('kind') == 'video' for item in playable)
     playlist_url = ''
     if playable:
@@ -190,27 +248,26 @@ def render_library():
             'sermons.library_play',
             year=year or None,
             sort=_sort_kw(sort),
+            q=query or None,
+            who=who or None,
         )
     return render_template(
         template,
-        messages=rows,
+        messages=shown,
         years=years,
         active_year=year,
         active_sort=sort,
         sort_choices=SORT_CHOICES,
+        people=people,
+        active_who=who,
+        who_label=who_label,
+        search_query=query,
         is_staff=role in EDITORS,
         is_owner=role == 'Owner',
         can_moderate_comments=can_moderate_comments,
         comment_console_url=_comment_console_url(role in EDITORS or can_moderate_comments),
         playlist_url=playlist_url,
         playlist_label='Watch / listen to all' if has_video else 'Listen to all',
-        can_keep_copy=can_keep_copy,
-        unsaved_count=unsaved_count(_copy_listener(logged_in, role)) if can_keep_copy else 0,
-        refresh_hours=current_refresh_hours(),
-        refresh_choices=REFRESH_CHOICES,
-        default_visibility=current_default_visibility(),
-        visibility_choices=VISIBILITY_CHOICES,
-        folders=list_sources() if role == 'Owner' else [],
     )
 
 
@@ -224,24 +281,32 @@ def library_listen(item_id):
     can_play = can_listen(row, logged_in=logged_in, role=role)
     account_id = user.get('id') if user else None
     can_moderate = _can_moderate_comments(role, account_id)
-    year = (request.args.get('year') or '').strip()
-    if year and not valid_year(year):
-        year = ''
+    year, sort, query, who = _library_filters()
     playlist = None
-    sort = _requested_sort()
     if request.args.get('playlist') == '1' and can_play:
+        _people, who, _label, matched = _scope_rows(
+            list_items(sort), logged_in=logged_in, role=role, who=who, query=query,
+        )
         playlist = playlist_spot(
-            list_items(sort),
+            matched,
             item_id,
             logged_in=logged_in,
             role=role,
             year=year,
             sort=sort,
         )
+        if playlist is not None:
+            playlist['who'] = who
+            playlist['q'] = query
+    reactions = sermon_reactions(item_id, account_id) if can_play else {
+        'counts': {}, 'mine': '', 'total': 0, 'shares': 0,
+    }
     template = 'sermons/listen.html' if logged_in else 'public/sermons/listen.html'
     return render_template(
         template,
         message=present(row, logged_in=logged_in, role=role),
+        reactions=reactions,
+        reaction_choices=SERMON_REACTIONS,
         comments=drive_comment_thread(
             item_id,
             request.remote_addr,
@@ -261,21 +326,23 @@ def library_listen(item_id):
 def library_play():
     """Open the first message this person can play, and keep going from there."""
     maybe_sync()
-    year = (request.args.get('year') or '').strip()
-    if year and not valid_year(year):
-        year = ''
-    sort = _requested_sort()
+    year, sort, query, who = _library_filters()
     logged_in, role, _user = _viewer()
-    chosen = playlist_rows(list_items(sort), logged_in=logged_in, role=role, year=year)
+    _people, who, _label, matched = _scope_rows(
+        list_items(sort), logged_in=logged_in, role=role, who=who, query=query,
+    )
+    chosen = playlist_rows(matched, logged_in=logged_in, role=role, year=year)
     if not chosen:
         flash('There is nothing to play yet.', 'info')
-        return redirect(url_for('sermons.sermons'))
+        return redirect(url_for('sermons.sermons', q=query or None, who=who or None))
     return redirect(url_for(
         'sermons.library_listen',
         item_id=int(chosen[0]['id']),
         playlist=1,
         year=year or None,
         sort=_sort_kw(sort),
+        q=query or None,
+        who=who or None,
     ))
 
 
@@ -289,15 +356,15 @@ def post_library_comment(item_id):
     if not row or not can_listen(row, logged_in=logged_in, role=role):
         abort(404)
     keep_playlist = request.form.get('playlist') == '1' or request.args.get('playlist') == '1'
-    year = (request.form.get('year') or request.args.get('year') or '').strip()
-    if year and not valid_year(year):
-        year = ''
+    year, sort, query, who = _library_filters()
     back = url_for(
         'sermons.library_listen',
         item_id=item_id,
         playlist=1 if keep_playlist else None,
         year=year or None,
-        sort=_sort_kw(_requested_sort()),
+        sort=_sort_kw(sort),
+        q=query or None,
+        who=who or None,
     )
     action = (request.form.get('action') or 'comment').strip().lower()
     if action in ('delete', 'edit', 'shadow', 'unshadow', 'restore'):
@@ -389,7 +456,7 @@ def library_schedule():
         flash('That schedule could not be saved just now.', 'error')
     else:
         flash('Choose how often to check Drive.', 'error')
-    return redirect(url_for('sermons.sermons'))
+    return _message_settings()
 
 
 @login_required
@@ -406,7 +473,7 @@ def library_default_visibility():
         flash('That default could not be saved just now.', 'error')
     else:
         flash('Choose who can listen to new messages.', 'error')
-    return redirect(url_for('sermons.sermons'))
+    return _message_settings()
 
 
 @login_required
@@ -419,7 +486,7 @@ def library_visibility_all():
         flash('The library could not be updated just now.', 'error')
     else:
         flash('Choose who can listen.', 'error')
-    return redirect(url_for('sermons.sermons'))
+    return _message_settings()
 
 
 @login_required
@@ -433,7 +500,7 @@ def library_source():
         flash('Message folder saved. Refresh the library to read it.', 'success')
     else:
         flash('Paste a Google Drive folder link or folder id.', 'error')
-    return redirect(url_for('sermons.sermons'))
+    return _message_settings()
 
 
 @login_required
@@ -452,7 +519,7 @@ def library_source_update():
         flash('Choose a folder and a name.', 'error')
     else:
         flash('That folder could not be updated just now.', 'error')
-    return redirect(url_for('sermons.sermons'))
+    return _message_settings()
 
 
 def _flash_speaker(status):
@@ -533,15 +600,15 @@ def _flash_copy(status, left=None):
 
 
 def _back_to_listen(item_id):
-    year = (request.form.get('year') or '').strip()
-    if year and not valid_year(year):
-        year = ''
+    year, sort, query, who = _library_filters()
     return redirect(url_for(
         'sermons.library_listen',
         item_id=item_id,
         playlist=1 if request.form.get('playlist') == '1' else None,
         year=year or None,
-        sort=_sort_kw(_requested_sort()),
+        sort=_sort_kw(sort),
+        q=query or None,
+        who=who or None,
     ))
 
 
@@ -606,7 +673,7 @@ def library_copy_next():
         allowed=_copy_listener(logged_in, role),
     )
     _flash_copy(status, left)
-    return redirect(url_for('sermons.sermons'))
+    return _message_settings()
 
 
 def allow_drive_player(response):
@@ -620,6 +687,82 @@ def allow_drive_player(response):
     return response
 
 
+@login_required
+@role_required(STAFF_ROLES)
+def library_speaker_add():
+    """Add a person under Message from. Linking an account stays on Speakers."""
+    name = request.form.get('speaker') or ''
+    status = create_speaker(name)
+    year, sort, query, _who = _library_filters()
+    who = ''
+    if status is None:
+        flash('Name added. Pick it under Message from.', 'success')
+        who = parse_who(name)
+    else:
+        _flash_speaker(status)
+    return redirect(url_for(
+        'sermons.sermons',
+        who=who or None,
+        q=query or None,
+        year=year or None,
+        sort=_sort_kw(sort),
+    ))
+
+
+@login_required
+def library_share(item_id):
+    """Put a link to this sermon on the member's page. Playback stays on Drive."""
+    logged_in, role, user = _viewer()
+    row = get_item(item_id)
+    if not logged_in or not user or not row or not can_listen(row, logged_in=logged_in, role=role):
+        abort(404)
+    card = present(row, logged_in=True, role=role)
+    ok, note = share_message_link(
+        user.get('id'),
+        item_id,
+        card.get('title') or 'Message',
+        card.get('speaker') or '',
+        request.form.get('note') or '',
+        url_for('sermons.library_listen', item_id=item_id),
+    )
+    flash(note, 'success' if ok else 'error')
+    username = (user.get('username') or session.get('username') or '').strip()
+    if ok and username:
+        try:
+            return redirect(url_for('church.member_page', username=username))
+        except Exception:
+            pass
+    return redirect(url_for('sermons.library_listen', item_id=item_id) + '#sermon-share')
+
+
+@login_required
+def library_react(item_id):
+    """Amen, pray, love, or like. Only someone who can already hear the message."""
+    logged_in, role, user = _viewer()
+    row = get_item(item_id)
+    if not logged_in or not user or not row or not can_listen(row, logged_in=logged_in, role=role):
+        abort(404)
+    react = (request.form.get('reaction') or '').strip().lower()
+    allowed = {key for key, _label, _icon in SERMON_REACTIONS}
+    bar = sermon_reactions(item_id, user.get('id'))
+    if bar.get('mine') == react:
+        react = ''
+    if react and react not in allowed:
+        flash('Choose a reaction.', 'error')
+    elif not save_sermon_reaction(item_id, user.get('id'), react):
+        flash('That reaction could not be saved just now.', 'error')
+    year, sort, query, who = _library_filters()
+    return redirect(url_for(
+        'sermons.library_listen',
+        item_id=item_id,
+        playlist=1 if request.form.get('playlist') == '1' else None,
+        year=year or None,
+        sort=_sort_kw(sort),
+        q=query or None,
+        who=who or None,
+    ) + '#sermon-actions')
+
+
 def register(bp):
     @bp.record_once
     def _player_header(state):
@@ -627,7 +770,10 @@ def register(bp):
         state.app.after_request(allow_drive_player)
 
     bp.add_url_rule('/library/play', 'library_play', library_play, methods=['GET'])
+    bp.add_url_rule('/library/speakers/add', 'library_speaker_add', library_speaker_add, methods=['POST'])
     bp.add_url_rule('/library/speakers', 'library_speakers', library_speakers, methods=['GET', 'POST'])
+    bp.add_url_rule('/library/<int:item_id>/share', 'library_share', library_share, methods=['POST'])
+    bp.add_url_rule('/library/<int:item_id>/react', 'library_react', library_react, methods=['POST'])
     bp.add_url_rule(
         '/library/source-update', 'library_source_update', library_source_update, methods=['POST']
     )

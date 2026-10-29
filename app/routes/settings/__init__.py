@@ -7,7 +7,7 @@
 # FULL REBUILD: Added timezone sub-module import and permission entry.
 #          All existing functionality preserved exactly.
 
-from flask import Blueprint, redirect, url_for, session, flash, current_app
+from flask import Blueprint, redirect, url_for, session, flash, current_app, request
 from app.utils.decorators import login_required
 from app.utils.helpers import contains_censored_word
 from app.models.db import get_db
@@ -67,6 +67,9 @@ def can_view_settings() -> bool:
 @settings_bp.before_request
 @login_required
 def restrict_to_authorized():
+    # Staff reach Messages only. The rest of Settings stays Admin, Owner, and granted users.
+    if request.endpoint == 'settings.messages' and session.get('user_role') == 'Staff':
+        return None
     if not can_view_settings():
         flash('You do not have permission to access settings.', 'error')
         return redirect(url_for('dashboard.dashboard'))
@@ -174,3 +177,4 @@ from . import modules
 from . import campuses
 from . import promotions
 from . import appearance
+from . import messages

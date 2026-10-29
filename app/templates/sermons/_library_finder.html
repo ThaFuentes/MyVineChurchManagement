@@ -1,0 +1,52 @@
+{% set finder_endpoint = request.endpoint or 'sermons.sermons' %}
+{% set chosen_sort = active_sort|default('') %}
+{% set chosen_who = active_who|default('') %}
+{% set chosen_q = search_query|default('') %}
+{% set chosen_year = active_year|default('') %}
+
+<form class="msg-search" method="get" action="{{ url_for(finder_endpoint) }}" role="search">
+  <label for="sermon-search">Search messages</label>
+  <div class="msg-search-row">
+    <input id="sermon-search" name="q" type="search" class="form-input" maxlength="80"
+           value="{{ chosen_q }}" placeholder="Title, speaker, scripture, or series" autocomplete="off">
+    {% if chosen_who %}<input type="hidden" name="who" value="{{ chosen_who }}">{% endif %}
+    {% if chosen_year %}<input type="hidden" name="year" value="{{ chosen_year }}">{% endif %}
+    {% if chosen_sort and chosen_sort != 'date' %}<input type="hidden" name="sort" value="{{ chosen_sort }}">{% endif %}
+    <button type="submit" class="btn btn-primary">Search</button>
+  </div>
+</form>
+
+<section class="msg-from" aria-label="Message from">
+  <h2>Message from</h2>
+  <div class="msg-pills">
+    {% if chosen_who %}
+    <a href="{{ url_for(finder_endpoint, q=chosen_q or none, year=chosen_year or none, sort=chosen_sort if chosen_sort and chosen_sort != 'date' else none) }}">All</a>
+    {% else %}
+    <strong>All</strong>
+    {% endif %}
+    {% for person in people|default([]) %}
+    {% if chosen_who == person.key %}
+    <strong>{{ person.label | censor }}</strong>
+    {% else %}
+    <a href="{{ url_for(finder_endpoint, who=person.key, q=chosen_q or none, year=chosen_year or none, sort=chosen_sort if chosen_sort and chosen_sort != 'date' else none) }}">{{ person.label | censor }}</a>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% if who_label %}
+  <p class="msg-from-now">Showing messages from {{ who_label | censor }}.</p>
+  {% elif not people|default([]) %}
+  <p class="help-text">Names show up here as messages come in.</p>
+  {% endif %}
+  {% if is_staff %}
+  <form method="post" action="{{ url_for('sermons.library_speaker_add') }}" class="msg-add-name">
+    {% include 'partials/csrf_field.html' %}
+    {% if chosen_q %}<input type="hidden" name="q" value="{{ chosen_q }}">{% endif %}
+    {% if chosen_year %}<input type="hidden" name="year" value="{{ chosen_year }}">{% endif %}
+    {% if chosen_sort and chosen_sort != 'date' %}<input type="hidden" name="sort" value="{{ chosen_sort }}">{% endif %}
+    <label for="add-speaker">Add a name</label>
+    <input id="add-speaker" name="speaker" type="text" class="form-input" maxlength="160" autocomplete="off"
+           placeholder="Amy …">
+    <button type="submit" class="btn btn-secondary btn-small">Add</button>
+  </form>
+  {% endif %}
+</section>

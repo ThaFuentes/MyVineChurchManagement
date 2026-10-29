@@ -1,12 +1,15 @@
 {% set chosen_sort = active_sort|default('') %}
+{% set chosen_who = active_who|default('') %}
+{% set chosen_q = search_query|default('') %}
+{% set finder_endpoint = request.endpoint or 'sermons.sermons' %}
 {% if sort_choices is defined %}
-<p class="public-list-meta" style="margin:0 0 1rem;">
+<p class="msg-sort">
   Sort:
   {% for key, label in sort_choices %}
     {% if chosen_sort == key or (not chosen_sort and key == 'date') %}
     <strong>{{ label }}</strong>
     {% else %}
-    <a href="{{ url_for(request.endpoint, year=active_year or none, sort=key if key != 'date' else none) }}">{{ label }}</a>
+    <a href="{{ url_for(finder_endpoint, year=active_year or none, sort=key if key != 'date' else none, q=chosen_q or none, who=chosen_who or none) }}">{{ label }}</a>
     {% endif %}
     {% if not loop.last %} · {% endif %}
   {% endfor %}
@@ -14,80 +17,92 @@
 {% endif %}
 
 {% if years %}
-<p class="public-list-meta" style="margin:0 0 1rem;">
+<p class="msg-sort">
   {% if active_year %}
-  <a href="{{ url_for(request.endpoint, sort=chosen_sort if chosen_sort and chosen_sort != 'date' else none) }}">All</a>
+  <a href="{{ url_for(finder_endpoint, sort=chosen_sort if chosen_sort and chosen_sort != 'date' else none, q=chosen_q or none, who=chosen_who or none) }}">All years</a>
   {% else %}
-  <strong>All</strong>
+  <strong>All years</strong>
   {% endif %}
   {% for y in years %}
     ·
     {% if active_year == y %}
     <strong>{{ y }}</strong>
     {% else %}
-    <a href="{{ url_for(request.endpoint, year=y, sort=chosen_sort if chosen_sort and chosen_sort != 'date' else none) }}">{{ y }}</a>
+    <a href="{{ url_for(finder_endpoint, year=y, sort=chosen_sort if chosen_sort and chosen_sort != 'date' else none, q=chosen_q or none, who=chosen_who or none) }}">{{ y }}</a>
     {% endif %}
   {% endfor %}
 </p>
 {% endif %}
 
 {% if playlist_url %}
-<p style="margin:0 0 1rem;">
+<p class="msg-playall">
   <a class="btn btn-primary" href="{{ playlist_url }}">{{ playlist_label or 'Listen to all' }}</a>
 </p>
 {% endif %}
 
 {% if messages %}
-<div class="public-card-grid">
+<div class="msg-grid">
   {% for message in messages %}
-  <article class="glass-panel public-list-card sermon-card">
-    <h3>
-      <a href="{{ url_for('sermons.library_listen', item_id=message.id) }}">{{ message.title | censor }}</a>
-    </h3>
-    <div class="public-list-meta">
-      {% if message.preached_label %}<strong>Preached:</strong> {{ message.preached_label }}<br>{% endif %}
-      {% if message.speaker %}<strong>By:</strong> {{ message.speaker | censor }}<br>{% endif %}
-      {% if message.source_label %}<strong>Folder:</strong> {{ message.source_label | censor }}<br>{% endif %}
-      {% if message.series %}<strong>Series:</strong> {{ message.series | censor }}<br>{% endif %}
-      {% if message.scripture %}<strong>Scripture:</strong> {{ message.scripture | censor }}{% endif %}
-    </div>
-    {% if message.summary %}
-    <p class="public-list-body">{{ message.summary | censor | truncate(220) }}</p>
-    {% endif %}
-    {% if message.comment_count %}
-    <p class="help-text">{{ message.comment_count }} comment{% if message.comment_count != 1 %}s{% endif %}</p>
-    {% endif %}
-    {% if message.can_edit or can_moderate_comments %}
-    <p class="help-text"><a href="{{ url_for('sermons.library_listen', item_id=message.id) }}#sermon-comments">Moderate comments</a></p>
-    {% endif %}
-    {% if can_keep_copy %}
-    <p class="help-text">{% if message.has_copy %}A copy is on this server.{% else %}No copy on this server yet.{% endif %}</p>
-    {% endif %}
-    {% if message.missing and message.local_play %}
-    <p class="help-text">Drive no longer has this file. The saved copy still plays.</p>
-    {% elif message.missing %}
-    <p class="help-text">This file is no longer in the Drive folder.</p>
-    {% elif message.visibility == 'leaders' %}
-    <p class="help-text">This message is for church leaders.</p>
-    {% elif message.lock_message %}
-    <p class="help-text">{{ message.lock_message }}</p>
-    {% endif %}
-    <div class="public-list-actions">
-      {% if message.can_listen %}
-      <a href="{{ url_for('sermons.library_listen', item_id=message.id) }}" class="btn btn-primary">Listen</a>
-      {% elif not session.user_id %}
-      <a href="{{ url_for('auth.login') }}" class="btn btn-primary">Sign in to listen</a>
+  {% set listen_url = url_for('sermons.library_listen', item_id=message.id) %}
+  <article class="msg-card">
+    <a class="msg-stage {% if message.kind == 'video' %}is-video{% else %}is-audio{% endif %}" href="{{ listen_url }}">
+      <span class="msg-mark" aria-hidden="true"><i class="fa-solid fa-play"></i></span>
+      <span class="msg-kind">{% if message.kind == 'video' %}Video{% else %}Audio{% endif %}</span>
+      {% if message.kind != 'video' %}
+      <span class="msg-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
       {% endif %}
-      {% if message.can_edit %}
-      <a href="{{ url_for('sermons.library_edit', item_id=message.id) }}" class="btn-secondary btn-small">Edit</a>
+    </a>
+    <div class="msg-body">
+      <h3><a href="{{ listen_url }}">{{ message.title | censor }}</a></h3>
+      {% if message.speaker %}
+      <p class="msg-by">{{ message.speaker | censor }}</p>
       {% endif %}
+      <p class="msg-meta">
+        {% if message.preached_label %}{{ message.preached_label }}{% endif %}
+        {% if message.scripture %} · {{ message.scripture | censor }}{% endif %}
+        {% if message.series %} · {{ message.series | censor }}{% endif %}
+        {% if message.source_label %} · {{ message.source_label | censor }}{% endif %}
+      </p>
+      {% if message.summary %}
+      <p class="msg-summary">{{ message.summary | censor | truncate(180) }}</p>
+      {% endif %}
+      {% if message.missing and message.local_play %}
+      <p class="help-text">Drive no longer has this file. The saved copy still plays.</p>
+      {% elif message.missing %}
+      <p class="help-text">This file is no longer in the Drive folder.</p>
+      {% elif message.visibility == 'leaders' %}
+      <p class="help-text">This message is for church leaders.</p>
+      {% elif message.lock_message %}
+      <p class="help-text">{{ message.lock_message }}</p>
+      {% endif %}
+      {% if can_keep_copy %}
+      <p class="help-text">{% if message.has_copy %}A copy is on this server.{% else %}No copy on this server yet.{% endif %}</p>
+      {% endif %}
+      <div class="msg-actions">
+        {% if message.can_listen %}
+        <a href="{{ listen_url }}" class="btn btn-primary">Listen</a>
+        {% elif not session.user_id %}
+        <a href="{{ url_for('auth.login') }}" class="btn btn-primary">Sign in to listen</a>
+        {% endif %}
+        <a class="msg-action" href="{{ listen_url }}#sermon-comments"><i class="fa-regular fa-comment" aria-hidden="true"></i> Comment{% if message.comment_count %} · {{ message.comment_count }}{% endif %}</a>
+        <a class="msg-action" href="{{ listen_url }}#sermon-actions"><i class="fa-regular fa-heart" aria-hidden="true"></i> React{% if message.reaction_total %} · {{ message.reaction_total }}{% endif %}</a>
+        <a class="msg-action" href="{{ listen_url }}#sermon-share"><i class="fa-solid fa-share" aria-hidden="true"></i> Share</a>
+        {% if message.can_edit or can_moderate_comments %}
+        <a class="msg-action" href="{{ listen_url }}#sermon-comments">Moderate</a>
+        {% endif %}
+        {% if message.can_edit %}
+        <a href="{{ url_for('sermons.library_edit', item_id=message.id) }}" class="msg-action">Edit</a>
+        {% endif %}
+      </div>
     </div>
   </article>
   {% endfor %}
 </div>
 {% else %}
-<div class="glass-panel public-empty">
-  {% if active_year %}
+<div class="msg-empty">
+  {% if search_query|default('') or active_who|default('') %}
+  No messages match that.
+  {% elif active_year %}
   No messages for {{ active_year }}.
   {% else %}
   No messages in the library yet.

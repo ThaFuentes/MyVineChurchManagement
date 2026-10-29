@@ -1,23 +1,31 @@
 {% if playlist %}
 {% set play_sort = playlist.sort|default('date') %}
-<p class="help-text" style="margin:0 0 0.75rem;">
+{% set play_who = playlist.who|default('') %}
+{% set play_q = playlist.q|default('') %}
+<p class="msg-playlist">
   Playing {{ playlist.position }} of {{ playlist.total }}.
   {% if playlist.prev_id %}
-  <a href="{{ url_for('sermons.library_listen', item_id=playlist.prev_id, playlist=1, year=playlist.year or none, sort=play_sort if play_sort != 'date' else none) }}">Previous</a>
+  <a href="{{ url_for('sermons.library_listen', item_id=playlist.prev_id, playlist=1, year=playlist.year or none, sort=play_sort if play_sort != 'date' else none, who=play_who or none, q=play_q or none) }}">Previous</a>
   {% endif %}
   {% if playlist.next_id %}
-  <a href="{{ url_for('sermons.library_listen', item_id=playlist.next_id, playlist=1, year=playlist.year or none, sort=play_sort if play_sort != 'date' else none) }}">Next</a>
+  <a href="{{ url_for('sermons.library_listen', item_id=playlist.next_id, playlist=1, year=playlist.year or none, sort=play_sort if play_sort != 'date' else none, who=play_who or none, q=play_q or none) }}">Next</a>
   {% endif %}
 </p>
 {% endif %}
-<article class="glass-panel">
-  <div class="public-list-meta">
-    {% if message.preached_label %}<strong>Preached:</strong> {{ message.preached_label }}<br>{% endif %}
-    {% if message.speaker %}<strong>By:</strong> {{ message.speaker | censor }}<br>{% endif %}
-    {% if message.source_label %}<strong>Folder:</strong> {{ message.source_label | censor }}<br>{% endif %}
-    {% if message.series %}<strong>Series:</strong> {{ message.series | censor }}<br>{% endif %}
-    {% if message.scripture %}<strong>Scripture:</strong> {{ message.scripture | censor }}{% endif %}
-  </div>
+<article class="msg-player">
+  <header class="msg-player-head">
+    <span class="msg-mark {% if message.kind == 'video' %}is-video{% else %}is-audio{% endif %}" aria-hidden="true"><i class="fa-solid fa-play"></i></span>
+    <div>
+      <p class="msg-kind">{% if message.kind == 'video' %}Video{% else %}Audio{% endif %}</p>
+      {% if message.speaker %}<p class="msg-by">{{ message.speaker | censor }}</p>{% endif %}
+      <p class="msg-meta">
+        {% if message.preached_label %}{{ message.preached_label }}{% endif %}
+        {% if message.scripture %} · {{ message.scripture | censor }}{% endif %}
+        {% if message.series %} · {{ message.series | censor }}{% endif %}
+        {% if message.source_label %} · {{ message.source_label | censor }}{% endif %}
+      </p>
+    </div>
+  </header>
   {% if message.summary %}
   <p class="public-list-body">{{ message.summary | censor }}</p>
   {% endif %}
@@ -30,22 +38,70 @@
   <p class="help-text">This file is no longer in the Drive folder.</p>
   {% endif %}
 
+  <div class="msg-screen {% if message.kind == 'video' %}is-video{% else %}is-audio{% endif %}">
   {% if message.play_url %}
-  <iframe src="{{ message.play_url }}" title="{{ message.title | censor }}" allow="autoplay" referrerpolicy="no-referrer"
-          style="width:100%; max-width:720px; height:{% if message.kind == 'video' %}420{% else %}240{% endif %}px; border:0; border-radius:12px;"></iframe>
+  <iframe src="{{ message.play_url }}" title="{{ message.title | censor }}" allow="autoplay" referrerpolicy="no-referrer"></iframe>
   {% elif message.local_play %}
   {% if message.kind == 'video' %}
-  <video controls preload="none" src="{{ url_for('sermons.library_copy', item_id=message.id) }}"
-         style="width:100%; max-width:720px; border-radius:12px;"></video>
+  <video controls preload="none" src="{{ url_for('sermons.library_copy', item_id=message.id) }}"></video>
   {% else %}
-  <audio controls preload="none" src="{{ url_for('sermons.library_copy', item_id=message.id) }}"
-         style="width:100%; max-width:720px;"></audio>
+  <audio controls preload="none" src="{{ url_for('sermons.library_copy', item_id=message.id) }}"></audio>
   {% endif %}
   {% elif message.lock_message %}
-  <p>{{ message.lock_message }}</p>
+  <p class="msg-lock">{{ message.lock_message }}</p>
   {% if not session.user_id %}
   <p><a class="btn btn-primary" href="{{ url_for('auth.login') }}">Sign in to listen</a></p>
   {% endif %}
+  {% endif %}
+  </div>
+
+  {% if message.can_listen %}
+  <div id="sermon-actions" class="msg-bar">
+    <p class="msg-bar-label">React</p>
+    {% if session.user_id %}
+    <div class="msg-reacts" role="group" aria-label="React">
+      {% for key, label, icon in reaction_choices|default([]) %}
+      <form method="post" action="{{ url_for('sermons.library_react', item_id=message.id) }}">
+        {% include 'partials/csrf_field.html' %}
+        {% if playlist %}
+        <input type="hidden" name="playlist" value="1">
+        {% if playlist.year %}<input type="hidden" name="year" value="{{ playlist.year }}">{% endif %}
+        {% if playlist.sort|default('date') != 'date' %}<input type="hidden" name="sort" value="{{ playlist.sort }}">{% endif %}
+        {% if playlist.who|default('') %}<input type="hidden" name="who" value="{{ playlist.who }}">{% endif %}
+        {% if playlist.q|default('') %}<input type="hidden" name="q" value="{{ playlist.q }}">{% endif %}
+        {% endif %}
+        <input type="hidden" name="reaction" value="{{ key }}">
+        <button type="submit" class="msg-react{% if reactions and reactions.mine == key %} is-on{% endif %}">
+          <i class="fa-solid {{ icon }}" aria-hidden="true"></i> {{ label }}{% if reactions and reactions.counts.get(key) %} · {{ reactions.counts.get(key) }}{% endif %}
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+    {% else %}
+    <a class="msg-action" href="{{ url_for('auth.login') }}">Sign in to react</a>
+    {% endif %}
+    {% if reactions and reactions.total and not session.user_id %}
+    <p class="help-text">{{ reactions.total }} reaction{% if reactions.total != 1 %}s{% endif %}</p>
+    {% endif %}
+  </div>
+
+  <section id="sermon-share" class="msg-share">
+    <h2>Share to your page</h2>
+    <p>This posts a link on your page so you can show it or talk about it. The message still plays from Drive.</p>
+    {% if session.user_id %}
+    <form method="post" action="{{ url_for('sermons.library_share', item_id=message.id) }}" class="styled-form">
+      {% include 'partials/csrf_field.html' %}
+      <label for="share-note">Say something</label>
+      <textarea id="share-note" name="note" rows="2" class="form-input" maxlength="500" placeholder="What stood out?"></textarea>
+      <button type="submit" class="btn btn-primary">Share to your page</button>
+    </form>
+    {% if reactions and reactions.shares %}
+    <p class="help-text">Shared to {{ reactions.shares }} page{% if reactions.shares != 1 %}s{% endif %}.</p>
+    {% endif %}
+    {% else %}
+    <p><a class="btn btn-primary" href="{{ url_for('auth.login') }}">Sign in to share</a></p>
+    {% endif %}
+  </section>
   {% endif %}
 
   {% if message.can_edit or can_keep %}
@@ -62,6 +118,8 @@
       <input type="hidden" name="playlist" value="1">
       {% if playlist.year %}<input type="hidden" name="year" value="{{ playlist.year }}">{% endif %}
       {% if playlist.sort|default('date') != 'date' %}<input type="hidden" name="sort" value="{{ playlist.sort }}">{% endif %}
+      {% if playlist.who|default('') %}<input type="hidden" name="who" value="{{ playlist.who }}">{% endif %}
+      {% if playlist.q|default('') %}<input type="hidden" name="q" value="{{ playlist.q }}">{% endif %}
       {% endif %}
       <button type="submit" class="btn btn-secondary btn-small">Save a copy on this server</button>
     </form>

@@ -19,6 +19,12 @@
 {% endwith %}
 
 <nav class="settings-nav" aria-label="Settings sections">
+    {% set settings_role = session.get('user_role') %}
+    {% set settings_granted = session.get('settings_permissions') %}
+    {% set settings_full = settings_role in ['Admin', 'Owner'] or (settings_granted and settings_granted not in ['[]', 'null']) %}
+    <a href="{{ url_for('settings.messages') }}"
+       class="settings-nav-link {{ 'active' if request.endpoint == 'settings.messages' else '' }}">Messages</a>
+    {% if settings_full %}
     <a href="{{ url_for('settings.general') }}"
        class="settings-nav-link {{ 'active' if request.endpoint == 'settings.general' else '' }}">Church & General</a>
     <a href="{{ url_for('settings.appearance') }}"
@@ -57,6 +63,7 @@
        class="settings-nav-link {{ 'active' if request.endpoint == 'settings.modules' else '' }}">Modules &amp; Apps</a>
     <a href="{{ url_for('settings.custom_modules_list') }}"
        class="settings-nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('settings.custom_modules') else '' }}">Church Apps</a>
+    {% endif %}
     {% endif %}
 </nav>
 

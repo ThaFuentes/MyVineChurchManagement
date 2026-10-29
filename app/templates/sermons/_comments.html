@@ -1,5 +1,6 @@
-<section id="sermon-comments" class="sermon-comments glass-panel" style="margin-top:1.25rem;">
-  <h2 class="section-title" style="margin-top:0;">
+<section id="sermon-comments" class="sermon-comments msg-comments">
+  <h2 class="section-title">
+    <i class="fa-regular fa-comment" aria-hidden="true"></i>
     Comments{% if comments %} · {{ comments|length }}{% endif %}
   </h2>
   {% if can_moderate and comment_console_url %}
@@ -13,6 +14,8 @@
     <input type="hidden" name="playlist" value="1">
     {% if playlist.year %}<input type="hidden" name="year" value="{{ playlist.year }}">{% endif %}
     {% if playlist.sort|default('date') != 'date' %}<input type="hidden" name="sort" value="{{ playlist.sort }}">{% endif %}
+          {% if playlist.who|default('') %}<input type="hidden" name="who" value="{{ playlist.who }}">{% endif %}
+          {% if playlist.q|default('') %}<input type="hidden" name="q" value="{{ playlist.q }}">{% endif %}
     {% endif %}
     <input type="hidden" name="action" value="comment">
     {% if account_name %}
@@ -54,6 +57,8 @@
           <input type="hidden" name="playlist" value="1">
           {% if playlist.year %}<input type="hidden" name="year" value="{{ playlist.year }}">{% endif %}
           {% if playlist.sort|default('date') != 'date' %}<input type="hidden" name="sort" value="{{ playlist.sort }}">{% endif %}
+          {% if playlist.who|default('') %}<input type="hidden" name="who" value="{{ playlist.who }}">{% endif %}
+          {% if playlist.q|default('') %}<input type="hidden" name="q" value="{{ playlist.q }}">{% endif %}
           {% endif %}
           <input type="hidden" name="comment_id" value="{{ c.id }}">
           <label class="help-text" for="moderate-comment-{{ c.id }}">Edit this comment</label>
@@ -77,6 +82,8 @@
           <input type="hidden" name="playlist" value="1">
           {% if playlist.year %}<input type="hidden" name="year" value="{{ playlist.year }}">{% endif %}
           {% if playlist.sort|default('date') != 'date' %}<input type="hidden" name="sort" value="{{ playlist.sort }}">{% endif %}
+          {% if playlist.who|default('') %}<input type="hidden" name="who" value="{{ playlist.who }}">{% endif %}
+          {% if playlist.q|default('') %}<input type="hidden" name="q" value="{{ playlist.q }}">{% endif %}
           {% endif %}
           <input type="hidden" name="action" value="reply">
           <input type="hidden" name="parent_id" value="{{ c.id }}">
@@ -114,6 +121,8 @@
           <input type="hidden" name="playlist" value="1">
           {% if playlist.year %}<input type="hidden" name="year" value="{{ playlist.year }}">{% endif %}
           {% if playlist.sort|default('date') != 'date' %}<input type="hidden" name="sort" value="{{ playlist.sort }}">{% endif %}
+          {% if playlist.who|default('') %}<input type="hidden" name="who" value="{{ playlist.who }}">{% endif %}
+          {% if playlist.q|default('') %}<input type="hidden" name="q" value="{{ playlist.q }}">{% endif %}
           {% endif %}
           <input type="hidden" name="comment_id" value="{{ reply.id }}">
           <label class="help-text" for="moderate-reply-{{ reply.id }}">Edit this reply</label>

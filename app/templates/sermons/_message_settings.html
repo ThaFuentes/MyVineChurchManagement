@@ -1,0 +1,112 @@
+<section class="content-section">
+  <h2 class="section-title">How Drive is read</h2>
+  <form method="post" action="{{ url_for('sermons.library_schedule') }}" class="styled-form">
+    {% include 'partials/csrf_field.html' %}
+    <div class="form-group">
+      <label for="refresh-hours">How often to read Drive</label>
+      <select id="refresh-hours" name="refresh_hours" class="form-input">
+        {% for hours, label in refresh_choices %}
+        <option value="{{ hours }}" {% if refresh_hours == hours %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <p class="help-text">Once a week fits a Sunday upload. Opening the library uses this schedule. It does not read Drive on every play.</p>
+    </div>
+    <button type="submit" class="btn btn-secondary btn-small">Save schedule</button>
+  </form>
+</section>
+
+<section class="content-section">
+  <h2 class="section-title">Who can hear a new message</h2>
+  <form method="post" action="{{ url_for('sermons.library_default_visibility') }}" class="styled-form">
+    {% include 'partials/csrf_field.html' %}
+    <div class="form-group">
+      <label for="default-visibility">New messages from Drive</label>
+      <select id="default-visibility" name="visibility" class="form-input">
+        {% for value, label in visibility_choices %}
+        <option value="{{ value }}" {% if default_visibility == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <p class="help-text">New files start with this. Messages already in the library stay as they are.</p>
+    </div>
+    <button type="submit" class="btn btn-secondary btn-small">Save default</button>
+  </form>
+  <form method="post" action="{{ url_for('sermons.library_visibility_all') }}" class="styled-form"
+        onsubmit="return confirm('Set every message in the library to this?');">
+    {% include 'partials/csrf_field.html' %}
+    <div class="form-group">
+      <label for="all-visibility">Set every message</label>
+      <select id="all-visibility" name="visibility" class="form-input">
+        {% for value, label in visibility_choices %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <p class="help-text">This changes who can listen right now. Hidden messages stay hidden. Drive files are not changed.</p>
+    </div>
+    <button type="submit" class="btn btn-secondary btn-small">Apply to all</button>
+  </form>
+</section>
+
+{% if can_keep_copy %}
+<section class="content-section">
+  <h2 class="section-title">Copies on this server</h2>
+  <form method="post" action="{{ url_for('sermons.library_copy_next') }}" class="styled-form">
+    {% include 'partials/csrf_field.html' %}
+    <p class="help-text">
+      {% if unsaved_count %}
+      {{ unsaved_count }} message{% if unsaved_count != 1 %}s{% endif %} still need a copy on this server.
+      {% else %}
+      Every message already has a copy on this server.
+      {% endif %}
+      Playback stays on Drive until that file is gone.
+    </p>
+    {% if unsaved_count %}
+    <button type="submit" class="btn btn-secondary btn-small">Save the next copy</button>
+    {% endif %}
+  </form>
+</section>
+{% endif %}
+
+{% if is_owner %}
+<section class="content-section">
+  <h2 class="section-title">Drive folders</h2>
+  <p class="help-text">Add another folder. The folder id stays on this site and is not shown on the message pages.</p>
+  {% for folder in folders|default([]) %}
+  <form method="post" action="{{ url_for('sermons.library_source_update') }}" class="styled-form">
+    {% include 'partials/csrf_field.html' %}
+    <input type="hidden" name="source_id" value="{{ folder.id }}">
+    <div class="form-group">
+      <label for="folder-name-{{ folder.id }}">Name on this site</label>
+      <input id="folder-name-{{ folder.id }}" name="label" type="text" class="form-input" maxlength="120"
+             value="{{ folder.label }}" required>
+      <p class="help-text">{{ folder.messages }} message{% if folder.messages != 1 %}s{% endif %}. Hiding a folder takes it out of the library. Saved copies stay.</p>
+    </div>
+    <label>
+      <input type="radio" name="enabled" value="1" {% if folder.enabled %}checked{% endif %}>
+      Show in the library
+    </label>
+    <label>
+      <input type="radio" name="enabled" value="0" {% if not folder.enabled %}checked{% endif %}>
+      Hide this folder
+    </label>
+    <button type="submit" class="btn btn-secondary btn-small">Save folder</button>
+  </form>
+  {% endfor %}
+  <form method="post" action="{{ url_for('sermons.library_source') }}" class="styled-form">
+    {% include 'partials/csrf_field.html' %}
+    <div class="form-group">
+      <label for="drive-folder">Folder link or id</label>
+      <input id="drive-folder" name="folder" type="text" class="form-input" value="" autocomplete="off"
+             placeholder="paste a new folder id">
+      <p class="help-text">Saved on this site only. It is not shown on the message pages.</p>
+    </div>
+    <div class="form-group">
+      <label for="folder-label">Name on this site</label>
+      <input id="folder-label" name="label" type="text" class="form-input" maxlength="120"
+             placeholder="Sunday messages" autocomplete="off">
+    </div>
+    <button type="submit" class="btn btn-secondary btn-small">Add another folder</button>
+  </form>
+</section>
+{% endif %}
+
+<p class="help-text"><a href="{{ url_for('sermons.library_speakers') }}">Speakers and accounts</a> is where a typed name is linked to a member later.</p>

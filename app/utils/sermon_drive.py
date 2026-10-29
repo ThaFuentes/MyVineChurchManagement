@@ -166,6 +166,257 @@ def speaker_match(name, names):
     return (names or {}).get(key)
 
 
+def parse_search(value):
+    """Library search text. Tags stay text. The match is folded later."""
+    return _clean_text(value, 80)
+
+
+def parse_who(value):
+    """Folded speaker name from the Message from filter. Blank if it is not a name."""
+    return speaker_key(value) or ''
+
+
+def people_from_rows(rows):
+    """One chip per person the viewer can already see. Tim and Tim Lien stay apart."""
+    found = {}
+    for row in rows or []:
+        label = (row.get('speaker_label') or row.get('speaker') or '').strip()
+        key = speaker_key(label)
+        if not key or key in found:
+            continue
+        found[key] = label[:160]
+    return [
+        {'key': key, 'label': label}
+        for key, label in sorted(found.items(), key=lambda item: item[1].casefold())
+    ]
+
+
+def merge_named_people(people, speakers):
+    """Staff-added names with no message yet still show under Message from."""
+    have = {person['key'] for person in people or []}
+    merged = list(people or [])
+    for person in speakers or []:
+        label = (person.get('display_name') or '').strip()
+        key = speaker_key(label)
+        if not key or key in have:
+            continue
+        merged.append({'key': key, 'label': label[:160]})
+        have.add(key)
+    merged.sort(key=lambda person: person['label'].casefold())
+    return merged
+
+
+def row_matches_library(row, *, who='', query=''):
+    """Exact speaker, then a folded search over the words on the card."""
+    label = (row.get('speaker_label') or row.get('speaker') or '')
+    if who and speaker_key(label) != who:
+        return False
+    text = (query or '').casefold()
+    if not text:
+        return True
+    hay = ' '.join([
+        str(row.get('title') or ''),
+        str(label),
+        str(row.get('scripture') or ''),
+        str(row.get('series') or ''),
+        str(row.get('summary') or ''),
+    ]).casefold()
+    return text in hay
+
+
+SERMON_REACTIONS = (
+    ('amen', 'Amen', 'fa-hands'),
+    ('pray', 'Praying', 'fa-hands-praying'),
+    ('love', 'Love', 'fa-heart'),
+    ('like', 'Like', 'fa-thumbs-up'),
+)
+_SERMON_REACTS = {key for key, _label, _icon in SERMON_REACTIONS}
+
+
+def sermon_reactions(item_id, user_id=None):
+    """Counts for one message. A database miss leaves the player up with no counts."""
+    empty = {'counts': {}, 'mine': '', 'total': 0, 'shares': 0}
+    try:
+        item_id = int(item_id)
+    except (TypeError, ValueError):
+        return empty
+    try:
+        from app.models.db import get_db
+        cur = get_db().cursor()
+        cur.execute(
+            """
+            SELECT reaction, COUNT(*) AS n
+              FROM content_reactions
+             WHERE content_type=%s AND content_id=%s
+             GROUP BY reaction
+            """,
+            ('sermon_drive', item_id),
+        )
+        counts = {}
+        total = 0
+        for row in cur.fetchall() or []:
+            key = row.get('reaction') if isinstance(row, dict) else row[0]
+            count = row.get('n') if isinstance(row, dict) else row[1]
+            if key not in _SERMON_REACTS:
+                continue
+            counts[key] = int(count or 0)
+            total += counts[key]
+        mine = ''
+        if user_id:
+            cur.execute(
+                """
+                SELECT reaction FROM content_reactions
+                 WHERE content_type=%s AND content_id=%s AND user_id=%s
+                """,
+                ('sermon_drive', item_id, int(user_id)),
+            )
+            picked = cur.fetchone()
+            if picked:
+                mine = (picked.get('reaction') if isinstance(picked, dict) else picked[0]) or ''
+                if mine not in _SERMON_REACTS:
+                    mine = ''
+        cur.execute(
+            """
+            SELECT COUNT(*) AS n FROM content_shares
+             WHERE content_type=%s AND content_id=%s
+            """,
+            ('sermon_drive', item_id),
+        )
+        share_row = cur.fetchone() or {}
+        shares = share_row.get('n') if isinstance(share_row, dict) else share_row[0]
+        return {'counts': counts, 'mine': mine, 'total': total, 'shares': int(shares or 0)}
+    except Exception as exc:
+        log.warning('sermon reactions failed: %s', type(exc).__name__)
+        return empty
+
+
+def save_sermon_reaction(item_id, user_id, reaction):
+    """One reaction per person. Blank clears it. Unknown words are refused."""
+    react = (reaction or '').strip().lower()
+    if react and react not in _SERMON_REACTS:
+        return False
+    try:
+        item_id = int(item_id)
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        return False
+    try:
+        from app.models.db import get_db
+        db = get_db()
+        cur = db.cursor()
+        if not react:
+            cur.execute(
+                """
+                DELETE FROM content_reactions
+                 WHERE content_type=%s AND content_id=%s AND user_id=%s
+                """,
+                ('sermon_drive', item_id, user_id),
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO content_reactions (content_type, content_id, user_id, reaction)
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE reaction=VALUES(reaction)
+                """,
+                ('sermon_drive', item_id, user_id, react),
+            )
+        db.commit()
+        return True
+    except Exception as exc:
+        log.warning('sermon reaction save failed: %s', type(exc).__name__)
+        return False
+
+
+def sermon_reaction_totals(item_ids):
+    """Reaction counts for the cards. A miss leaves every card at zero."""
+    ids = []
+    for raw in item_ids or []:
+        try:
+            ids.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    if not ids:
+        return {}
+    try:
+        from app.models.db import get_db
+        cur = get_db().cursor()
+        marks = ','.join(['%s'] * len(ids))
+        cur.execute(
+            f"""
+            SELECT content_id, COUNT(*) AS n
+              FROM content_reactions
+             WHERE content_type=%s AND content_id IN ({marks})
+             GROUP BY content_id
+            """,
+            ('sermon_drive', *ids),
+        )
+        totals = {}
+        for row in cur.fetchall() or []:
+            item_id = row.get('content_id') if isinstance(row, dict) else row[0]
+            count = row.get('n') if isinstance(row, dict) else row[1]
+            totals[int(item_id)] = int(count or 0)
+        return totals
+    except Exception as exc:
+        log.warning('sermon reaction totals failed: %s', type(exc).__name__)
+        return {}
+
+
+def share_message_link(user_id, item_id, title, speaker, note, page_url):
+    """Link this sermon on a member page. The file stays on Drive."""
+    href = page_url if isinstance(page_url, str) else ''
+    if not href.startswith('/sermons/library/') or href.startswith('//'):
+        return False, 'That message could not be shared.'
+    tail = href[len('/sermons/library/'):].split('?', 1)[0].split('#', 1)[0]
+    if not tail.isdigit() or int(tail) != int(item_id):
+        return False, 'That message could not be shared.'
+    try:
+        from app.models.social import create_post, post_throttle_message
+        from app.utils.helpers import contains_censored_word
+        slow = post_throttle_message(user_id)
+        if slow:
+            return False, slow
+        note = _clean_text(note, 500)
+        if note and contains_censored_word(note):
+            return False, 'That note uses a word this church does not allow.'
+        title = _clean_text(title, 200) or 'Message'
+        speaker = _clean_text(speaker, 160)
+        desc = f'Message from {speaker}. It still plays from Drive.' if speaker else 'It still plays from Drive.'
+        body = note or 'Shared from the sermon page.'
+        new_id = create_post(
+            int(user_id),
+            'share',
+            title,
+            body,
+            href,
+            'public',
+            allow_comments=True,
+            allow_share=True,
+            link_title=title,
+            link_desc=desc[:280],
+        )
+        if not new_id:
+            return False, 'That could not be shared just now.'
+        try:
+            from app.models.db import get_db
+            db = get_db()
+            cur = db.cursor()
+            cur.execute(
+                """
+                INSERT IGNORE INTO content_shares (content_type, content_id, user_id)
+                VALUES (%s, %s, %s)
+                """,
+                ('sermon_drive', int(item_id), int(user_id)),
+            )
+            db.commit()
+        except Exception as exc:
+            log.warning('sermon share count failed: %s', type(exc).__name__)
+        return True, 'Shared to your page. The message still plays from Drive.'
+    except Exception as exc:
+        log.warning('sermon share failed: %s', type(exc).__name__)
+        return False, 'That could not be shared just now.'
+
+
 def _when_text(row):
     preached = row.get('preached_on')
     if hasattr(preached, 'isoformat'):

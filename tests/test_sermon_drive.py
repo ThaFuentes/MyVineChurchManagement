@@ -25,7 +25,10 @@ from app.utils.sermon_drive import (
     local_copy_name,
     parse_refresh_hours,
     parse_visibility,
+    merge_named_people,
     parse_drive_name,
+    people_from_rows,
+    row_matches_library,
     parse_folder_html,
     plan_sync,
     play_url,
@@ -799,6 +802,29 @@ class SpeakerAndSortTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn('Choose a member from the list.', errors)
         self.assertFalse(any('site_edited=1' in sql for sql, _params in cur.calls))
+
+
+class MessageFromTests(unittest.TestCase):
+    def test_names_stay_exact_and_an_added_name_joins_the_list(self):
+        rows = [
+            {'speaker': 'Christopher Fuentes', 'title': 'Hope', 'scripture': 'John 3'},
+            {'speaker_label': 'Tim Lien', 'speaker': 'Tim', 'title': 'Evening'},
+            {'speaker': 'Leo', 'title': 'Welcome'},
+        ]
+        people = people_from_rows(rows)
+        self.assertEqual(
+            [person['label'] for person in people],
+            ['Christopher Fuentes', 'Leo', 'Tim Lien'],
+        )
+        self.assertTrue(row_matches_library(rows[0], who='christopher fuentes', query='john'))
+        self.assertFalse(row_matches_library(rows[1], who='tim'))
+        self.assertTrue(row_matches_library(rows[1], who='tim lien'))
+        added = merge_named_people(people, [{'display_name': 'Amy Grace'}])
+        self.assertIn('Amy Grace', [person['label'] for person in added])
+        self.assertEqual(
+            [person['label'] for person in merge_named_people(added, [{'display_name': 'Amy Grace'}])].count('Amy Grace'),
+            1,
+        )
 
 
 if __name__ == '__main__':

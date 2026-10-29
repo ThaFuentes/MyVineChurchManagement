@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/global/sermon_library.css') }}?v=20261029msg">
+{% endblock %}
+
 {% block content %}
 {% if request.endpoint != 'sermons.sermons' %}
 <p class="help-text" style="margin:0 0 0.75rem;">

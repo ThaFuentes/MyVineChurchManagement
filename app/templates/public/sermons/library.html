@@ -2,6 +2,10 @@
 
 {% block title %}Sermons{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/global/sermon_library.css') }}?v=20261029msg">
+{% endblock %}
+
 {% block content %}
 <div class="public-page-header">
   <h1 class="page-title">Sermons</h1>
@@ -9,5 +13,6 @@
     Messages from our ministers and guest speakers.
   </p>
 </div>
+{% include 'sermons/_library_finder.html' %}
 {% include 'sermons/_library_cards.html' %}
 {% endblock %}

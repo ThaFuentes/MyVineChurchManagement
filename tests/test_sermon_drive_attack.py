@@ -90,6 +90,20 @@ def _library_app():
 
     app.register_blueprint(auth)
     app.register_blueprint(sermons_bp)
+    settings = Blueprint('settings', __name__, url_prefix='/settings')
+
+    @settings.route('/messages')
+    def messages():
+        return 'messages'
+
+    church = Blueprint('church', __name__)
+
+    @church.route('/u/<username>')
+    def member_page(username):
+        return username
+
+    app.register_blueprint(settings)
+    app.register_blueprint(church)
     return app
 
 
@@ -503,6 +517,7 @@ class PageTests(unittest.TestCase):
             '/sermons/library/source': {'folder': POISON_LINK},
             '/sermons/library/source-update': {'source_id': '1', 'label': 'X', 'enabled': '1'},
             '/sermons/library/speakers': {'action': 'link', 'speaker_id': '1', 'speaker_user': '9'},
+            '/sermons/library/speakers/add': {'speaker': 'Amy Grace'},
             '/sermons/library/refresh': {},
             '/sermons/library/7/edit': {'title': 'x', 'visibility': 'public', 'drive_file_id': FILE},
         }
@@ -566,7 +581,7 @@ class PageTests(unittest.TestCase):
         ):
             self.assertEqual(response.status_code, 302)
             self.assertNotIn('evil.example', response.headers['Location'])
-            self.assertIn('/sermons', response.headers['Location'])
+            self.assertIn('/settings/messages', response.headers['Location'])
             with self.client.session_transaction() as sess:
                 self.assertIn(expected, str(sess.get('_flashes')))
 
@@ -678,15 +693,34 @@ class RenderTests(unittest.TestCase):
             refresh_choices=REFRESH_CHOICES,
             default_visibility='public',
             visibility_choices=VISIBILITY_CHOICES,
+            people=[{'key': 'amy grace', 'label': 'Amy Grace'}],
+            search_query='',
+            active_who='',
         )
-        owner = self._render('sermons/library.html', is_staff=True, is_owner=True, **shared)
+        library = self._render('sermons/library.html', is_staff=True, is_owner=True, **shared)
+        self.assertNotIn('name="folder"', library)
+        self.assertNotIn('How often to read Drive', library)
+        self.assertIn('Message from', library)
+        self.assertIn('Search messages', library)
+        self.assertIn('Amy Grace', library)
+        self.assertIn('name="csrf_token"', library)
+        self.assertNotIn(FOLDER, library)
+
+        owner = self._render(
+            'sermons/_message_settings.html',
+            is_owner=True,
+            can_keep_copy=True,
+            unsaved_count=1,
+            **shared,
+        )
         self.assertGreaterEqual(owner.count('name="csrf_token"'), 5)
         self.assertIn('name="folder"', owner)
         self.assertIn('value=""', owner)
         self.assertNotIn(FOLDER, owner)
-        staff = self._render('sermons/library.html', is_staff=True, is_owner=False, **shared)
+        self.assertIn('How often to read Drive', owner)
+        staff = self._render('sermons/_message_settings.html', is_owner=False, can_keep_copy=False, **shared)
         self.assertNotIn('name="folder"', staff)
-        self.assertGreaterEqual(staff.count('name="csrf_token"'), 4)
+        self.assertGreaterEqual(staff.count('name="csrf_token"'), 3)
 
 
 class TokenTests(unittest.TestCase):
@@ -804,7 +838,7 @@ class HostCopyTests(unittest.TestCase):
             self._session(user_id=8, user_role='Staff')
             response = self.client.post('/sermons/library/copy-next', data={'drive_file_id': FILE})
         self.assertEqual(response.status_code, 302)
-        self.assertIn('/sermons', response.headers['Location'])
+        self.assertIn('/settings/messages', response.headers['Location'])
         self.assertNotIn(FILE, response.headers['Location'])
         nxt.assert_called_once_with(8, allowed=ANY)
         self.assertEqual(allowed['user_id'], 8)
@@ -966,11 +1000,16 @@ class HostCopyTests(unittest.TestCase):
         with patch('app.utils.helpers.get_censored_words', return_value=[]), \
                 self.app.test_request_context('/sermons/'):
             library = self.app.jinja_env.get_template('sermons/library.html').render(**shared)
-        self.assertIn('Save the next copy', library)
-        self.assertIn('3 messages still need a copy', library)
+            settings = self.app.jinja_env.get_template('sermons/_message_settings.html').render(**shared)
+        self.assertNotIn('Save the next copy', library)
+        self.assertIn('Search messages', library)
+        self.assertIn('Save the next copy', settings)
+        self.assertIn('3 messages still need a copy', settings)
         self.assertNotIn(FILE, library)
         self.assertNotIn(FOLDER, library)
         self.assertNotIn('export=download', library)
+        self.assertNotIn(FILE, settings)
+        self.assertNotIn('export=download', settings)
 
 
 class FolderAndSpeakerTests(unittest.TestCase):
@@ -1173,6 +1212,116 @@ class FolderAndSpeakerTests(unittest.TestCase):
         self.assertNotIn('email', json.dumps(captured['accounts']))
         self.assertNotIn(FOLDER, json.dumps(captured))
         self.assertNotIn(FILE, json.dumps(captured))
+
+
+class LibraryFinderTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = _library_app()
+        cls.client = cls.app.test_client()
+
+    def _session(self, **keys):
+        with self.client.session_transaction() as sess:
+            sess.clear()
+            sess.update(keys)
+
+    def _rows(self):
+        return [
+            _row(id=1, title='Hope', speaker='Christopher Fuentes', scripture='John 3'),
+            _row(id=2, title='Evening', speaker='Tim Lien', scripture='Psalm 23'),
+            _row(id=3, title='Welcome', speaker='Leo', scripture=''),
+            _row(id=4, title='Leaders night', speaker='Tim', visibility='leaders'),
+        ]
+
+    def test_message_from_is_exact_and_search_stays_on_the_card(self):
+        seen = {}
+
+        def grab(name, **kwargs):
+            seen['name'] = name
+            seen['titles'] = [item['title'] for item in kwargs['messages']]
+            seen['who'] = kwargs.get('active_who')
+            seen['people'] = [person['label'] for person in kwargs.get('people') or []]
+            seen['q'] = kwargs.get('search_query')
+            return 'ok'
+
+        rows = self._rows()
+        with patch('app.routes.sermons.drive_pages.maybe_sync'), \
+                patch('app.routes.sermons.drive_pages.list_items', return_value=rows), \
+                patch('app.routes.sermons.drive_pages.render_template', grab):
+            self._session()
+            one = self.client.get('/sermons/?who=christopher%20fuentes')
+            self.assertEqual(one.status_code, 200)
+            self.assertEqual(seen['titles'], ['Hope'])
+            self.assertEqual(seen['who'], 'christopher fuentes')
+            self.assertEqual(seen['people'], ['Christopher Fuentes', 'Leo', 'Tim Lien'])
+            self.assertNotIn('Tim', seen['people'])
+
+            self.client.get('/sermons/?who=tim')
+            self.assertEqual(seen['titles'], ['Hope', 'Evening', 'Welcome'])
+            self.assertEqual(seen['who'], '')
+
+            self.client.get('/sermons/?q=john')
+            self.assertEqual(seen['titles'], ['Hope'])
+            self.assertEqual(seen['q'], 'john')
+        with patch('app.utils.helpers.get_censored_words', return_value=[]), \
+                self.app.test_request_context('/sermons/'):
+            html = self.app.jinja_env.get_template('sermons/_library_finder.html').render(
+                search_query='<script>alert(1)', people=[], is_staff=False,
+            )
+        self.assertNotIn('<script', html.lower())
+        self.assertIn('&lt;script&gt;', html)
+
+    def test_a_share_is_a_page_link_and_not_the_drive_file(self):
+        from app.utils.sermon_drive import share_message_link
+
+        made = Mock(return_value=3)
+        with patch('app.models.social.post_throttle_message', return_value=''), \
+                patch('app.models.social.create_post', made), \
+                patch('app.utils.helpers.contains_censored_word', return_value=False), \
+                patch('app.models.db.get_db', side_effect=AssertionError('db')):
+            ok, _note = share_message_link(
+                4, 7, 'Hope', 'Christopher Fuentes', 'Loved this', '/sermons/library/7',
+            )
+            blocked, _why = share_message_link(
+                4, 7, 'Hope', 'Christopher Fuentes', 'nope',
+                f'https://drive.google.com/uc?export=download&id={FILE}',
+            )
+        self.assertTrue(ok)
+        self.assertFalse(blocked)
+        made.assert_called_once()
+        args = made.call_args.args
+        self.assertEqual(args[4], '/sermons/library/7')
+        self.assertNotIn(FILE, json.dumps(args))
+        self.assertNotIn('export=download', json.dumps(args))
+        self.assertNotIn('drive.google.com', json.dumps(args))
+
+        with patch('app.models.users.get_user_by_id', return_value={'id': 4, 'role': 'Member', 'username': 'amy'}), \
+                patch('app.routes.sermons.drive_pages.get_item', return_value=_row(visibility='leaders')), \
+                patch('app.routes.sermons.drive_pages.share_message_link', side_effect=AssertionError('shared')):
+            self._session(user_id=4, user_role='Owner')
+            denied = self.client.post('/sermons/library/7/share', data={
+                'note': 'hi', 'drive_file_id': FILE, 'url': 'https://evil.example',
+            })
+        self.assertEqual(denied.status_code, 404)
+        self.assertNotIn(FILE.encode(), denied.data)
+
+        shared = Mock(return_value=(True, 'Shared to your page. The message still plays from Drive.'))
+        with patch('app.models.users.get_user_by_id', return_value={
+            'id': 4, 'role': 'Member', 'username': 'amy',
+        }), \
+                patch('app.routes.sermons.drive_pages.get_item', return_value=_row()), \
+                patch('app.routes.sermons.drive_pages.share_message_link', shared):
+            self._session(user_id=4, user_role='Member')
+            posted = self.client.post('/sermons/library/7/share', data={
+                'note': 'Loved this', 'drive_file_id': FILE,
+            })
+        self.assertEqual(posted.status_code, 302)
+        self.assertIn('/u/amy', posted.headers['Location'])
+        self.assertNotIn(FILE, posted.headers['Location'])
+        self.assertNotIn('evil.example', posted.headers['Location'])
+        shared.assert_called_once()
+        self.assertEqual(shared.call_args.args[5], '/sermons/library/7')
+        self.assertNotIn(FILE, json.dumps(shared.call_args.args))
 
 
 class _Cursor:

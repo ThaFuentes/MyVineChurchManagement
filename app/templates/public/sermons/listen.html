@@ -2,6 +2,10 @@
 
 {% block title %}{{ message.title }}{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/global/sermon_library.css') }}?v=20261029msg">
+{% endblock %}
+
 {% block content %}
 <p class="help-text" style="margin:0 0 0.75rem;">
   <a href="{{ url_for('public.public_sermons.public_sermons') }}">← Sermons</a>

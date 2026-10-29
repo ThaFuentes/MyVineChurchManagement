@@ -1,0 +1,12 @@
+{% extends "settings/base_settings.html" %}
+
+{% block settings_content %}
+<section class="content-section">
+  <h2 class="section-title">Messages</h2>
+  <p class="help-text">
+    Sermon library settings. How often Drive is read, who can hear a new message, folders, and copies saved on this server.
+    Listening, search, and Message from stay on the <a href="{{ url_for('sermons.sermons') }}">sermon page</a>.
+  </p>
+</section>
+{% include 'sermons/_message_settings.html' %}
+{% endblock %}
