@@ -27,7 +27,7 @@
         <option value="{{ value }}" {% if default_visibility == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
-      <p class="help-text">New files start with this. Messages already in the library stay as they are.</p>
+      <p class="help-text">A new file starts with this until its speaker is recognized. A speaker with no rule is public, and a rule on the Speakers page covers every message under that name. Messages already in the library stay as they are until that rule is saved.</p>
     </div>
     <button type="submit" class="btn btn-secondary btn-small">Save default</button>
   </form>

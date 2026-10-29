@@ -1151,6 +1151,7 @@ class FolderAndSpeakerTests(unittest.TestCase):
         self.assertNotIn(b'email', page.data.lower())
         self.assertNotIn(FOLDER.encode(), page.data)
         self.assertNotIn(b'user_id', page.data)
+        self.assertNotIn(b'name="listen_rule"', page.data)
 
         db = Mock(side_effect=AssertionError('db'))
         with patch('app.utils.decorators.get_user_by_id', return_value={'id': 4, 'role': 'Staff'}), \
@@ -1595,6 +1596,127 @@ class SermonPrivacyTests(unittest.TestCase):
             self.assertNotIn('speaker_user_id', page)
         for page in (locked, open_form):
             self.assertNotIn(FILE, page)
+
+    def test_a_speaker_rule_needs_the_privacy_grant_and_stays_off_the_page_ids(self):
+        db = Mock(side_effect=AssertionError('db'))
+        with patch('app.utils.decorators.get_user_by_id', return_value={'id': 4, 'role': 'Staff'}), \
+                patch('app.models.db.get_db', db), \
+                patch('app.routes.sermons.drive_pages.save_speaker_rule', side_effect=AssertionError('save')):
+            self._session(user_id=4, user_role='Owner')
+            bad = self.client.post('/sermons/library/speakers', data={
+                'action': 'listen_rule',
+                'speaker_id': '3',
+                'listen_rule': '<script>hidden',
+                'hidden': '1',
+                'user_id': '999',
+            })
+        db.assert_not_called()
+        self.assertEqual(bad.status_code, 302)
+        self.assertNotIn('script', bad.headers['Location'])
+        with self.client.session_transaction() as sess:
+            self.assertIn('Choose who can listen.', str(sess.get('_flashes')))
+
+        saver = Mock(return_value=None)
+        with patch('app.utils.decorators.get_user_by_id', return_value={'id': 4, 'role': 'Staff'}), \
+                patch('app.models.users.get_user_by_id', return_value={'id': 4, 'role': 'Staff'}), \
+                patch('app.routes.sermons.drive_pages.may_set_sermon_privacy', return_value=False), \
+                patch('app.routes.sermons.drive_pages.save_speaker_rule', saver):
+            self._session(user_id=4, user_role='Member')
+            denied = self.client.post('/sermons/library/speakers', data={
+                'action': 'listen_rule',
+                'speaker_id': '3',
+                'listen_rule': 'members',
+                'hidden': '1',
+                'user_id': '999',
+            })
+        saver.assert_not_called()
+        self.assertEqual(denied.status_code, 302)
+        with self.client.session_transaction() as sess:
+            self.assertIn('You do not have permission to change who can listen.', str(sess.get('_flashes')))
+
+        with patch('app.utils.decorators.log_change'), \
+                patch('app.utils.decorators.get_user_by_id', return_value={'id': 8, 'role': 'Member'}), \
+                patch('app.routes.sermons.drive_pages.save_speaker_rule', side_effect=AssertionError('save')):
+            self._session(user_id=8, user_role='Owner')
+            member = self.client.post('/sermons/library/speakers', data={
+                'action': 'listen_rule', 'speaker_id': '3', 'listen_rule': 'members',
+            })
+        self.assertEqual(member.status_code, 403)
+
+        with patch('app.utils.decorators.get_user_by_id', return_value={'id': 2, 'role': 'Owner'}), \
+                patch('app.models.users.get_user_by_id', return_value={'id': 2, 'role': 'Owner'}), \
+                patch('app.routes.sermons.drive_pages.save_speaker_rule', saver):
+            self._session(user_id=2, user_role='Member')
+            saved = self.client.post('/sermons/library/speakers', data={
+                'action': 'listen_rule',
+                'speaker_id': '3',
+                'listen_rule': 'members',
+                'hidden': '1',
+                'user_id': '999',
+                'drive_file_id': FILE,
+            })
+            self.assertEqual(saver.call_args.args, ('3', 'members'))
+            saver.reset_mock()
+            cleared = self.client.post('/sermons/library/speakers', data={
+                'action': 'listen_rule',
+                'speaker_id': '3',
+                'listen_rule': '',
+                'hidden': '1',
+            })
+        self.assertEqual(saved.status_code, 302)
+        self.assertEqual(cleared.status_code, 302)
+        self.assertEqual(saver.call_args.args, ('3', ''))
+        self.assertNotIn(FILE, saved.headers['Location'])
+        self.assertNotIn(FOLDER, cleared.headers['Location'])
+
+        self._session()
+        guest = self.client.post('/sermons/library/speakers', data={
+            'action': 'listen_rule', 'speaker_id': '3', 'listen_rule': 'members',
+        })
+        self.assertEqual(guest.status_code, 302)
+        self.assertIn('/login', guest.headers['Location'])
+
+        people = [{
+            'id': 3,
+            'display_name': HOSTILE_TITLE,
+            'names': ['Mary Ann'],
+            'messages': 2,
+            'account_name': '',
+            'linked': False,
+            'listen_rule': 'members',
+        }]
+        with patch('app.utils.decorators.get_user_by_id', return_value={'id': 2, 'role': 'Owner'}), \
+                patch('app.models.users.get_user_by_id', return_value={'id': 2, 'role': 'Owner'}), \
+                patch('app.utils.helpers.get_censored_words', return_value=[]), \
+                patch('app.routes.sermons.drive_pages.list_speakers', return_value=people), \
+                patch('app.routes.sermons.drive_pages.list_accounts', return_value=[]):
+            self._session(user_id=2, user_role='Member')
+            page = self.client.get('/sermons/library/speakers')
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b'name="listen_rule"', page.data)
+        self.assertIn(b'No rule (anyone)', page.data)
+        self.assertIn(b'value="members" selected', page.data)
+        self.assertIn(b'&lt;script&gt;', page.data)
+        self.assertNotIn(b'<script', page.data.lower())
+        self.assertNotIn(b'value="" selected', page.data)
+        self.assertNotIn(b'user_id', page.data)
+        self.assertNotIn(b'email', page.data.lower())
+        self.assertNotIn(FOLDER.encode(), page.data)
+        self.assertNotIn(FILE.encode(), page.data)
+        self.assertNotIn(b'export=download', page.data)
+
+        with patch('app.utils.decorators.get_user_by_id', return_value={'id': 4, 'role': 'Staff'}), \
+                patch('app.models.users.get_user_by_id', return_value={'id': 4, 'role': 'Staff'}), \
+                patch('app.routes.sermons.drive_pages.may_set_sermon_privacy', return_value=False), \
+                patch('app.utils.helpers.get_censored_words', return_value=[]), \
+                patch('app.routes.sermons.drive_pages.list_speakers', return_value=people), \
+                patch('app.routes.sermons.drive_pages.list_accounts', return_value=[]):
+            self._session(user_id=4, user_role='Member')
+            quiet = self.client.get('/sermons/library/speakers')
+        self.assertEqual(quiet.status_code, 200)
+        self.assertNotIn(b'name="listen_rule"', quiet.data)
+        self.assertIn(b'Who can listen: Signed-in members.', quiet.data)
+        self.assertNotIn(b'<script', quiet.data.lower())
 
 
 class _Cursor:

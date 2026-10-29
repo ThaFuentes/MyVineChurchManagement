@@ -915,5 +915,134 @@ class PrivacyTests(unittest.TestCase):
         self.assertEqual(len(cur.calls), 1)
 
 
+class SpeakerRuleTests(unittest.TestCase):
+    def test_a_speaker_rule_sets_that_persons_messages_and_no_rule_is_public(self):
+        from app.utils.sermon_drive import (
+            _attach_known_speakers,
+            _execute_speaker,
+            list_speakers,
+            parse_listen_rule,
+            save_speaker_rule,
+        )
+
+        self.assertIsNone(parse_listen_rule(None))
+        self.assertIsNone(parse_listen_rule('hidden'))
+        self.assertIsNone(parse_listen_rule('<script>'))
+        self.assertEqual(parse_listen_rule(''), ('clear', 'public'))
+        self.assertEqual(parse_listen_rule(' MEMBERS '), ('set', 'members'))
+
+        db = Mock(side_effect=AssertionError('db'))
+        with patch('app.models.db.get_db', db):
+            self.assertEqual(save_speaker_rule('3 OR 1', 'members'), 'Choose a speaker from the list.')
+            self.assertEqual(save_speaker_rule('3', 'hidden'), 'Choose who can listen.')
+            self.assertEqual(save_speaker_rule('3', None), 'Choose who can listen.')
+        db.assert_not_called()
+
+        missing = _Cursor()
+        with patch('app.utils.sermon_drive.ensure_schema'), \
+                patch('app.models.db.get_db', return_value=SimpleNamespace(cursor=lambda: missing)):
+            self.assertEqual(save_speaker_rule(3, 'leaders'), 'Choose a speaker from the list.')
+        self.assertFalse(any('UPDATE' in sql for sql, _params in missing.calls))
+
+        cur = _Cursor(ones=[{'id': 3}])
+        with patch('app.utils.sermon_drive.ensure_schema'), \
+                patch('app.models.db.get_db', return_value=SimpleNamespace(cursor=lambda: cur)):
+            self.assertIsNone(save_speaker_rule('3', 'members'))
+        rule = [params for sql, params in cur.calls if 'listen_rule=%s' in sql]
+        vis = [(sql, params) for sql, params in cur.calls if 'sermon_drive_items' in sql]
+        self.assertEqual(rule, [('members', 3)])
+        self.assertEqual(vis[0][1], ('members', 3))
+        self.assertNotIn('hidden', vis[0][0].lower())
+        self.assertNotIn('site_edited', vis[0][0].lower())
+
+        cleared = _Cursor(ones=[{'id': 3}])
+        with patch('app.utils.sermon_drive.ensure_schema'), \
+                patch('app.models.db.get_db', return_value=SimpleNamespace(cursor=lambda: cleared)):
+            self.assertIsNone(save_speaker_rule(3, ''))
+        rule = [params for sql, params in cleared.calls if 'listen_rule=%s' in sql]
+        vis = [params for sql, params in cleared.calls if 'sermon_drive_items' in sql]
+        self.assertEqual(rule, [(None, 3)])
+        self.assertEqual(vis, [('public', 3)])
+
+        attached = _Cursor(alls=[
+            [
+                {'id': 8, 'speaker': 'Mary Ann', 'site_edited': 0},
+                {'id': 9, 'speaker': 'Mary Ann', 'site_edited': 1},
+                {'id': 10, 'speaker': 'Tim', 'site_edited': 0},
+                {'id': 11, 'speaker': 'Ada', 'site_edited': 0},
+            ],
+            [
+                {
+                    'name_key': 'mary ann', 'speaker_id': 3,
+                    'display_name': 'Mary Ann', 'listen_rule': 'members',
+                },
+                {
+                    'name_key': 'tim', 'speaker_id': 4,
+                    'display_name': 'Tim', 'listen_rule': None,
+                },
+                {
+                    'name_key': 'ada', 'speaker_id': 5,
+                    'display_name': 'Ada', 'listen_rule': 'nope',
+                },
+            ],
+        ])
+        _attach_known_speakers(attached, 1)
+        by_id = {params[-1]: (sql, params) for sql, params in attached.calls if sql.startswith('UPDATE')}
+        self.assertEqual(by_id[8][1], (3, 'Mary Ann', 'members', 8))
+        self.assertNotIn('hidden', by_id[8][0].lower())
+        self.assertEqual(by_id[9][1], (3, 'Mary Ann', 9))
+        self.assertNotIn('visibility', by_id[9][0])
+        self.assertEqual(by_id[10][1], (4, 'Tim', 'public', 10))
+        self.assertEqual(by_id[11][1], (5, 'Ada', 11))
+        self.assertNotIn('visibility', by_id[11][0])
+
+        guest = _row(visibility='members')
+        self.assertFalse(can_listen(guest, logged_in=False, role=''))
+        self.assertTrue(can_listen(guest, logged_in=True, role='Member', user_id=9))
+        self.assertTrue(can_listen(_row(visibility='public'), logged_in=False, role=''))
+        leaders = _row(visibility='leaders', speaker_user_id=4)
+        self.assertFalse(can_listen(leaders, logged_in=False, role=''))
+        self.assertFalse(can_listen(leaders, logged_in=True, role='Member', user_id=9))
+        self.assertTrue(can_listen(leaders, logged_in=True, role='Member', user_id=4))
+        hidden = _row(visibility='members', hidden=1, speaker_user_id=4)
+        self.assertFalse(can_listen(hidden, logged_in=True, role='Member', user_id=4))
+
+        moved = _Cursor(ones=[None, {'listen_rule': 'members'}], alls=[[]])
+        _speaker, _name, errors = _execute_speaker(moved, {
+            'action': 'combine',
+            'into_id': 2,
+            'speaker_id': 1,
+            'user_id': None,
+            'display_name': 'Mary Ann',
+            'add_names': [],
+        })
+        self.assertEqual(errors, [])
+        followed = [(sql, params) for sql, params in moved.calls if 'SET visibility=%s' in sql]
+        self.assertEqual([params for _sql, params in followed], [('members', 2)])
+        self.assertNotIn('hidden', followed[0][0].lower())
+
+        listed = _Cursor(alls=[
+            [{
+                'id': 3, 'display_name': 'Mary Ann', 'user_id': 9, 'listen_rule': 'members',
+            }],
+            [{'speaker_id': 3, 'name_key': 'mary ann'}],
+            [{'speaker_id': 3, 'n': 2}],
+            [{
+                'id': 9, 'first_name': 'Mary', 'last_name': 'Ann',
+                'username': 'mary', 'email': 'secret@example.com',
+            }],
+            [{'speaker_id': 3, 'name': 'Mary Ann'}],
+        ])
+        with patch('app.utils.sermon_drive.ensure_schema'), \
+                patch('app.models.db.get_db', return_value=SimpleNamespace(cursor=lambda: listed)):
+            people = list_speakers()
+        self.assertEqual(people[0]['listen_rule'], 'members')
+        self.assertEqual(people[0]['display_name'], 'Mary Ann')
+        dumped = json.dumps(people)
+        self.assertNotIn('user_id', dumped)
+        self.assertNotIn('email', dumped)
+        self.assertNotIn('secret@example.com', dumped)
+
+
 if __name__ == '__main__':
     unittest.main()

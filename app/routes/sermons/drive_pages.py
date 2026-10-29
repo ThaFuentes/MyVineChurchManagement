@@ -35,6 +35,7 @@ from app.utils.sermon_drive import (
     maybe_sync,
     merge_named_people,
     open_local_copy,
+    parse_listen_rule,
     parse_search,
     parse_sort,
     parse_visibility,
@@ -53,6 +54,7 @@ from app.utils.sermon_drive import (
     save_folder_id,
     save_item_details,
     save_refresh_hours,
+    save_speaker_rule,
     save_sermon_reaction,
     set_item_visibility,
     sermon_reaction_totals,
@@ -609,6 +611,21 @@ def _flash_speaker(status):
 def library_speakers():
     if request.method == 'POST':
         action = (request.form.get('action') or '').strip()
+        if action == 'listen_rule':
+            raw_rule = request.form.get('listen_rule')
+            if parse_listen_rule(raw_rule) is None:
+                flash('Choose who can listen.', 'error')
+                return redirect(url_for('sermons.library_speakers'))
+            _logged_in, role, user = _viewer()
+            if not may_set_sermon_privacy(_account_id(user), role):
+                flash('You do not have permission to change who can listen.', 'error')
+                return redirect(url_for('sermons.library_speakers'))
+            status = save_speaker_rule(request.form.get('speaker_id'), raw_rule)
+            if status is None:
+                flash('Who can listen was saved for this speaker.', 'success')
+            else:
+                _flash_speaker(status)
+            return redirect(url_for('sermons.library_speakers'))
         if action == 'create':
             status = create_speaker(request.form.get('speaker'))
         elif action == 'add_name':
@@ -626,10 +643,13 @@ def library_speakers():
             status = 'Choose a speaker from the list.'
         _flash_speaker(status)
         return redirect(url_for('sermons.library_speakers'))
+    _logged_in, role, user = _viewer()
     return render_template(
         'sermons/speakers.html',
         speakers=list_speakers(),
         accounts=list_accounts(),
+        can_set_privacy=may_set_sermon_privacy(_account_id(user), role),
+        visibility_choices=VISIBILITY_CHOICES,
     )
 
 

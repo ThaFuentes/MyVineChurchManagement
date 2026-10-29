@@ -1258,6 +1258,40 @@ def parse_visibility(raw):
     return text
 
 
+def parse_listen_rule(raw):
+    """A speaker rule, or a clear that leaves that person's messages public.
+
+    None means the posted choice is not allowed. A missing value is rejected.
+    An empty value is the clear choice: no rule, and those messages are public.
+    """
+    if raw is None:
+        return None
+    text = str(raw).strip().lower()
+    if text == '':
+        return ('clear', 'public')
+    picked = parse_visibility(text)
+    if picked is None:
+        return None
+    return ('set', picked)
+
+
+def _stored_listen_rule(raw):
+    """Blank means no rule. Anything else must be one of the three levels."""
+    if raw is None or str(raw).strip() == '':
+        return ''
+    return parse_visibility(raw) or ''
+
+
+def _visibility_for_rule(raw):
+    """Who can listen for this speaker. No rule means public.
+
+    A stored value outside the three levels is left unset.
+    """
+    if raw is None or str(raw).strip() == '':
+        return 'public'
+    return parse_visibility(raw)
+
+
 def normalize_visibility(value):
     picked = parse_visibility(value)
     if picked is None:
@@ -2355,7 +2389,10 @@ def list_accounts():
 
 
 def _speaker_index(cur):
-    cur.execute("SELECT id, display_name, user_id FROM sermon_speakers ORDER BY display_name, id")
+    cur.execute(
+        "SELECT id, display_name, user_id, listen_rule "
+        "FROM sermon_speakers ORDER BY display_name, id"
+    )
     people = []
     by_id = {}
     for row in cur.fetchall():
@@ -2363,6 +2400,7 @@ def _speaker_index(cur):
             'id': int(row['id']),
             'display_name': row.get('display_name') or '',
             'user_id': int(row['user_id']) if row.get('user_id') else None,
+            'listen_rule': _stored_listen_rule(row.get('listen_rule')),
             'names': [],
         }
         people.append(person)
@@ -2407,6 +2445,7 @@ def list_speakers():
                 'messages': counts.get(person['id'], 0),
                 'account_name': accounts.get(person['user_id'], '') if person.get('user_id') else '',
                 'linked': bool(person.get('user_id')),
+                'listen_rule': person.get('listen_rule') or '',
             })
         return out
     except Exception as exc:
@@ -2488,6 +2527,8 @@ def _execute_speaker(cur, decision):
             return None, None, ['That name already belongs to another speaker. Combine them on the Speakers page.']
     if not _remember_display(cur, speaker_id, display):
         return None, None, ['That name already belongs to another speaker. Combine them on the Speakers page.']
+    if action == 'combine':
+        _apply_stored_speaker_rule(cur, speaker_id)
     return speaker_id, display, []
 
 
@@ -2590,6 +2631,70 @@ def unlink_speaker_account(speaker_id):
         return 'error'
 
 
+def _set_speaker_messages(cur, speaker_id, visibility):
+    """Set who can listen on this speaker's messages. The hidden flag stays."""
+    cur.execute(
+        """
+        UPDATE sermon_drive_items
+           SET visibility=%s
+         WHERE speaker_id=%s
+        """,
+        (visibility, int(speaker_id)),
+    )
+
+
+def _apply_stored_speaker_rule(cur, speaker_id):
+    """Messages moved onto a speaker follow that speaker's saved rule."""
+    cur.execute(
+        "SELECT listen_rule FROM sermon_speakers WHERE id=%s",
+        (int(speaker_id),),
+    )
+    row = cur.fetchone()
+    raw = None
+    if isinstance(row, dict):
+        raw = row.get('listen_rule')
+    elif row:
+        raw = row[0]
+    visibility = _visibility_for_rule(raw)
+    if not visibility:
+        return False
+    _set_speaker_messages(cur, speaker_id, visibility)
+    return True
+
+
+def save_speaker_rule(speaker_id, raw):
+    """Save who can listen to every message from one speaker.
+
+    An empty choice clears the rule and sets those messages to public.
+    The hidden flag and the Drive file are not changed.
+    """
+    parsed = parse_listen_rule(raw)
+    if parsed is None:
+        return 'Choose who can listen.'
+    text = str(speaker_id or '').strip()
+    if not text.isdigit() or int(text) < 1:
+        return 'Choose a speaker from the list.'
+    mode, visibility = parsed
+    try:
+        ensure_schema()
+        from app.models.db import get_db
+        cur = get_db().cursor()
+        speaker_id = int(text)
+        cur.execute("SELECT id FROM sermon_speakers WHERE id=%s", (speaker_id,))
+        if not cur.fetchone():
+            return 'Choose a speaker from the list.'
+        stored = None if mode == 'clear' else visibility
+        cur.execute(
+            "UPDATE sermon_speakers SET listen_rule=%s WHERE id=%s",
+            (stored, speaker_id),
+        )
+        _set_speaker_messages(cur, speaker_id, visibility)
+        return None
+    except Exception as exc:
+        log.warning('sermon speaker rule failed: %s', type(exc).__name__)
+        return 'error'
+
+
 def combine_speakers(into_id, speaker_id):
     """Move one speaker, including every spelling and message, onto another."""
     raw_into = str(into_id or '').strip()
@@ -2687,10 +2792,14 @@ def save_source(source_id, label, enabled):
 
 
 def _attach_known_speakers(cur, source_id):
-    """When a file name already matches a saved spelling, keep that speaker."""
+    """When a file name already matches a saved spelling, keep that speaker.
+
+    A new match uses that person's rule. No rule means public. A message
+    already edited on the site keeps the listen choice saved there.
+    """
     cur.execute(
         """
-        SELECT id, speaker
+        SELECT id, speaker, site_edited
           FROM sermon_drive_items
          WHERE source_id=%s
            AND speaker_id IS NULL
@@ -2704,20 +2813,35 @@ def _attach_known_speakers(cur, source_id):
         return
     cur.execute(
         """
-        SELECT n.name_key, n.speaker_id, s.display_name
+        SELECT n.name_key, n.speaker_id, s.display_name, s.listen_rule
           FROM sermon_speaker_names n
           JOIN sermon_speakers s ON s.id = n.speaker_id
         """
     )
     names = {}
     displays = {}
+    rules = {}
     for row in cur.fetchall():
         speaker_id = int(row['speaker_id'])
         names[row.get('name_key') or ''] = speaker_id
         displays[speaker_id] = row.get('display_name') or ''
+        rules[speaker_id] = _visibility_for_rule(row.get('listen_rule'))
     for row in rows:
         speaker_id = speaker_match(row.get('speaker'), names)
         if not speaker_id:
+            continue
+        display = displays.get(speaker_id) or row.get('speaker')
+        visibility = rules.get(speaker_id)
+        if visibility and not _flag(row.get('site_edited')):
+            cur.execute(
+                """
+                UPDATE sermon_drive_items
+                   SET speaker_id=%s, speaker=%s, visibility=%s
+                 WHERE id=%s AND speaker_id IS NULL
+                   AND COALESCE(site_edited, 0) = 0
+                """,
+                (speaker_id, display, visibility, row['id']),
+            )
             continue
         cur.execute(
             """
@@ -2725,5 +2849,5 @@ def _attach_known_speakers(cur, source_id):
                SET speaker_id=%s, speaker=%s
              WHERE id=%s AND speaker_id IS NULL
             """,
-            (speaker_id, displays.get(speaker_id) or row.get('speaker'), row['id']),
+            (speaker_id, display, row['id']),
         )

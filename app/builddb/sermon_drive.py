@@ -59,6 +59,7 @@ CREATE_SPEAKERS = """
         id           INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
         display_name VARCHAR(160) NOT NULL,
         user_id      INT UNSIGNED NULL,
+        listen_rule  VARCHAR(20) NULL,
         created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uq_sermon_speaker_user (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -157,6 +158,10 @@ def create_tables(cursor):
     if not _has_column(cursor, 'sermon_drive_items', 'speaker_id'):
         cursor.execute(
             "ALTER TABLE sermon_drive_items ADD COLUMN speaker_id INT UNSIGNED NULL"
+        )
+    if not _has_column(cursor, 'sermon_speakers', 'listen_rule'):
+        cursor.execute(
+            "ALTER TABLE sermon_speakers ADD COLUMN listen_rule VARCHAR(20) NULL"
         )
     cursor.execute("SELECT id FROM sermon_drive_sources LIMIT 1")
     if cursor.fetchone() is None:

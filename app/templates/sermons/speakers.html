@@ -3,7 +3,7 @@
 {% block page_title %}Speakers{% endblock %}
 
 {% block page_description %}
-A name can stand alone until that person has an account. Linking an account keeps every message under that name, including other spellings such as Tim and Tim Lien.
+A name can stand alone until that person has an account. Linking an account keeps every message under that name, including other spellings such as Tim and Tim Lien. A listen rule covers every message from that person. No rule means those messages are public.
 {% endblock %}
 
 {% block sermons_content %}
@@ -69,6 +69,33 @@ A name can stand alone until that person has an account. Linking an account keep
   </form>
   {% endif %}
 
+  {% if can_set_privacy %}
+  <form method="post" action="{{ url_for('sermons.library_speakers') }}" class="styled-form" style="margin-top:0.75rem;">
+    {% include 'partials/csrf_field.html' %}
+    <input type="hidden" name="action" value="listen_rule">
+    <input type="hidden" name="speaker_id" value="{{ person.id }}">
+    <div class="form-group">
+      <label for="rule-{{ person.id }}">Who can listen to {{ person.display_name }}</label>
+      <select id="rule-{{ person.id }}" name="listen_rule" class="form-input">
+        <option value="" {% if not person.listen_rule %}selected{% endif %}>No rule (anyone)</option>
+        {% for value, label in visibility_choices|default([]) %}
+        <option value="{{ value }}" {% if person.listen_rule == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <p class="help-text">No rule, and Anyone, both leave these messages public. Signed-in members or Admin and Owner applies to every message under this name, including other spellings. A file whose name is not saved here still follows the new-message default. A hidden message stays hidden. Drive is not changed. A later change on one message stays until this rule is saved again.</p>
+    </div>
+    <button type="submit" class="btn btn-secondary btn-small">Save rule</button>
+  </form>
+  {% elif person.listen_rule == 'members' %}
+  <p class="help-text">Who can listen: Signed-in members.</p>
+  {% elif person.listen_rule == 'leaders' %}
+  <p class="help-text">Who can listen: Admin and Owner.</p>
+  {% elif person.listen_rule == 'public' %}
+  <p class="help-text">Who can listen: Anyone.</p>
+  {% else %}
+  <p class="help-text">No listen rule. Messages from this person are public.</p>
+  {% endif %}
+
   {% if speakers|length > 1 %}
   <form method="post" action="{{ url_for('sermons.library_speakers') }}" class="styled-form" style="margin-top:0.75rem;">
     {% include 'partials/csrf_field.html' %}
@@ -82,7 +109,7 @@ A name can stand alone until that person has an account. Linking an account keep
         <option value="{{ other.id }}">{{ other.display_name }}</option>
         {% endfor %}
       </select>
-      <p class="help-text">Every spelling and message moves here. Two different accounts stay apart.</p>
+      <p class="help-text">Every spelling and message moves here and follows this person's listen rule. No rule means anyone can listen. Two different accounts stay apart.</p>
     </div>
     <button type="submit" class="btn btn-secondary btn-small">Combine</button>
   </form>
