@@ -5,7 +5,7 @@
 {% set page_lede = 'Messages from our ministers and guest speakers.' %}
 {% include 'partials/page_hero.html' %}
 
-<p class="help-text">Details you save here stay on this site. The Drive files are not changed or downloaded.</p>
+<p class="help-text">Details you save here stay on this site. Drive files are not changed. A saved copy is used only when Drive no longer has that message.</p>
 
 {% if is_staff %}
 <div class="public-list-actions" style="margin-bottom:1rem;">
@@ -14,6 +14,7 @@
     <button type="submit" class="btn btn-secondary btn-small">Refresh from Drive</button>
   </form>
   <a href="{{ url_for('sermons.posted_sermons') }}" class="btn-secondary btn-small">Posted uploads</a>
+  <a href="{{ url_for('sermons.library_speakers') }}" class="btn-secondary btn-small">Speakers</a>
   {% if comment_console_url %}
   <a href="{{ comment_console_url }}" class="btn-secondary btn-small">All comments</a>
   {% endif %}
@@ -70,11 +71,51 @@
 </form>
 {% endif %}
 
+{% if can_keep_copy %}
+<form method="post" action="{{ url_for('sermons.library_copy_next') }}" class="styled-form" style="margin-bottom:1rem;">
+  {% include 'partials/csrf_field.html' %}
+  <p class="help-text">
+    {% if unsaved_count %}
+    {{ unsaved_count }} message{% if unsaved_count != 1 %}s{% endif %} still need a copy on this server.
+    {% else %}
+    Every message already has a copy on this server.
+    {% endif %}
+    Most of these are audio. Each click saves one file here so it is not only on Google.
+    Playback stays on Drive until that file is gone.
+  </p>
+  {% if unsaved_count %}
+  <button type="submit" class="btn btn-secondary btn-small">Save the next copy</button>
+  {% endif %}
+</form>
+{% endif %}
+
 {% include 'sermons/_library_cards.html' %}
 
 {% if is_owner %}
 <section class="content-section" style="margin-top:1.5rem;">
-  <h2 class="section-title">Drive folder</h2>
+  <h2 class="section-title">Drive folders</h2>
+  <p class="help-text">Add another folder. The folder id stays on this site and is not shown on the message pages.</p>
+  {% for folder in folders|default([]) %}
+  <form method="post" action="{{ url_for('sermons.library_source_update') }}" class="styled-form" style="margin-bottom:1rem;">
+    {% include 'partials/csrf_field.html' %}
+    <input type="hidden" name="source_id" value="{{ folder.id }}">
+    <div class="form-group">
+      <label for="folder-name-{{ folder.id }}">Name on this site</label>
+      <input id="folder-name-{{ folder.id }}" name="label" type="text" class="form-input" maxlength="120"
+             value="{{ folder.label }}" required>
+      <p class="help-text">{{ folder.messages }} message{% if folder.messages != 1 %}s{% endif %}. Hiding a folder takes it out of the library. Saved copies stay.</p>
+    </div>
+    <label>
+      <input type="radio" name="enabled" value="1" {% if folder.enabled %}checked{% endif %}>
+      Show in the library
+    </label>
+    <label>
+      <input type="radio" name="enabled" value="0" {% if not folder.enabled %}checked{% endif %}>
+      Hide this folder
+    </label>
+    <button type="submit" class="btn btn-secondary btn-small">Save folder</button>
+  </form>
+  {% endfor %}
   <form method="post" action="{{ url_for('sermons.library_source') }}" class="styled-form">
     {% include 'partials/csrf_field.html' %}
     <div class="form-group">
@@ -83,7 +124,12 @@
              placeholder="paste a new folder id">
       <p class="help-text">Saved on this site only. It is not shown on the message pages.</p>
     </div>
-    <button type="submit" class="btn btn-secondary btn-small">Save folder</button>
+    <div class="form-group">
+      <label for="folder-label">Name on this site</label>
+      <input id="folder-label" name="label" type="text" class="form-input" maxlength="120"
+             placeholder="Sunday messages" autocomplete="off">
+    </div>
+    <button type="submit" class="btn btn-secondary btn-small">Add another folder</button>
   </form>
 </section>
 {% endif %}

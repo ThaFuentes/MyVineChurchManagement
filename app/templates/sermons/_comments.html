@@ -3,7 +3,7 @@
     Comments{% if comments %} · {{ comments|length }}{% endif %}
   </h2>
   {% if can_moderate and comment_console_url %}
-  <p class="help-text"><a href="{{ comment_console_url }}">All comments</a> opens every video, post, and message in one list.</p>
+  <p class="help-text"><a href="{{ comment_console_url }}">All comments</a> opens every post and message in one list.</p>
   {% endif %}
 
   {% if comments_open %}
@@ -12,6 +12,7 @@
     {% if playlist %}
     <input type="hidden" name="playlist" value="1">
     {% if playlist.year %}<input type="hidden" name="year" value="{{ playlist.year }}">{% endif %}
+    {% if playlist.sort|default('date') != 'date' %}<input type="hidden" name="sort" value="{{ playlist.sort }}">{% endif %}
     {% endif %}
     <input type="hidden" name="action" value="comment">
     {% if account_name %}
@@ -52,6 +53,7 @@
           {% if playlist %}
           <input type="hidden" name="playlist" value="1">
           {% if playlist.year %}<input type="hidden" name="year" value="{{ playlist.year }}">{% endif %}
+          {% if playlist.sort|default('date') != 'date' %}<input type="hidden" name="sort" value="{{ playlist.sort }}">{% endif %}
           {% endif %}
           <input type="hidden" name="comment_id" value="{{ c.id }}">
           <label class="help-text" for="moderate-comment-{{ c.id }}">Edit this comment</label>
@@ -74,6 +76,7 @@
           {% if playlist %}
           <input type="hidden" name="playlist" value="1">
           {% if playlist.year %}<input type="hidden" name="year" value="{{ playlist.year }}">{% endif %}
+          {% if playlist.sort|default('date') != 'date' %}<input type="hidden" name="sort" value="{{ playlist.sort }}">{% endif %}
           {% endif %}
           <input type="hidden" name="action" value="reply">
           <input type="hidden" name="parent_id" value="{{ c.id }}">
@@ -110,6 +113,7 @@
           {% if playlist %}
           <input type="hidden" name="playlist" value="1">
           {% if playlist.year %}<input type="hidden" name="year" value="{{ playlist.year }}">{% endif %}
+          {% if playlist.sort|default('date') != 'date' %}<input type="hidden" name="sort" value="{{ playlist.sort }}">{% endif %}
           {% endif %}
           <input type="hidden" name="comment_id" value="{{ reply.id }}">
           <label class="help-text" for="moderate-reply-{{ reply.id }}">Edit this reply</label>

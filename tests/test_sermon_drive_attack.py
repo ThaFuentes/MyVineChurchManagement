@@ -4,10 +4,13 @@ No database and no network. These tests fail when a check lets something through
 """
 
 import json
+import os
+import tempfile
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
-from unittest.mock import Mock, patch
+from types import SimpleNamespace
+from unittest.mock import ANY, Mock, patch
 
 from flask import Flask, Blueprint
 from jinja2 import ChoiceLoader, DictLoader, FileSystemLoader
@@ -498,6 +501,8 @@ class PageTests(unittest.TestCase):
             '/sermons/library/default-visibility': {'visibility': POISON_LOCK},
             '/sermons/library/schedule': {'refresh_hours': POISON_HOURS},
             '/sermons/library/source': {'folder': POISON_LINK},
+            '/sermons/library/source-update': {'source_id': '1', 'label': 'X', 'enabled': '1'},
+            '/sermons/library/speakers': {'action': 'link', 'speaker_id': '1', 'speaker_user': '9'},
             '/sermons/library/refresh': {},
             '/sermons/library/7/edit': {'title': 'x', 'visibility': 'public', 'drive_file_id': FILE},
         }
@@ -507,8 +512,14 @@ class PageTests(unittest.TestCase):
                 patch('app.routes.sermons.drive_pages.save_default_visibility', saver), \
                 patch('app.routes.sermons.drive_pages.save_refresh_hours', saver), \
                 patch('app.routes.sermons.drive_pages.save_folder_id', saver), \
+                patch('app.routes.sermons.drive_pages.save_source', saver), \
                 patch('app.routes.sermons.drive_pages.sync_now', saver), \
-                patch('app.routes.sermons.drive_pages.save_item_details', saver):
+                patch('app.routes.sermons.drive_pages.save_item_details', saver), \
+                patch('app.routes.sermons.drive_pages.link_speaker_account', saver), \
+                patch('app.routes.sermons.drive_pages.add_speaker_name', saver), \
+                patch('app.routes.sermons.drive_pages.create_speaker', saver), \
+                patch('app.routes.sermons.drive_pages.combine_speakers', saver), \
+                patch('app.routes.sermons.drive_pages.unlink_speaker_account', saver):
             for path, form in targets.items():
                 self._session()
                 guest = self.client.post(path, data=form)
@@ -709,6 +720,481 @@ class TokenTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertEqual(reason, 'missing')
         self.assertTrue(meta['same_origin'])
+
+
+class HostCopyTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = _library_app()
+        cls.client = cls.app.test_client()
+
+    def _session(self, **keys):
+        with self.client.session_transaction() as sess:
+            sess.clear()
+            sess.update(keys)
+
+    def test_opening_the_library_does_not_download(self):
+        with patch('app.utils.sermon_drive.pull_drive_file', side_effect=AssertionError('downloaded')), \
+                patch('app.routes.sermons.drive_pages.maybe_sync'), \
+                patch('app.routes.sermons.drive_pages.list_items', return_value=[_row()]), \
+                patch('app.routes.sermons.drive_pages.current_refresh_hours', return_value=168), \
+                patch('app.routes.sermons.drive_pages.current_default_visibility', return_value='public'), \
+                patch('app.routes.sermons.drive_pages.render_template', return_value='ok'):
+            self._session()
+            response = self.client.get('/sermons/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_a_guest_and_a_plain_member_cannot_save(self):
+        saver = Mock(side_effect=AssertionError('saved'))
+        with patch('app.routes.sermons.drive_pages.save_item_copy', saver), \
+                patch('app.routes.sermons.drive_pages.save_next_copy', saver):
+            self._session()
+            guest = self.client.post('/sermons/library/7/copy', data={'drive_file_id': FILE, 'user_id': '1'})
+            guest_next = self.client.post('/sermons/library/copy-next', data={'drive_file_id': FILE})
+        self.assertEqual(guest.status_code, 302)
+        self.assertIn('/login', guest.headers['Location'])
+        self.assertEqual(guest_next.status_code, 302)
+        self.assertIn('/login', guest_next.headers['Location'])
+        saver.assert_not_called()
+
+        with patch('app.routes.sermons.drive_pages.save_item_copy', saver), \
+                patch('app.models.users.get_user_by_id', return_value={'id': 4, 'role': 'Member'}), \
+                patch('app.models.db.get_db', return_value=Mock()), \
+                patch('app.utils.permissions.user_has_permission_for_user', return_value=False):
+            self._session(user_id=4, user_role='Owner')
+            denied = self.client.post('/sermons/library/7/copy', data={'drive_file_id': FILE, 'user_id': '999'})
+        self.assertEqual(denied.status_code, 403)
+        self.assertNotIn(FILE.encode(), denied.data)
+        saver.assert_not_called()
+
+    def test_staff_can_save_and_a_member_with_sermon_permission_can(self):
+        saver = Mock(return_value='saved')
+        with patch('app.routes.sermons.drive_pages.save_item_copy', saver), \
+                patch('app.routes.sermons.drive_pages.get_item', return_value=_row(
+                    visibility='leaders', hidden=1, source_enabled=0,
+                )), \
+                patch('app.models.users.get_user_by_id', return_value={'id': 4, 'role': 'Staff'}), \
+                patch('app.utils.permissions.user_has_permission_for_user', side_effect=AssertionError('key')):
+            self._session(user_id=4, user_role='Member')
+            response = self.client.post('/sermons/library/7/copy', data={
+                'drive_file_id': FILE,
+                'user_id': '999',
+                'next': 'https://evil.example',
+            })
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/sermons/library/7', response.headers['Location'])
+        self.assertNotIn('evil.example', response.headers['Location'])
+        self.assertNotIn(FILE, response.headers['Location'])
+        saver.assert_called_once_with(7, 4)
+
+        saver.reset_mock()
+        saver.return_value = 'saved'
+        allowed = {}
+
+        def permit(_cur, user_id, role, key):
+            allowed['user_id'] = user_id
+            allowed['role'] = role
+            allowed.setdefault('keys', []).append(key)
+            return key == 'upload_sermons'
+
+        with patch('app.routes.sermons.drive_pages.save_next_copy', return_value=('saved', 2)) as nxt, \
+                patch('app.models.users.get_user_by_id', return_value={'id': 8, 'role': 'Member'}), \
+                patch('app.models.db.get_db', return_value=Mock()), \
+                patch('app.utils.permissions.user_has_permission_for_user', permit):
+            self._session(user_id=8, user_role='Staff')
+            response = self.client.post('/sermons/library/copy-next', data={'drive_file_id': FILE})
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/sermons', response.headers['Location'])
+        self.assertNotIn(FILE, response.headers['Location'])
+        nxt.assert_called_once_with(8, allowed=ANY)
+        self.assertEqual(allowed['user_id'], 8)
+        self.assertEqual(allowed['role'], 'Member')
+        self.assertIn('upload_sermons', allowed['keys'])
+
+    def test_a_permitted_member_saves_only_a_message_they_can_hear(self):
+        saver = Mock(return_value='saved')
+
+        def permit(_cur, user_id, role, key):
+            return role == 'Member' and key == 'upload_sermons'
+
+        with patch('app.routes.sermons.drive_pages.save_item_copy', saver), \
+                patch('app.routes.sermons.drive_pages.get_item', return_value=_row()), \
+                patch('app.models.users.get_user_by_id', return_value={'id': 8, 'role': 'Member'}), \
+                patch('app.models.db.get_db', return_value=Mock()), \
+                patch('app.utils.permissions.user_has_permission_for_user', permit):
+            self._session(user_id=8, user_role='Staff')
+            allowed = self.client.post('/sermons/library/7/copy', data={'drive_file_id': FILE})
+        self.assertEqual(allowed.status_code, 302)
+        self.assertIn('/sermons/library/7', allowed.headers['Location'])
+        saver.assert_called_once_with(7, 8)
+
+        for extra in (
+            {'visibility': 'leaders'},
+            {'hidden': 1},
+            {'source_enabled': 0},
+        ):
+            saver.reset_mock()
+            with patch('app.routes.sermons.drive_pages.save_item_copy', saver), \
+                    patch('app.routes.sermons.drive_pages.get_item', return_value=_row(**extra)), \
+                    patch('app.models.users.get_user_by_id', return_value={'id': 8, 'role': 'Member'}), \
+                    patch('app.models.db.get_db', return_value=Mock()), \
+                    patch('app.utils.permissions.user_has_permission_for_user', permit):
+                self._session(user_id=8, user_role='Staff')
+                denied = self.client.post('/sermons/library/7/copy', data={'drive_file_id': FILE})
+            self.assertEqual(denied.status_code, 404)
+            self.assertNotIn(FILE.encode(), denied.data)
+            saver.assert_not_called()
+
+    def test_the_next_copy_skips_a_message_the_member_cannot_hear(self):
+        from app.utils.sermon_drive import first_copyable_id
+        rows = [
+            {'id': 1, 'visibility': 'leaders', 'hidden': 0, 'missing_on_drive': 0,
+             'local_name': '', 'source_enabled': 1},
+            {'id': 2, 'visibility': 'public', 'hidden': 1, 'missing_on_drive': 0,
+             'local_name': '', 'source_enabled': 1},
+            {'id': 3, 'visibility': 'public', 'hidden': 0, 'missing_on_drive': 0,
+             'local_name': '', 'source_enabled': 0},
+            {'id': 'nope', 'visibility': 'public', 'hidden': 0, 'missing_on_drive': 0,
+             'local_name': '', 'source_enabled': 1},
+            {'id': 4, 'visibility': 'members', 'hidden': 0, 'missing_on_drive': 0,
+             'local_name': '', 'source_enabled': 1},
+        ]
+
+        def member(row):
+            return can_listen(row, logged_in=True, role='Member')
+
+        def staff(row):
+            return can_listen(row, logged_in=True, role='Staff')
+
+        self.assertEqual(first_copyable_id(rows, member), 4)
+        self.assertEqual(first_copyable_id(rows, staff), 1)
+        self.assertIsNone(first_copyable_id(rows[:3], member))
+        self.assertEqual(first_copyable_id(rows, None), 1)
+
+    def test_the_saved_file_plays_only_when_drive_is_missing(self):
+        payload = b'ID3-local-audio'
+        self._session()
+        with tempfile.TemporaryDirectory() as folder:
+            with open(os.path.join(folder, '7.mp3'), 'wb') as handle:
+                handle.write(payload)
+            os.symlink('/etc/passwd', os.path.join(folder, '8.mp3'))
+            env = patch.dict(os.environ, {'SERMON_BACKUP_DIR': folder})
+            with env, patch('app.routes.sermons.drive_pages.get_item', return_value=_row(
+                missing_on_drive=1, local_name='7.mp3',
+            )):
+                played = self.client.get('/sermons/library/7/copy')
+            self.assertEqual(played.status_code, 200)
+            self.assertEqual(played.data, payload)
+            played.close()
+            self.assertNotIn(FILE.encode(), played.data)
+            self.assertNotIn(folder.encode(), played.data)
+            disposition = played.headers.get('Content-Disposition', '')
+            self.assertIn('message.mp3', disposition)
+            self.assertNotIn(FILE, disposition)
+            self.assertNotIn(folder, disposition)
+
+            with env, patch('app.routes.sermons.drive_pages.get_item', return_value=_row(
+                missing_on_drive=0, local_name='7.mp3',
+            )):
+                still_on_drive = self.client.get('/sermons/library/7/copy')
+            self.assertEqual(still_on_drive.status_code, 404)
+            self.assertNotIn(payload, still_on_drive.data)
+
+            with env, patch('app.routes.sermons.drive_pages.get_item', return_value=_row(
+                visibility='members', missing_on_drive=1, local_name='7.mp3',
+            )):
+                guest = self.client.get('/sermons/library/7/copy')
+            self.assertEqual(guest.status_code, 404)
+            self.assertNotIn(payload, guest.data)
+
+            with env, \
+                    patch('app.models.users.get_user_by_id', return_value={'id': 4, 'role': 'Member'}), \
+                    patch('app.routes.sermons.drive_pages.get_item', return_value=_row(
+                        visibility='members', missing_on_drive=1, local_name='7.mp3',
+                    )):
+                self._session(user_id=4, user_role='Owner')
+                member = self.client.get('/sermons/library/7/copy')
+            self.assertEqual(member.status_code, 200)
+            self.assertEqual(member.data, payload)
+            member.close()
+
+            with env, patch('app.routes.sermons.drive_pages.get_item', return_value=_row(
+                id=8, missing_on_drive=1, local_name='8.mp3',
+            )):
+                escaped = self.client.get('/sermons/library/8/copy')
+            self.assertEqual(escaped.status_code, 404)
+            self.assertNotIn(b'root:', escaped.data)
+
+    def test_the_player_uses_the_copy_without_the_drive_id(self):
+        from app.utils.sermon_drive import REFRESH_CHOICES, VISIBILITY_CHOICES
+        card = present(_row(missing_on_drive=1, local_name='7.mp3'), logged_in=False, role='')
+        with patch('app.utils.helpers.get_censored_words', return_value=[]), \
+                self.app.test_request_context('/sermons/library/7'):
+            html = self.app.jinja_env.get_template('sermons/_listen_body.html').render(message=card)
+        self.assertIn('<audio', html)
+        self.assertIn('/sermons/library/7/copy', html)
+        self.assertNotIn('<iframe', html)
+        self.assertNotIn('export=download', html)
+        self.assertNotIn(FILE, html)
+        self.assertNotIn(FOLDER, html)
+        self.assertNotIn('local_name', html)
+
+        staff = present(_row(), logged_in=True, role='Staff')
+        with patch('app.utils.helpers.get_censored_words', return_value=[]), \
+                self.app.test_request_context('/sermons/library/7'):
+            form = self.app.jinja_env.get_template('sermons/_listen_body.html').render(
+                message=staff, can_keep=True,
+            )
+        self.assertIn('Save a copy on this server', form)
+        self.assertIn('name="csrf_token"', form)
+        self.assertNotIn('export=download', form)
+        self.assertIn('/sermons/library/7/copy', form)
+
+        shared = dict(
+            messages=[card],
+            years=[],
+            active_year='',
+            refresh_hours=168,
+            refresh_choices=REFRESH_CHOICES,
+            default_visibility='public',
+            visibility_choices=VISIBILITY_CHOICES,
+            can_keep_copy=True,
+            unsaved_count=3,
+            is_staff=True,
+            is_owner=False,
+        )
+        with patch('app.utils.helpers.get_censored_words', return_value=[]), \
+                self.app.test_request_context('/sermons/'):
+            library = self.app.jinja_env.get_template('sermons/library.html').render(**shared)
+        self.assertIn('Save the next copy', library)
+        self.assertIn('3 messages still need a copy', library)
+        self.assertNotIn(FILE, library)
+        self.assertNotIn(FOLDER, library)
+        self.assertNotIn('export=download', library)
+
+
+class FolderAndSpeakerTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = _library_app()
+        cls.client = cls.app.test_client()
+
+    def _session(self, **keys):
+        with self.client.session_transaction() as sess:
+            sess.clear()
+            sess.update(keys)
+
+    def test_a_poison_sort_stays_on_date_order(self):
+        seen = {}
+
+        def grab(name, **kwargs):
+            seen['sort'] = kwargs.get('active_sort')
+            seen['url'] = kwargs.get('playlist_url') or ''
+            return 'ok'
+
+        with patch('app.routes.sermons.drive_pages.maybe_sync'), \
+                patch('app.routes.sermons.drive_pages.list_items', return_value=[_row()]) as items, \
+                patch('app.routes.sermons.drive_pages.current_refresh_hours', return_value=168), \
+                patch('app.routes.sermons.drive_pages.current_default_visibility', return_value='public'), \
+                patch('app.routes.sermons.drive_pages.render_template', grab):
+            self._session()
+            response = self.client.get('/sermons/?sort=%3Cscript%3Ealert(1)%3C/script%3E')
+        self.assertEqual(response.status_code, 200)
+        called = items.call_args
+        self.assertEqual(called.args[0] if called.args else called.kwargs['sort'], 'date')
+        self.assertEqual(seen['sort'], 'date')
+        self.assertNotIn('script', seen['url'])
+        self.assertNotIn('<script', json.dumps(seen))
+
+        with patch('app.routes.sermons.drive_pages.maybe_sync'), \
+                patch('app.routes.sermons.drive_pages.list_items', return_value=[_row()]):
+            dropped = self.client.get('/sermons/library/play?sort=speaker%22%3E%3Cscript%3E')
+            kept = self.client.get('/sermons/library/play?sort=speaker')
+        self.assertNotIn('script', dropped.headers['Location'])
+        self.assertNotIn('sort=', dropped.headers['Location'])
+        self.assertIn('sort=speaker', kept.headers['Location'])
+        self.assertIn('playlist=1', kept.headers['Location'])
+        self.assertNotIn(FILE, kept.headers['Location'])
+
+    def test_a_folder_name_is_saved_with_the_id_and_other_folders_stay(self):
+        from app.utils.sermon_drive import list_sources, save_folder_id
+        saver = Mock(return_value=True)
+        with patch('app.utils.decorators.get_user_by_id', return_value={'id': 9, 'role': 'Owner'}), \
+                patch('app.routes.sermons.drive_pages.save_folder_id', saver):
+            self._session(user_id=9, user_role='Member')
+            response = self.client.post(
+                '/sermons/library/source',
+                data={'folder': FOLDER, 'label': 'Guest night'},
+            )
+        self.assertEqual(response.status_code, 302)
+        saver.assert_called_once_with(FOLDER, 'Guest night')
+        self.assertNotIn(FOLDER, response.headers['Location'])
+
+        cur = _Cursor()
+        db = SimpleNamespace(cursor=lambda: cur)
+        with patch('app.utils.sermon_drive.ensure_schema'), \
+                patch('app.models.db.get_db', return_value=db):
+            self.assertTrue(save_folder_id(FOLDER, '<script>Guest'))
+        inserts = [params for sql, params in cur.calls if 'INSERT INTO sermon_drive_sources' in sql]
+        self.assertEqual(inserts[0][0], FOLDER)
+        self.assertIn('Guest', inserts[0][1])
+        self.assertFalse(any('enabled=0' in sql.replace(' ', '') for sql, _params in cur.calls))
+
+        listed = _Cursor(alls=[[{
+            'id': 3, 'label': 'Sunday', 'enabled': 1, 'messages': 4, 'folder_id': FOLDER,
+        }]])
+        with patch('app.utils.sermon_drive.ensure_schema'), \
+                patch('app.models.db.get_db', return_value=SimpleNamespace(cursor=lambda: listed)):
+            folders = list_sources()
+        self.assertEqual(folders[0]['label'], 'Sunday')
+        self.assertNotIn('folder_id', folders[0])
+        self.assertNotIn(FOLDER, json.dumps(folders))
+
+    def test_bad_folder_and_speaker_ids_never_reach_the_database(self):
+        from app.utils.sermon_drive import add_speaker_name, apply_visibility_to_all, save_source
+        db = Mock(side_effect=AssertionError('db'))
+        with patch('app.models.db.get_db', db):
+            self.assertEqual(save_source('1 OR 1', 'Sunday', '1'), 'bad')
+            self.assertEqual(save_source('1', '', '1'), 'bad')
+            self.assertEqual(save_source('1', 'Sunday', '2'), 'bad')
+            self.assertEqual(add_speaker_name('1 OR 1', 'Tim'), 'Choose a speaker from the list.')
+            self.assertEqual(add_speaker_name('1', '   '), 'Type a name.')
+        db.assert_not_called()
+
+        cur = _Cursor()
+        with patch('app.utils.sermon_drive.ensure_schema'), \
+                patch('app.utils.sermon_drive._sources', return_value=[{'id': 1}, {'id': 2}]), \
+                patch('app.models.db.get_db', return_value=SimpleNamespace(cursor=lambda: cur)):
+            self.assertEqual(apply_visibility_to_all('members'), ('ok', 'members'))
+        sql, params = cur.calls[-1]
+        self.assertIn('s.enabled = 1', sql)
+        self.assertEqual(params, ('members',))
+        self.assertNotIn(FOLDER, sql)
+
+    def test_speakers_are_staff_only_and_the_page_hides_account_mail(self):
+        with patch('app.routes.sermons.drive_pages.list_speakers', side_effect=AssertionError('list')), \
+                patch('app.routes.sermons.drive_pages.list_accounts', side_effect=AssertionError('accounts')):
+            self._session()
+            guest = self.client.get('/sermons/library/speakers')
+        self.assertEqual(guest.status_code, 302)
+        self.assertIn('/login', guest.headers['Location'])
+
+        with patch('app.utils.decorators.log_change'), \
+                patch('app.utils.decorators.get_user_by_id', return_value={'id': 4, 'role': 'Member'}), \
+                patch('app.routes.sermons.drive_pages.create_speaker', side_effect=AssertionError('create')):
+            self._session(user_id=4, user_role='Owner')
+            member = self.client.post('/sermons/library/speakers', data={'action': 'create', 'speaker': 'Tim'})
+        self.assertEqual(member.status_code, 403)
+
+        people = [{
+            'id': 1,
+            'display_name': HOSTILE_TITLE,
+            'names': ['Tim', 'Tim Lien'],
+            'messages': 2,
+            'account_name': '',
+            'linked': False,
+        }]
+        with patch('app.utils.decorators.get_user_by_id', return_value={'id': 4, 'role': 'Staff'}), \
+                patch('app.utils.helpers.get_censored_words', return_value=[]), \
+                patch('app.routes.sermons.drive_pages.list_speakers', return_value=people), \
+                patch('app.routes.sermons.drive_pages.list_accounts', return_value=[{'id': 9, 'name': 'Tim Lien'}]):
+            self._session(user_id=4, user_role='Member')
+            page = self.client.get('/sermons/library/speakers')
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b'Tim Lien', page.data)
+        self.assertIn(b'&lt;script&gt;', page.data)
+        self.assertNotIn(b'<script', page.data.lower())
+        self.assertNotIn(b'email', page.data.lower())
+        self.assertNotIn(FOLDER.encode(), page.data)
+        self.assertNotIn(b'user_id', page.data)
+
+        db = Mock(side_effect=AssertionError('db'))
+        with patch('app.utils.decorators.get_user_by_id', return_value={'id': 4, 'role': 'Staff'}), \
+                patch('app.models.db.get_db', db):
+            self._session(user_id=4, user_role='Member')
+            bad = self.client.post('/sermons/library/speakers', data={
+                'action': 'link',
+                'speaker_id': '1',
+                'speaker_user': '9 OR 1',
+            })
+        db.assert_not_called()
+        self.assertEqual(bad.status_code, 302)
+        self.assertIn('/sermons/library/speakers', bad.headers['Location'])
+        self.assertNotIn('script', bad.headers['Location'])
+        with self.client.session_transaction() as sess:
+            self.assertIn('Choose a member from the list.', str(sess.get('_flashes')))
+
+    def test_only_the_owner_can_rename_or_hide_a_folder(self):
+        saver = Mock(return_value='ok')
+        with patch('app.utils.decorators.log_change'), \
+                patch('app.utils.decorators.get_user_by_id', return_value={'id': 4, 'role': 'Staff'}), \
+                patch('app.routes.sermons.drive_pages.save_source', saver):
+            self._session(user_id=4, user_role='Owner')
+            staff = self.client.post('/sermons/library/source-update', data={
+                'source_id': '1', 'label': 'Sunday', 'enabled': '0',
+            })
+        self.assertEqual(staff.status_code, 403)
+        saver.assert_not_called()
+
+        with patch('app.utils.decorators.get_user_by_id', return_value={'id': 9, 'role': 'Owner'}), \
+                patch('app.routes.sermons.drive_pages.save_source', saver):
+            self._session(user_id=9, user_role='Member')
+            owner = self.client.post('/sermons/library/source-update', data={
+                'source_id': '1', 'label': 'Sunday', 'enabled': '0', 'folder': FOLDER,
+            })
+        self.assertEqual(owner.status_code, 302)
+        saver.assert_called_once_with('1', 'Sunday', '0')
+        self.assertNotIn(FOLDER, owner.headers['Location'])
+
+    def test_the_edit_form_offers_speakers_without_mail_or_folder_ids(self):
+        captured = {}
+
+        def grab(name, **kwargs):
+            captured['name'] = name
+            captured['speakers'] = kwargs['speakers']
+            captured['accounts'] = kwargs['accounts']
+            return 'ok'
+
+        with patch('app.utils.decorators.get_user_by_id', return_value={'id': 4, 'role': 'Staff'}), \
+                patch('app.routes.sermons.drive_pages.get_item', return_value=_row(speaker_id=1)), \
+                patch('app.routes.sermons.drive_pages.list_speakers', return_value=[{
+                    'id': 1, 'display_name': 'Tim', 'names': ['Tim'], 'messages': 1,
+                    'account_name': '', 'linked': False,
+                }]), \
+                patch('app.routes.sermons.drive_pages.list_accounts', return_value=[
+                    {'id': 9, 'name': 'Tim Lien'},
+                ]), \
+                patch('app.routes.sermons.drive_pages.render_template', grab):
+            self._session(user_id=4, user_role='Member')
+            response = self.client.get('/sermons/library/7/edit')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured['name'], 'sermons/library_edit.html')
+        self.assertNotIn('user_id', captured['speakers'][0])
+        self.assertNotIn('email', json.dumps(captured['accounts']))
+        self.assertNotIn(FOLDER, json.dumps(captured))
+        self.assertNotIn(FILE, json.dumps(captured))
+
+
+class _Cursor:
+    def __init__(self, ones=None, alls=None):
+        self.ones = list(ones or [])
+        self.alls = list(alls or [])
+        self.calls = []
+        self.rowcount = 1
+        self.lastrowid = 15
+
+    def execute(self, sql, params=None):
+        self.calls.append((' '.join(sql.split()), params))
+
+    def fetchone(self):
+        if self.ones:
+            return self.ones.pop(0)
+        return None
+
+    def fetchall(self):
+        if self.alls:
+            return self.alls.pop(0)
+        return []
 
 
 if __name__ == '__main__':

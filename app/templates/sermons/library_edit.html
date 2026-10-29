@@ -3,7 +3,7 @@
 {% block page_title %}Edit message{% endblock %}
 
 {% block page_description %}
-Details you save here stay on this site. The Drive file is not changed or downloaded.
+Details you save here stay on this site. The Drive file is not changed.
 {% endblock %}
 
 {% block sermons_content %}
@@ -25,9 +25,33 @@ Details you save here stay on this site. The Drive file is not changed or downlo
     </div>
 
     <div class="form-group">
-      <label for="speaker">Speaker</label>
+      <label for="speaker-id">Known speaker</label>
+      <select id="speaker-id" name="speaker_id" class="form-input">
+        <option value="">Not in the speaker list</option>
+        {% for person in speakers|default([]) %}
+        <option value="{{ person.id }}" {% if message.speaker_id|string == person.id|string %}selected{% endif %}>
+          {{ person.display_name }} · {% if person.linked %}{{ person.account_name or 'account' }}{% else %}name only{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="speaker">Name</label>
       <input type="text" id="speaker" name="speaker" class="form-input" maxlength="160"
              value="{{ message.speaker }}">
+      <p class="help-text">Type a name for someone who does not have an account yet. The same spelling stays one person. More spellings, and linking an account later, are on Speakers.</p>
+    </div>
+
+    <div class="form-group">
+      <label for="speaker-user">Member account</label>
+      <select id="speaker-user" name="speaker_user" class="form-input">
+        <option value="">Not a member</option>
+        {% for account in accounts|default([]) %}
+        <option value="{{ account.id }}">{{ account.name }}</option>
+        {% endfor %}
+      </select>
+      <p class="help-text">Pick their account when they have one. Every message under this speaker stays with that account, including other spellings such as Tim and Tim Lien.</p>
     </div>
 
     <div class="form-group">

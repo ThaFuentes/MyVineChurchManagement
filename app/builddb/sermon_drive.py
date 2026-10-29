@@ -1,4 +1,5 @@
-# Message library tables. Files stay on Google Drive.
+# Message library tables. Playback uses Google Drive.
+# An authorized copy can be stored outside the web folder.
 # Site columns (title, speaker, date, who can listen) are edited here only.
 
 SEED_FOLDER_ID = '1Q4lfrixsNDrWpvnT3SmXiDb2IjZedAU1'
@@ -38,12 +39,39 @@ CREATE_ITEMS = """
         hidden           TINYINT(1) NOT NULL DEFAULT 0,
         site_edited      TINYINT(1) NOT NULL DEFAULT 0,
         missing_on_drive TINYINT(1) NOT NULL DEFAULT 0,
+        local_name       VARCHAR(40) NULL,
+        local_bytes      BIGINT UNSIGNED NULL,
+        local_saved_at   DATETIME NULL,
+        local_saved_by   INT UNSIGNED NULL,
+        speaker_id       INT UNSIGNED NULL,
         synced_at        DATETIME NULL,
         updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         updated_by       INT UNSIGNED NULL,
         UNIQUE KEY uq_sermon_drive_file (drive_file_id),
         KEY idx_sermon_drive_source (source_id),
-        KEY idx_sermon_drive_preached (preached_on)
+        KEY idx_sermon_drive_preached (preached_on),
+        KEY idx_sermon_drive_speaker (speaker_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+"""
+
+CREATE_SPEAKERS = """
+    CREATE TABLE IF NOT EXISTS sermon_speakers (
+        id           INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+        display_name VARCHAR(160) NOT NULL,
+        user_id      INT UNSIGNED NULL,
+        created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_sermon_speaker_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+"""
+
+CREATE_SPEAKER_NAMES = """
+    CREATE TABLE IF NOT EXISTS sermon_speaker_names (
+        id         INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+        speaker_id INT UNSIGNED NOT NULL,
+        name       VARCHAR(160) NOT NULL,
+        name_key   VARCHAR(160) NOT NULL,
+        UNIQUE KEY uq_sermon_speaker_name (name_key),
+        KEY idx_sermon_speaker_names_speaker (speaker_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """
 
@@ -94,6 +122,8 @@ def create_tables(cursor):
     cursor.execute(CREATE_SOURCES)
     cursor.execute(CREATE_ITEMS)
     cursor.execute(CREATE_COMMENTS)
+    cursor.execute(CREATE_SPEAKERS)
+    cursor.execute(CREATE_SPEAKER_NAMES)
     if not _has_column(cursor, 'sermon_drive_sources', 'refresh_hours'):
         cursor.execute(
             "ALTER TABLE sermon_drive_sources "
@@ -103,6 +133,18 @@ def create_tables(cursor):
         cursor.execute(
             "ALTER TABLE sermon_drive_sources "
             "ADD COLUMN default_visibility VARCHAR(20) NOT NULL DEFAULT 'public'"
+        )
+    for name, ddl in (
+        ('local_name', 'VARCHAR(40) NULL'),
+        ('local_bytes', 'BIGINT UNSIGNED NULL'),
+        ('local_saved_at', 'DATETIME NULL'),
+        ('local_saved_by', 'INT UNSIGNED NULL'),
+    ):
+        if not _has_column(cursor, 'sermon_drive_items', name):
+            cursor.execute(f'ALTER TABLE sermon_drive_items ADD COLUMN {name} {ddl}')
+    if not _has_column(cursor, 'sermon_drive_items', 'speaker_id'):
+        cursor.execute(
+            "ALTER TABLE sermon_drive_items ADD COLUMN speaker_id INT UNSIGNED NULL"
         )
     cursor.execute("SELECT id FROM sermon_drive_sources LIMIT 1")
     if cursor.fetchone() is None:

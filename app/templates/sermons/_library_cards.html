@@ -1,7 +1,22 @@
+{% set chosen_sort = active_sort|default('') %}
+{% if sort_choices is defined %}
+<p class="public-list-meta" style="margin:0 0 1rem;">
+  Sort:
+  {% for key, label in sort_choices %}
+    {% if chosen_sort == key or (not chosen_sort and key == 'date') %}
+    <strong>{{ label }}</strong>
+    {% else %}
+    <a href="{{ url_for(request.endpoint, year=active_year or none, sort=key if key != 'date' else none) }}">{{ label }}</a>
+    {% endif %}
+    {% if not loop.last %} · {% endif %}
+  {% endfor %}
+</p>
+{% endif %}
+
 {% if years %}
 <p class="public-list-meta" style="margin:0 0 1rem;">
   {% if active_year %}
-  <a href="{{ url_for(request.endpoint) }}">All</a>
+  <a href="{{ url_for(request.endpoint, sort=chosen_sort if chosen_sort and chosen_sort != 'date' else none) }}">All</a>
   {% else %}
   <strong>All</strong>
   {% endif %}
@@ -10,7 +25,7 @@
     {% if active_year == y %}
     <strong>{{ y }}</strong>
     {% else %}
-    <a href="{{ url_for(request.endpoint, year=y) }}">{{ y }}</a>
+    <a href="{{ url_for(request.endpoint, year=y, sort=chosen_sort if chosen_sort and chosen_sort != 'date' else none) }}">{{ y }}</a>
     {% endif %}
   {% endfor %}
 </p>
@@ -18,7 +33,7 @@
 
 {% if playlist_url %}
 <p style="margin:0 0 1rem;">
-  <a class="btn btn-primary" href="{{ playlist_url }}">{{ playlist_label or 'Watch / listen to all' }}</a>
+  <a class="btn btn-primary" href="{{ playlist_url }}">{{ playlist_label or 'Listen to all' }}</a>
 </p>
 {% endif %}
 
@@ -32,6 +47,7 @@
     <div class="public-list-meta">
       {% if message.preached_label %}<strong>Preached:</strong> {{ message.preached_label }}<br>{% endif %}
       {% if message.speaker %}<strong>By:</strong> {{ message.speaker | censor }}<br>{% endif %}
+      {% if message.source_label %}<strong>Folder:</strong> {{ message.source_label | censor }}<br>{% endif %}
       {% if message.series %}<strong>Series:</strong> {{ message.series | censor }}<br>{% endif %}
       {% if message.scripture %}<strong>Scripture:</strong> {{ message.scripture | censor }}{% endif %}
     </div>
@@ -44,7 +60,12 @@
     {% if message.can_edit or can_moderate_comments %}
     <p class="help-text"><a href="{{ url_for('sermons.library_listen', item_id=message.id) }}#sermon-comments">Moderate comments</a></p>
     {% endif %}
-    {% if message.missing %}
+    {% if can_keep_copy %}
+    <p class="help-text">{% if message.has_copy %}A copy is on this server.{% else %}No copy on this server yet.{% endif %}</p>
+    {% endif %}
+    {% if message.missing and message.local_play %}
+    <p class="help-text">Drive no longer has this file. The saved copy still plays.</p>
+    {% elif message.missing %}
     <p class="help-text">This file is no longer in the Drive folder.</p>
     {% elif message.visibility == 'leaders' %}
     <p class="help-text">This message is for church leaders.</p>

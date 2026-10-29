@@ -1,18 +1,22 @@
 # Sermon library pages. The Drive folder id stays on the server.
 
-from flask import abort, flash, redirect, render_template, request, session, url_for
+from flask import abort, flash, redirect, render_template, request, send_file, session, url_for
 
 from app.utils.decorators import login_required, role_required
 from app.utils.sermon_drive import (
     EDITORS,
     REFRESH_CHOICES,
     REFRESH_LABELS,
+    SORT_CHOICES,
     VISIBILITY_CHOICES,
     VISIBILITY_LABELS,
+    add_speaker_name,
     apply_visibility_to_all,
     can_listen,
     can_see,
     clean_edit,
+    combine_speakers,
+    create_speaker,
     playlist_rows,
     playlist_spot,
     current_default_visibility,
@@ -20,10 +24,21 @@ from app.utils.sermon_drive import (
     drive_comment_thread,
     edit_view,
     get_item,
+    link_speaker_account,
+    list_accounts,
     list_items,
+    list_sources,
+    list_speakers,
     maybe_sync,
+    open_local_copy,
+    parse_sort,
     present,
     save_drive_comment,
+    save_item_copy,
+    save_next_copy,
+    save_source,
+    unlink_speaker_account,
+    unsaved_count,
     row_year,
     save_default_visibility,
     save_folder_id,
@@ -64,6 +79,25 @@ def _account_name(user):
     return full or (user.get('username') or '').strip() or 'Member'
 
 
+def _can_keep_copy(role, user_id):
+    """Staff, Admin, and Owner, or a member given sermon upload or moderation.
+
+    Saving fills the server disk, so a plain member account cannot do it.
+    """
+    if role in EDITORS:
+        return True
+    if role != 'Member' or not user_id:
+        return False
+    try:
+        from app.models.db import get_db
+        from app.utils.permissions import user_has_permission_for_user
+        cur = get_db().cursor()
+        keys = ('upload_sermons', 'moderate_sermons')
+        return any(user_has_permission_for_user(cur, int(user_id), role, key) for key in keys)
+    except Exception:
+        return False
+
+
 def _can_moderate_comments(role, user_id):
     """Staff, Admin, Owner, or a member who was given comment moderation."""
     if role in EDITORS:
@@ -99,16 +133,41 @@ def _comments_open():
         return bool(session.get('user_id'))
 
 
+def _requested_sort():
+    return parse_sort(request.values.get('sort'))
+
+
+def _sort_kw(sort):
+    """Leave the default date order off the URL."""
+    chosen = parse_sort(sort)
+    if chosen == 'date':
+        return None
+    return chosen
+
+
+_SPEAKER_NOTES = frozenset({
+    'Choose a speaker from the list.',
+    'Choose a member from the list.',
+    'That speaker is already linked to another account.',
+    'That name is already linked to another account.',
+    'That name already belongs to another speaker. Combine them on the Speakers page.',
+    'Choose two different speakers.',
+    'Those names are already on two different accounts.',
+    'Type a name.',
+})
+
+
 def render_library():
     maybe_sync()
     year = (request.args.get('year') or '').strip()
     if year and not valid_year(year):
         year = ''
+    sort = _requested_sort()
     logged_in, role, _user = _viewer()
     rows = []
     years = []
     seen_years = set()
-    for row in list_items():
+    for row in list_items(sort):
         if not can_see(row, logged_in=logged_in, role=role):
             continue
         item_year = row_year(row)
@@ -120,29 +179,38 @@ def render_library():
         rows.append(present(row, logged_in=logged_in, role=role))
     years.sort(reverse=True)
     template = 'sermons/library.html' if logged_in else 'public/sermons/library.html'
-    can_moderate_comments = _can_moderate_comments(
-        role, session.get('user_id') if logged_in else None,
-    )
+    account_id = session.get('user_id') if logged_in else None
+    can_moderate_comments = _can_moderate_comments(role, account_id)
+    can_keep_copy = _can_keep_copy(role, account_id)
     playable = [item for item in rows if item.get('can_listen')]
     has_video = any(item.get('kind') == 'video' for item in playable)
     playlist_url = ''
     if playable:
-        playlist_url = url_for('sermons.library_play', year=year) if year else url_for('sermons.library_play')
+        playlist_url = url_for(
+            'sermons.library_play',
+            year=year or None,
+            sort=_sort_kw(sort),
+        )
     return render_template(
         template,
         messages=rows,
         years=years,
         active_year=year,
+        active_sort=sort,
+        sort_choices=SORT_CHOICES,
         is_staff=role in EDITORS,
         is_owner=role == 'Owner',
         can_moderate_comments=can_moderate_comments,
         comment_console_url=_comment_console_url(role in EDITORS or can_moderate_comments),
         playlist_url=playlist_url,
         playlist_label='Watch / listen to all' if has_video else 'Listen to all',
+        can_keep_copy=can_keep_copy,
+        unsaved_count=unsaved_count(_copy_listener(logged_in, role)) if can_keep_copy else 0,
         refresh_hours=current_refresh_hours(),
         refresh_choices=REFRESH_CHOICES,
         default_visibility=current_default_visibility(),
         visibility_choices=VISIBILITY_CHOICES,
+        folders=list_sources() if role == 'Owner' else [],
     )
 
 
@@ -160,8 +228,16 @@ def library_listen(item_id):
     if year and not valid_year(year):
         year = ''
     playlist = None
+    sort = _requested_sort()
     if request.args.get('playlist') == '1' and can_play:
-        playlist = playlist_spot(list_items(), item_id, logged_in=logged_in, role=role, year=year)
+        playlist = playlist_spot(
+            list_items(sort),
+            item_id,
+            logged_in=logged_in,
+            role=role,
+            year=year,
+            sort=sort,
+        )
     template = 'sermons/listen.html' if logged_in else 'public/sermons/listen.html'
     return render_template(
         template,
@@ -178,6 +254,7 @@ def library_listen(item_id):
         can_moderate=can_moderate,
         comment_console_url=_comment_console_url(can_moderate),
         playlist=playlist,
+        can_keep=_can_keep_copy(role, account_id),
     )
 
 
@@ -187,8 +264,9 @@ def library_play():
     year = (request.args.get('year') or '').strip()
     if year and not valid_year(year):
         year = ''
+    sort = _requested_sort()
     logged_in, role, _user = _viewer()
-    chosen = playlist_rows(list_items(), logged_in=logged_in, role=role, year=year)
+    chosen = playlist_rows(list_items(sort), logged_in=logged_in, role=role, year=year)
     if not chosen:
         flash('There is nothing to play yet.', 'info')
         return redirect(url_for('sermons.sermons'))
@@ -197,6 +275,7 @@ def library_play():
         item_id=int(chosen[0]['id']),
         playlist=1,
         year=year or None,
+        sort=_sort_kw(sort),
     ))
 
 
@@ -218,6 +297,7 @@ def post_library_comment(item_id):
         item_id=item_id,
         playlist=1 if keep_playlist else None,
         year=year or None,
+        sort=_sort_kw(_requested_sort()),
     )
     action = (request.form.get('action') or 'comment').strip().lower()
     if action in ('delete', 'edit', 'shadow', 'unshadow', 'restore'):
@@ -274,7 +354,12 @@ def library_edit(item_id):
         message = edit_view(form_row)
     else:
         message = edit_view(row)
-    return render_template('sermons/library_edit.html', message=message)
+    return render_template(
+        'sermons/library_edit.html',
+        message=message,
+        speakers=list_speakers(),
+        accounts=list_accounts(),
+    )
 
 
 @login_required
@@ -288,7 +373,7 @@ def library_refresh():
         flash('The library is already refreshing. Reload in a moment.', 'info')
     else:
         flash(
-            'The Drive folder could not be read just now. Try again in a little while.',
+            'A Drive folder could not be read just now. Try again in a little while.',
             'error',
         )
     return redirect(url_for('sermons.sermons'))
@@ -340,10 +425,187 @@ def library_visibility_all():
 @login_required
 @role_required(['Owner'])
 def library_source():
-    if save_folder_id(request.form.get('folder') or ''):
+    raw = request.form.get('folder') or ''
+    label = request.form.get('label') or ''
+    # An empty name stays a one-argument save. A name is the site label only.
+    saved = save_folder_id(raw, label) if label else save_folder_id(raw)
+    if saved:
         flash('Message folder saved. Refresh the library to read it.', 'success')
     else:
         flash('Paste a Google Drive folder link or folder id.', 'error')
+    return redirect(url_for('sermons.sermons'))
+
+
+@login_required
+@role_required(['Owner'])
+def library_source_update():
+    status = save_source(
+        request.form.get('source_id'),
+        request.form.get('label'),
+        request.form.get('enabled'),
+    )
+    if status == 'ok':
+        flash('Folder updated.', 'success')
+    elif status == 'missing':
+        flash('That folder is not on this site.', 'error')
+    elif status == 'bad':
+        flash('Choose a folder and a name.', 'error')
+    else:
+        flash('That folder could not be updated just now.', 'error')
+    return redirect(url_for('sermons.sermons'))
+
+
+def _flash_speaker(status):
+    if status is None:
+        flash('Speaker saved.', 'success')
+        return
+    if status in _SPEAKER_NOTES:
+        flash(status, 'error')
+        return
+    flash('That speaker could not be saved just now.', 'error')
+
+
+@login_required
+@role_required(STAFF_ROLES)
+def library_speakers():
+    if request.method == 'POST':
+        action = (request.form.get('action') or '').strip()
+        if action == 'create':
+            status = create_speaker(request.form.get('speaker'))
+        elif action == 'add_name':
+            status = add_speaker_name(request.form.get('speaker_id'), request.form.get('speaker'))
+        elif action == 'link':
+            status = link_speaker_account(
+                request.form.get('speaker_id'),
+                request.form.get('speaker_user'),
+            )
+        elif action == 'unlink':
+            status = unlink_speaker_account(request.form.get('speaker_id'))
+        elif action == 'combine':
+            status = combine_speakers(request.form.get('into_id'), request.form.get('speaker_id'))
+        else:
+            status = 'Choose a speaker from the list.'
+        _flash_speaker(status)
+        return redirect(url_for('sermons.library_speakers'))
+    return render_template(
+        'sermons/speakers.html',
+        speakers=list_speakers(),
+        accounts=list_accounts(),
+    )
+
+
+_COPY_MESSAGES = {
+    'saved': ('Saved one copy on this server.', 'success'),
+    'already': ('That message already has a copy on this server.', 'info'),
+    'none': ('Every message already has a copy on this server.', 'info'),
+    'missing': ('That message is not in the library.', 'error'),
+    'gone': ('Drive no longer has that file, so a copy could not be saved.', 'error'),
+    'html': ('Drive sent a page instead of the audio, so nothing was stored.', 'error'),
+    'large': ('That file is larger than this site will store.', 'error'),
+    'blocked': ('Drive sent the file to a place this site will not follow.', 'error'),
+    'type': ('That file is not audio or video, so it was not stored.', 'error'),
+    'place': ('Copies stay outside the site folder, so this one was not saved.', 'error'),
+    'busy': ('A copy is already being saved. Try again in a moment.', 'info'),
+    'error': ('That copy could not be saved just now.', 'error'),
+}
+_COPY_TYPES = {
+    'mp3': 'audio/mpeg',
+    'm4a': 'audio/mp4',
+    'aac': 'audio/aac',
+    'wav': 'audio/wav',
+    'ogg': 'audio/ogg',
+    'mp4': 'video/mp4',
+    'webm': 'video/webm',
+    'mov': 'video/quicktime',
+    'mkv': 'video/webm',
+}
+
+
+def _flash_copy(status, left=None):
+    if status == 'saved' and left:
+        flash(f'Saved one copy on this server. {left} still need a copy.', 'success')
+        return
+    if status == 'saved' and left == 0:
+        flash('Saved one copy on this server. Every message now has a copy.', 'success')
+        return
+    text, category = _COPY_MESSAGES.get(status, _COPY_MESSAGES['error'])
+    flash(text, category)
+
+
+def _back_to_listen(item_id):
+    year = (request.form.get('year') or '').strip()
+    if year and not valid_year(year):
+        year = ''
+    return redirect(url_for(
+        'sermons.library_listen',
+        item_id=item_id,
+        playlist=1 if request.form.get('playlist') == '1' else None,
+        year=year or None,
+        sort=_sort_kw(_requested_sort()),
+    ))
+
+
+def _keeper():
+    """The signed-in account, when that account is allowed to store a copy."""
+    logged_in, role, user = _viewer()
+    account_id = user.get('id') if user else None
+    if not logged_in or not _can_keep_copy(role, account_id):
+        abort(403)
+    return account_id, logged_in, role
+
+
+def _copy_listener(logged_in, role):
+    """True only for a message this person can already play."""
+    def allowed(row):
+        return can_listen(row, logged_in=logged_in, role=role)
+    return allowed
+
+
+def library_copy(item_id):
+    """Play a saved copy for someone who can already listen. Only after Drive is missing it."""
+    row = get_item(item_id)
+    logged_in, role, _user = _viewer()
+    if not row or not can_listen(row, logged_in=logged_in, role=role):
+        abort(404)
+    try:
+        missing = int(row.get('missing_on_drive') or 0)
+    except (TypeError, ValueError):
+        missing = 1 if row.get('missing_on_drive') else 0
+    if not missing:
+        abort(404)
+    path = open_local_copy(row)
+    if not path:
+        abort(404)
+    ext = path.rsplit('.', 1)[-1].lower()
+    return send_file(
+        path,
+        mimetype=_COPY_TYPES.get(ext, 'application/octet-stream'),
+        conditional=True,
+        download_name=f'message.{ext}',
+        max_age=0,
+    )
+
+
+@login_required
+def library_copy_save(item_id):
+    """Store one message this person can already hear. Guests are sent to login."""
+    account_id, logged_in, role = _keeper()
+    row = get_item(item_id)
+    if not row or not can_listen(row, logged_in=logged_in, role=role):
+        abort(404)
+    _flash_copy(save_item_copy(item_id, account_id))
+    return _back_to_listen(item_id)
+
+
+@login_required
+def library_copy_next():
+    """Store the next message this person can already hear. One file per click."""
+    account_id, logged_in, role = _keeper()
+    status, left = save_next_copy(
+        account_id,
+        allowed=_copy_listener(logged_in, role),
+    )
+    _flash_copy(status, left)
     return redirect(url_for('sermons.sermons'))
 
 
@@ -365,6 +627,15 @@ def register(bp):
         state.app.after_request(allow_drive_player)
 
     bp.add_url_rule('/library/play', 'library_play', library_play, methods=['GET'])
+    bp.add_url_rule('/library/speakers', 'library_speakers', library_speakers, methods=['GET', 'POST'])
+    bp.add_url_rule(
+        '/library/source-update', 'library_source_update', library_source_update, methods=['POST']
+    )
+    bp.add_url_rule('/library/copy-next', 'library_copy_next', library_copy_next, methods=['POST'])
+    bp.add_url_rule('/library/<int:item_id>/copy', 'library_copy', library_copy, methods=['GET'])
+    bp.add_url_rule(
+        '/library/<int:item_id>/copy', 'library_copy_save', library_copy_save, methods=['POST']
+    )
     bp.add_url_rule('/library/<int:item_id>', 'library_listen', library_listen, methods=['GET'])
     bp.add_url_rule(
         '/library/<int:item_id>/edit', 'library_edit', library_edit, methods=['GET', 'POST']

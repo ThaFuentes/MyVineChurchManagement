@@ -106,7 +106,7 @@
                         <td style="max-width:160px;">
                             <strong>{{ c.parent_title or ('#' ~ c.parent_id) }}</strong>
                             {% if c.content_type == 'sermon_drive' and c.section_url %}
-                            <br><a href="{{ c.section_url }}">Watch / listen</a>
+                            <br><a href="{{ c.section_url }}">Listen</a>
                             {% endif %}
                         </td>
                         <td>{{ c.name or 'Anonymous' }}</td>

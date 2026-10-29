@@ -1,0 +1,95 @@
+{% extends "sermons/base_sermons.html" %}
+
+{% block page_title %}Speakers{% endblock %}
+
+{% block page_description %}
+A name can stand alone until that person has an account. Linking an account keeps every message under that name, including other spellings such as Tim and Tim Lien.
+{% endblock %}
+
+{% block sermons_content %}
+<section class="content-section">
+  <h2 class="section-title">Add a speaker</h2>
+  <form method="post" action="{{ url_for('sermons.library_speakers') }}" class="styled-form">
+    {% include 'partials/csrf_field.html' %}
+    <input type="hidden" name="action" value="create">
+    <div class="form-group">
+      <label for="new-speaker">Name</label>
+      <input id="new-speaker" name="speaker" type="text" class="form-input" maxlength="160" required>
+      <p class="help-text">Use this for someone who is not a member yet. The same spelling stays one person.</p>
+    </div>
+    <button type="submit" class="btn btn-primary">Add speaker</button>
+  </form>
+</section>
+
+{% if speakers %}
+{% for person in speakers %}
+<section class="content-section" style="margin-top:1.5rem;">
+  <h2 class="section-title">{{ person.display_name }}</h2>
+  <p class="help-text">
+    {% if person.linked %}Account: {{ person.account_name or 'Linked' }}{% else %}No account{% endif %}
+    · {{ person.messages }} message{% if person.messages != 1 %}s{% endif %}
+  </p>
+  {% if person.names %}
+  <p class="help-text">Also known as: {{ person.names | join(', ') }}</p>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('sermons.library_speakers') }}" class="styled-form" style="margin-top:0.75rem;">
+    {% include 'partials/csrf_field.html' %}
+    <input type="hidden" name="action" value="add_name">
+    <input type="hidden" name="speaker_id" value="{{ person.id }}">
+    <div class="form-group">
+      <label for="spelling-{{ person.id }}">Another spelling</label>
+      <input id="spelling-{{ person.id }}" name="speaker" type="text" class="form-input" maxlength="160" required>
+    </div>
+    <button type="submit" class="btn btn-secondary btn-small">Add spelling</button>
+  </form>
+
+  {% if person.linked %}
+  <form method="post" action="{{ url_for('sermons.library_speakers') }}" class="styled-form" style="margin-top:0.75rem;">
+    {% include 'partials/csrf_field.html' %}
+    <input type="hidden" name="action" value="unlink">
+    <input type="hidden" name="speaker_id" value="{{ person.id }}">
+    <button type="submit" class="btn btn-secondary btn-small">Remove the account link</button>
+  </form>
+  {% else %}
+  <form method="post" action="{{ url_for('sermons.library_speakers') }}" class="styled-form" style="margin-top:0.75rem;">
+    {% include 'partials/csrf_field.html' %}
+    <input type="hidden" name="action" value="link">
+    <input type="hidden" name="speaker_id" value="{{ person.id }}">
+    <div class="form-group">
+      <label for="account-{{ person.id }}">Member account</label>
+      <select id="account-{{ person.id }}" name="speaker_user" class="form-input">
+        <option value="">Choose a member</option>
+        {% for account in accounts|default([]) %}
+        <option value="{{ account.id }}">{{ account.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-secondary btn-small">Link this account</button>
+  </form>
+  {% endif %}
+
+  {% if speakers|length > 1 %}
+  <form method="post" action="{{ url_for('sermons.library_speakers') }}" class="styled-form" style="margin-top:0.75rem;">
+    {% include 'partials/csrf_field.html' %}
+    <input type="hidden" name="action" value="combine">
+    <input type="hidden" name="into_id" value="{{ person.id }}">
+    <div class="form-group">
+      <label for="combine-{{ person.id }}">Move another speaker onto this one</label>
+      <select id="combine-{{ person.id }}" name="speaker_id" class="form-input">
+        <option value="">Choose a speaker</option>
+        {% for other in speakers if other.id != person.id %}
+        <option value="{{ other.id }}">{{ other.display_name }}</option>
+        {% endfor %}
+      </select>
+      <p class="help-text">Every spelling and message moves here. Two different accounts stay apart.</p>
+    </div>
+    <button type="submit" class="btn btn-secondary btn-small">Combine</button>
+  </form>
+  {% endif %}
+</section>
+{% endfor %}
+{% else %}
+<p class="help-text">No speakers yet. Add a name here, or type one while editing a message.</p>
+{% endif %}
+{% endblock %}

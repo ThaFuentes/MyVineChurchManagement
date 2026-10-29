@@ -1,18 +1,28 @@
 """Sermon library: filename parsing, Drive listing, and who can listen. No database and no network."""
 
 import datetime
+import io
 import json
+import os
+import tempfile
 import unittest
+import urllib.parse
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from app.utils.sermon_drive import (
+    CopyError,
     DriveReadError,
+    backup_root,
     can_listen,
     can_see,
     clean_edit,
+    download_url,
     edit_view,
     extract_folder_id,
     folder_list_url,
     is_stale,
+    local_copy_name,
     parse_refresh_hours,
     parse_visibility,
     parse_drive_name,
@@ -20,6 +30,8 @@ from app.utils.sermon_drive import (
     plan_sync,
     play_url,
     present,
+    pull_drive_file,
+    save_item_copy,
     walk_folder,
     with_drive_frame,
 )
@@ -444,6 +456,349 @@ class EditTests(unittest.TestCase):
         self.assertEqual(parse_refresh_hours('0'), 0)
         self.assertIsNone(parse_refresh_hours('3'))
         self.assertIsNone(parse_refresh_hours('weekly'))
+
+
+def _remote(status=200, location='', content_type='audio/mpeg', payload=b''):
+    body = io.BytesIO(payload) if status == 200 else None
+    return SimpleNamespace(status=status, location=location, content_type=content_type, body=body)
+
+
+class HostCopyTests(unittest.TestCase):
+    def test_a_missing_file_with_a_saved_copy_still_plays_for_listeners(self):
+        row = _row(missing_on_drive=1, local_name='7.mp3')
+        self.assertTrue(can_see(row, logged_in=False, role=''))
+        card = present(row, logged_in=False, role='')
+        self.assertTrue(card['can_listen'])
+        self.assertTrue(card['local_play'])
+        self.assertTrue(card['has_copy'])
+        self.assertIsNone(card['play_url'])
+        blob = json.dumps(card)
+        self.assertNotIn(FILE, blob)
+        self.assertNotIn(FOLDER, blob)
+        self.assertNotIn('local_name', card)
+        self.assertNotIn('/', blob)
+
+    def test_a_wrong_stored_name_does_not_count_as_a_copy(self):
+        missing = _row(missing_on_drive=1, local_name='../7.mp3')
+        self.assertIsNone(local_copy_name(missing))
+        self.assertFalse(can_listen(missing, logged_in=False, role=''))
+        self.assertIsNone(local_copy_name(_row(missing_on_drive=1, local_name='07.mp3')))
+        self.assertIsNone(local_copy_name(_row(id=8, missing_on_drive=1, local_name='7.mp3')))
+        hidden = _row(hidden=1, missing_on_drive=1, local_name='7.mp3')
+        self.assertFalse(can_see(hidden, logged_in=False, role=''))
+        self.assertFalse(can_listen(hidden, logged_in=True, role='Member'))
+        self.assertTrue(can_listen(hidden, logged_in=True, role='Staff'))
+
+    def test_the_download_link_is_only_the_drive_file(self):
+        url = download_url(FILE)
+        self.assertTrue(url.startswith('https://drive.google.com/uc?'))
+        self.assertIn(f'id={FILE}', url)
+        self.assertNotIn('evil', url)
+        self.assertIsNone(download_url('../etc/passwd'))
+        self.assertIsNone(download_url(FILE, confirm='https://evil.example'))
+        confirmed = download_url(FILE, confirm='abc123')
+        self.assertIn('confirm=abc123', confirmed)
+        self.assertTrue(confirmed.startswith('https://drive.google.com/uc?'))
+
+    def test_copies_are_refused_inside_the_site_folder(self):
+        inside = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'app', 'uploads'))
+        with patch.dict(os.environ, {'SERMON_BACKUP_DIR': inside}):
+            with self.assertRaises(CopyError) as caught:
+                backup_root()
+        self.assertEqual(caught.exception.code, 'place')
+
+    def test_an_html_page_is_not_stored(self):
+        calls = []
+        page = b'<html><a href="https://evil.example/x">confirm=abc123</a></html>'
+
+        def transport(url):
+            calls.append(url)
+            if 'confirm=' in url:
+                return _remote(content_type='text/html', payload=b'<html>no audio</html>')
+            return _remote(content_type='text/html', payload=page)
+
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaises(CopyError) as caught:
+                pull_drive_file(FILE, folder, 7, 'talk.mp3', transport=transport)
+            self.assertEqual(caught.exception.code, 'html')
+            self.assertEqual(os.listdir(folder), [])
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(urllib.parse.urlsplit(url).hostname == 'drive.google.com' for url in calls))
+        self.assertIn('confirm=abc123', calls[1])
+        self.assertNotIn('evil.example', calls[1])
+
+    def test_a_redirect_off_drive_is_not_followed(self):
+        locations = (
+            'https://evil.example/secret.mp3',
+            'https://drive.google.com.evil.example/file.mp3',
+            'https://drive.google.com@evil.example/file.mp3',
+            'http://drive.google.com/uc?export=download&id=' + FILE,
+            'file:///etc/passwd',
+            'https://127.0.0.1/file.mp3',
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            for location in locations:
+                calls = []
+
+                def transport(url, location=location):
+                    calls.append(url)
+                    return _remote(status=302, location=location)
+
+                with self.assertRaises(CopyError) as caught:
+                    pull_drive_file(FILE, folder, 7, 'talk.mp3', transport=transport)
+                self.assertEqual(caught.exception.code, 'blocked', location)
+                self.assertEqual(calls, [download_url(FILE)], location)
+                self.assertEqual(os.listdir(folder), [], location)
+
+    def test_a_media_file_is_stored_under_the_row_id(self):
+        payload = b'ID3' + b'\x00' * 32
+        calls = []
+
+        def transport(url):
+            calls.append(url)
+            host = urllib.parse.urlsplit(url).hostname or ''
+            if host.endswith('.googleusercontent.com'):
+                return _remote(content_type='application/octet-stream', payload=payload)
+            return _remote(status=302, location='https://doc-0s.googleusercontent.com/download?id=1')
+
+        with tempfile.TemporaryDirectory() as folder:
+            name, size = pull_drive_file(
+                FILE, folder, 7, '../../not-a-path.mp3', transport=transport,
+            )
+            self.assertEqual(name, '7.mp3')
+            self.assertEqual(size, len(payload))
+            self.assertEqual(os.listdir(folder), ['7.mp3'])
+            with open(os.path.join(folder, name), 'rb') as handle:
+                self.assertEqual(handle.read(), payload)
+        self.assertEqual(len(calls), 2)
+        self.assertNotIn('not-a-path', name)
+        self.assertNotIn(FILE, name)
+
+    def test_an_oversize_file_and_a_picture_are_not_stored(self):
+        with tempfile.TemporaryDirectory() as folder:
+            def big(_url):
+                return _remote(content_type='audio/mpeg', payload=b'0123456789abcdef')
+
+            with self.assertRaises(CopyError) as caught:
+                pull_drive_file(FILE, folder, 7, 'talk.mp3', transport=big, limit=8)
+            self.assertEqual(caught.exception.code, 'large')
+
+            def picture(_url):
+                return _remote(content_type='image/jpeg', payload=b'\xff\xd8\xff' + b'x' * 20)
+
+            with self.assertRaises(CopyError) as caught:
+                pull_drive_file(FILE, folder, 7, 'talk.mp3', transport=picture)
+            self.assertEqual(caught.exception.code, 'type')
+            self.assertEqual(os.listdir(folder), [])
+
+    def test_a_bad_file_id_is_not_downloaded(self):
+        transport = Mock(side_effect=AssertionError('network'))
+        with tempfile.TemporaryDirectory() as folder, \
+                patch.dict(os.environ, {'SERMON_BACKUP_DIR': folder}), \
+                patch('app.utils.sermon_drive.get_item', return_value=_row(drive_file_id='../etc/passwd')):
+            self.assertEqual(save_item_copy(7, 4, transport=transport), 'error')
+            self.assertEqual(os.listdir(folder), [])
+        transport.assert_not_called()
+
+
+class _Cursor:
+    def __init__(self, ones=None, alls=None):
+        self.ones = list(ones or [])
+        self.alls = list(alls or [])
+        self.calls = []
+        self.rowcount = 1
+        self.lastrowid = 15
+
+    def execute(self, sql, params=None):
+        self.calls.append((' '.join(sql.split()), params))
+
+    def fetchone(self):
+        if self.ones:
+            return self.ones.pop(0)
+        return None
+
+    def fetchall(self):
+        if self.alls:
+            return self.alls.pop(0)
+        return []
+
+
+class SpeakerAndSortTests(unittest.TestCase):
+    def _save(self, form, cur):
+        from app.utils.sermon_drive import save_item_details
+        db = SimpleNamespace(cursor=lambda: cur)
+        with patch('app.utils.sermon_drive.ensure_schema'), \
+                patch('app.models.db.get_db', return_value=db):
+            return save_item_details(7, form, 4)
+
+    def _update(self, cur):
+        return [params for sql, params in cur.calls if 'site_edited=1' in sql]
+
+    def test_tim_is_not_tim_lien(self):
+        from app.utils.sermon_drive import speaker_key, speaker_match
+        self.assertEqual(speaker_key('  Tim  '), 'tim')
+        self.assertEqual(speaker_key('Tim Lien'), 'tim lien')
+        self.assertNotEqual(speaker_key('Tim'), speaker_key('Tim Lien'))
+        self.assertEqual(speaker_match('tim', {'tim': 1}), 1)
+        self.assertIsNone(speaker_match('Tim Lien', {'tim': 1}))
+
+    def test_a_typed_name_links_only_when_the_account_is_chosen(self):
+        from app.utils.sermon_drive import decide_speaker, plan_speaker_form, speaker_key
+        tim = {'id': 1, 'display_name': 'Tim', 'user_id': None, 'names': ['tim']}
+        choice, errors = plan_speaker_form(
+            {'speaker': 'Tim Lien', 'speaker_id': '', 'speaker_user': ''}, {},
+        )
+        self.assertEqual(errors, [])
+        decision, error = decide_speaker(choice, [tim])
+        self.assertIsNone(error)
+        self.assertEqual(decision['action'], 'create')
+        self.assertIsNone(decision['user_id'])
+
+        choice, errors = plan_speaker_form(
+            {'speaker': 'Tim', 'speaker_id': '1', 'speaker_user': '9'},
+            {9: 'Tim Lien'},
+        )
+        self.assertEqual(errors, [])
+        decision, error = decide_speaker(choice, [tim])
+        self.assertIsNone(error)
+        self.assertEqual(decision['action'], 'link')
+        self.assertEqual(decision['speaker_id'], 1)
+        self.assertEqual(decision['user_id'], 9)
+        self.assertEqual(decision['display_name'], 'Tim Lien')
+        self.assertIn(('Tim', 'tim'), decision['add_names'])
+        self.assertIn(('Tim Lien', speaker_key('Tim Lien')), decision['add_names'])
+
+        lien = {'id': 2, 'display_name': 'Tim Lien', 'user_id': 9, 'names': ['tim lien']}
+        decision, error = decide_speaker(choice, [tim, lien])
+        self.assertIsNone(error)
+        self.assertEqual(decision['action'], 'combine')
+        self.assertEqual(decision['into_id'], 2)
+        self.assertEqual(decision['speaker_id'], 1)
+
+    def test_unknown_ids_and_two_accounts_are_rejected(self):
+        from app.utils.sermon_drive import plan_combine, plan_speaker_form
+        _choice, errors = plan_speaker_form({'speaker_id': '1 OR 1=1', 'speaker_user': ''}, {})
+        self.assertEqual(errors, ['Choose a speaker from the list.'])
+        _choice, errors = plan_speaker_form({'speaker_user': '99'}, {1: 'Ada'})
+        self.assertEqual(errors, ['Choose a member from the list.'])
+        _choice, errors = plan_speaker_form({'speaker_id': '0'}, {})
+        self.assertEqual(errors, ['Choose a speaker from the list.'])
+        _plan, error = plan_combine({'id': 1, 'user_id': 2}, {'id': 3, 'user_id': 4})
+        self.assertEqual(error, 'Those names are already on two different accounts.')
+        _plan, error = plan_combine({'id': 1, 'user_id': 2}, {'id': 1, 'user_id': 2})
+        self.assertEqual(error, 'Choose two different speakers.')
+        plan, error = plan_combine({'id': 1, 'user_id': None}, {'id': 3, 'user_id': 9})
+        self.assertIsNone(error)
+        self.assertEqual(plan['into'], 1)
+
+    def test_sort_is_newest_first_and_groups_names_and_folders(self):
+        from app.utils.sermon_drive import parse_sort, sort_rows
+        self.assertEqual(parse_sort('<script>'), 'date')
+        self.assertEqual(parse_sort('SPEAKER'), 'speaker')
+        rows = [
+            {'id': 1, 'title': 'B', 'preached_on': None, 'speaker': 'Tim', 'source_label': 'Guest'},
+            {'id': 2, 'title': 'A', 'preached_on': '2020-01-01', 'speaker': 'Ada', 'source_label': 'Sunday'},
+            {
+                'id': 3, 'title': 'C', 'preached_on': '2024-05-01',
+                'speaker': 'Tim', 'speaker_label': 'Tim Lien', 'source_label': 'Sunday',
+            },
+        ]
+        self.assertEqual([row['id'] for row in sort_rows(rows, 'date')], [3, 2, 1])
+        self.assertEqual([row['id'] for row in sort_rows(rows, 'speaker')], [2, 1, 3])
+        self.assertEqual([row['id'] for row in sort_rows(rows, 'folder')], [1, 3, 2])
+        self.assertEqual([row['id'] for row in sort_rows(rows, 'nope')], [3, 2, 1])
+
+    def test_a_linked_speaker_is_not_replaced_by_the_file_name(self):
+        existing = {FILE: {
+            'id': 9,
+            'drive_file_id': FILE,
+            'drive_name': 'old.mp3',
+            'site_edited': 0,
+            'speaker': 'Tim Lien',
+            'speaker_id': 3,
+        }}
+        seen = [{
+            'file_id': FILE,
+            'name': '2024-01-02 - Ada Stone - Other.mp3',
+            'kind': 'audio',
+            'parent_folder_id': FOLDER,
+        }]
+        item = plan_sync(existing, seen, complete=True)['upserts'][0]
+        self.assertEqual(item['speaker'], 'Tim Lien')
+
+    def test_cards_use_the_account_name_and_the_folder_label(self):
+        card = present({
+            **_row(),
+            'speaker': 'Tim',
+            'speaker_label': 'Tim Lien',
+            'source_label': 'Sunday',
+            'local_name': '7.mp3',
+            'user_id': 9,
+        }, logged_in=False, role='')
+        self.assertEqual(card['speaker'], 'Tim Lien')
+        self.assertEqual(card['source_label'], 'Sunday')
+        self.assertNotIn('local_name', card)
+        self.assertNotIn('user_id', card)
+        self.assertNotIn('drive_file_id', card)
+        self.assertTrue(card['play_url'].endswith('/preview'))
+
+    def test_a_hidden_folder_stays_off_the_public_page(self):
+        closed = _row(source_enabled=0)
+        self.assertFalse(can_see(closed, logged_in=False, role=''))
+        self.assertFalse(can_listen(closed, logged_in=True, role='Member'))
+        self.assertTrue(can_see(closed, logged_in=True, role='Staff'))
+        self.assertTrue(can_listen(closed, logged_in=True, role='Owner'))
+        self.assertTrue(can_see(_row(), logged_in=False, role=''))
+
+    def test_saving_a_new_name_stores_the_speaker_id(self):
+        cur = _Cursor()
+        ok, errors = self._save({
+            'title': 'Hello',
+            'visibility': 'public',
+            'speaker': 'Tim',
+            'speaker_id': '',
+            'speaker_user': '',
+        }, cur)
+        self.assertTrue(ok, errors)
+        updates = self._update(cur)
+        self.assertEqual(len(updates), 1)
+        self.assertEqual(updates[0][1], 'Tim')
+        self.assertEqual(updates[0][2], 15)
+
+    def test_a_blank_speaker_clears_the_link(self):
+        cur = _Cursor()
+        ok, errors = self._save({
+            'title': 'Hello',
+            'visibility': 'public',
+            'speaker': '',
+            'speaker_id': '',
+            'speaker_user': '',
+        }, cur)
+        self.assertTrue(ok, errors)
+        updates = self._update(cur)
+        self.assertEqual(updates[0][1], None)
+        self.assertEqual(updates[0][2], None)
+
+    def test_a_form_without_speaker_fields_keeps_the_saved_speaker(self):
+        cur = _Cursor(ones=[{'speaker': 'Kept', 'speaker_id': 4}])
+        ok, errors = self._save({'title': 'Hello', 'visibility': 'public'}, cur)
+        self.assertTrue(ok, errors)
+        updates = self._update(cur)
+        self.assertEqual(updates[0][1], 'Kept')
+        self.assertEqual(updates[0][2], 4)
+
+    def test_a_bad_member_id_does_not_write_the_message(self):
+        cur = _Cursor()
+        ok, errors = self._save({
+            'title': 'Hello',
+            'visibility': 'public',
+            'speaker': 'Tim',
+            'speaker_id': '',
+            'speaker_user': 'nope',
+        }, cur)
+        self.assertFalse(ok)
+        self.assertIn('Choose a member from the list.', errors)
+        self.assertFalse(any('site_edited=1' in sql for sql, _params in cur.calls))
 
 
 if __name__ == '__main__':

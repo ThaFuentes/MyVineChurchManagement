@@ -1,11 +1,12 @@
 {% if playlist %}
+{% set play_sort = playlist.sort|default('date') %}
 <p class="help-text" style="margin:0 0 0.75rem;">
   Playing {{ playlist.position }} of {{ playlist.total }}.
   {% if playlist.prev_id %}
-  <a href="{{ url_for('sermons.library_listen', item_id=playlist.prev_id, playlist=1, year=playlist.year or None) }}">Previous</a>
+  <a href="{{ url_for('sermons.library_listen', item_id=playlist.prev_id, playlist=1, year=playlist.year or none, sort=play_sort if play_sort != 'date' else none) }}">Previous</a>
   {% endif %}
   {% if playlist.next_id %}
-  <a href="{{ url_for('sermons.library_listen', item_id=playlist.next_id, playlist=1, year=playlist.year or None) }}">Next</a>
+  <a href="{{ url_for('sermons.library_listen', item_id=playlist.next_id, playlist=1, year=playlist.year or none, sort=play_sort if play_sort != 'date' else none) }}">Next</a>
   {% endif %}
 </p>
 {% endif %}
@@ -13,6 +14,7 @@
   <div class="public-list-meta">
     {% if message.preached_label %}<strong>Preached:</strong> {{ message.preached_label }}<br>{% endif %}
     {% if message.speaker %}<strong>By:</strong> {{ message.speaker | censor }}<br>{% endif %}
+    {% if message.source_label %}<strong>Folder:</strong> {{ message.source_label | censor }}<br>{% endif %}
     {% if message.series %}<strong>Series:</strong> {{ message.series | censor }}<br>{% endif %}
     {% if message.scripture %}<strong>Scripture:</strong> {{ message.scripture | censor }}{% endif %}
   </div>
@@ -22,13 +24,23 @@
   {% if message.visibility == 'leaders' %}
   <p class="help-text">This message is for church leaders.</p>
   {% endif %}
-  {% if message.missing %}
+  {% if message.missing and message.local_play %}
+  <p class="help-text">Drive no longer has this file. This is the copy saved on this site.</p>
+  {% elif message.missing %}
   <p class="help-text">This file is no longer in the Drive folder.</p>
   {% endif %}
 
   {% if message.play_url %}
   <iframe src="{{ message.play_url }}" title="{{ message.title | censor }}" allow="autoplay" referrerpolicy="no-referrer"
           style="width:100%; max-width:720px; height:{% if message.kind == 'video' %}420{% else %}240{% endif %}px; border:0; border-radius:12px;"></iframe>
+  {% elif message.local_play %}
+  {% if message.kind == 'video' %}
+  <video controls preload="none" src="{{ url_for('sermons.library_copy', item_id=message.id) }}"
+         style="width:100%; max-width:720px; border-radius:12px;"></video>
+  {% else %}
+  <audio controls preload="none" src="{{ url_for('sermons.library_copy', item_id=message.id) }}"
+         style="width:100%; max-width:720px;"></audio>
+  {% endif %}
   {% elif message.lock_message %}
   <p>{{ message.lock_message }}</p>
   {% if not session.user_id %}
@@ -36,9 +48,24 @@
   {% endif %}
   {% endif %}
 
-  {% if message.can_edit %}
+  {% if message.can_edit or can_keep %}
   <p style="margin-top:1rem;">
+    {% if message.can_edit %}
     <a class="btn btn-secondary btn-small" href="{{ url_for('sermons.library_edit', item_id=message.id) }}">Edit details</a>
+    {% endif %}
+    {% if can_keep and message.has_copy %}
+    <span class="help-text">A copy of this message is on this server.</span>
+    {% elif can_keep and not message.missing %}
+    <form method="post" action="{{ url_for('sermons.library_copy_save', item_id=message.id) }}" class="inline-form">
+      {% include 'partials/csrf_field.html' %}
+      {% if playlist %}
+      <input type="hidden" name="playlist" value="1">
+      {% if playlist.year %}<input type="hidden" name="year" value="{{ playlist.year }}">{% endif %}
+      {% if playlist.sort|default('date') != 'date' %}<input type="hidden" name="sort" value="{{ playlist.sort }}">{% endif %}
+      {% endif %}
+      <button type="submit" class="btn btn-secondary btn-small">Save a copy on this server</button>
+    </form>
+    {% endif %}
   </p>
   {% endif %}
 </article>
