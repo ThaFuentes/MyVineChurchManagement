@@ -15,6 +15,7 @@ from app.utils import bot_comments as comments
 from app.utils import bot_courses as courses
 from app.utils import bot_content as content
 from app.utils import bot_desks as desks
+from app.utils import bot_drive_library as drive_lib
 from app.utils import bot_events as events_api
 from app.utils import bot_guard as guard
 from app.utils import bot_login as login
@@ -326,6 +327,8 @@ def _apply_reverse(entry: dict, actor: str) -> tuple[bool, str]:
         ok, message = store.set_post_removed(int(post_id), plan == "hide")
     elif action.startswith("bot_member"):
         ok, message = members_api.apply_undo(plan, entry)
+    elif action.startswith("bot_drive"):
+        ok, message = drive_lib.apply_undo(plan, entry)
     elif action.startswith("bot_event"):
         ok, message = events_api.apply_undo(plan, entry)
     elif action.startswith("bot_"):
@@ -902,6 +905,11 @@ def api_read(area: str):
     data = {"area": area, "rows": rows, "count": len(rows), "recording": recording}
     if note:
         data["note"] = note
+    if area == "sermons":
+        data["library"] = (
+            "This is the live public message library. The calls that add, edit, and hide a message "
+            "are GET and POST /api/bot/sermons/library when the same switch is on."
+        )
     return _json(True, data)
 
 
@@ -1372,6 +1380,166 @@ def api_sermon_hide(sermon_id: int):
     if err:
         return err
     return _finish_person(row, sermons.hide_builder_sermon(sermon_id, person["user_id"]), person)
+
+
+def _library_role(row: dict) -> str:
+    return _facts(row).get("role") or ""
+
+
+def _library_actor(row: dict):
+    """The admin this bot acts as. Falls back to the account that made the key."""
+    return _facts(row).get("user_id") or _actor_id(row)
+
+
+def _library_editor(row: dict):
+    if not drive_lib.is_editor(_library_role(row)):
+        return _json(
+            False,
+            error="Only Staff, Admin, or the Owner can use the message library.",
+            status=403,
+            code="role",
+        )
+    return None
+
+
+def _library_owner(row: dict):
+    if _library_role(row) != "Owner":
+        return _json(
+            False,
+            error="Only the owner can add or change a Drive folder.",
+            status=403,
+            code="owner_only",
+        )
+    return None
+
+
+def _library_rate(row: dict, action: str, cap: int):
+    if store.recent_action_count(int(row["id"]), action, 3600, limit_on_error=0) < cap:
+        return None
+    return _json(
+        False,
+        error="That message-library call has been used too many times this hour.",
+        status=429,
+        code="rate_limit",
+    )
+
+
+@bot_access_bp.route("/api/bot/sermons/library/sources", methods=["GET", "POST"])
+def api_drive_sources():
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "sermons")
+    if denied:
+        return denied
+    role_err = _library_editor(row)
+    if role_err:
+        return role_err
+    if request.method == "GET":
+        return _finish(row, drive_lib.sources())
+    owner_err = _library_owner(row)
+    if owner_err:
+        return owner_err
+    return _finish(row, drive_lib.add_source(_body(), _actor_id(row)))
+
+
+@bot_access_bp.route("/api/bot/sermons/library/sources/<int:source_id>", methods=["POST", "PATCH"])
+def api_drive_source(source_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "sermons")
+    if denied:
+        return denied
+    owner_err = _library_owner(row)
+    if owner_err:
+        return owner_err
+    return _finish(row, drive_lib.update_source(source_id, _body(), _actor_id(row)))
+
+
+@bot_access_bp.route("/api/bot/sermons/library/refresh", methods=["POST"])
+def api_drive_refresh():
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "sermons")
+    if denied:
+        return denied
+    role_err = _library_editor(row)
+    if role_err:
+        return role_err
+    rate = _library_rate(row, "bot_drive_refresh", 10)
+    if rate:
+        return rate
+    return _finish(row, drive_lib.refresh(_library_actor(row)))
+
+
+@bot_access_bp.route("/api/bot/sermons/library", methods=["GET", "POST"])
+def api_drive_items():
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "sermons")
+    if denied:
+        return denied
+    role_err = _library_editor(row)
+    if role_err:
+        return role_err
+    if request.method == "GET":
+        return _finish(row, drive_lib.items(dict(request.args)))
+    rate = _library_rate(row, "bot_drive_item_create", 60)
+    if rate:
+        return rate
+    return _finish(row, drive_lib.create_item(_body(), _library_actor(row)))
+
+
+@bot_access_bp.route("/api/bot/sermons/library/speakers", methods=["GET", "POST"])
+def api_drive_speakers():
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "sermons")
+    if denied:
+        return denied
+    role_err = _library_editor(row)
+    if role_err:
+        return role_err
+    if request.method == "GET":
+        return _finish(row, drive_lib.speakers())
+    return _finish(row, drive_lib.add_speaker(_body(), _actor_id(row)))
+
+
+@bot_access_bp.route("/api/bot/sermons/library/upload", methods=["POST"])
+def api_drive_upload():
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "sermons")
+    if denied:
+        return denied
+    role_err = _library_editor(row)
+    if role_err:
+        return role_err
+    rate = _library_rate(row, "bot_drive_upload", 20)
+    if rate:
+        return rate
+    return _finish(row, drive_lib.upload(_body(), request.files, _library_actor(row)))
+
+
+@bot_access_bp.route("/api/bot/sermons/library/<int:item_id>", methods=["GET", "POST", "PATCH"])
+def api_drive_item(item_id: int):
+    row, err = _require_key()
+    if err:
+        return err
+    denied = _need(row, "sermons")
+    if denied:
+        return denied
+    role_err = _library_editor(row)
+    if role_err:
+        return role_err
+    if request.method == "GET":
+        return _finish(row, drive_lib.item(item_id))
+    return _finish(row, drive_lib.update_item(item_id, _body(), _library_actor(row)))
 
 
 @bot_access_bp.route("/api/bot/illustrations", methods=["GET", "POST"])

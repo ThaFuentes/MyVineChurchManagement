@@ -130,6 +130,30 @@ def extract_folder_id(raw):
     return None
 
 
+def extract_file_id(raw):
+    """Accept a bare file id or a Drive file link. Return the id, or None.
+
+    A folder link is not a file. Use extract_folder_id for the folder picker.
+    """
+    text = (raw or '').strip().strip('"').strip("'")
+    if not text or any(ch in text for ch in '\r\n\t\x00'):
+        return None
+    if _ID.fullmatch(text):
+        return text
+    lowered = text.lower()
+    if 'google.com' not in lowered:
+        return None
+    if '/folders/' in lowered or 'embeddedfolderview' in lowered:
+        return None
+    found = re.search(r'/file/d/([A-Za-z0-9_-]{10,128})', text)
+    if found:
+        return found.group(1)
+    found = re.search(r'[?&]id=([A-Za-z0-9_-]{10,128})', text)
+    if found:
+        return found.group(1)
+    return None
+
+
 def valid_year(value):
     return bool(_YEAR.fullmatch(value or ''))
 
@@ -767,6 +791,24 @@ def parse_drive_name(name):
         'series': series,
         'preached_on': preached,
     }
+
+
+def media_extension(name):
+    """Lowercase extension without the dot for a mirrored media file name."""
+    found = _MEDIA_EXT.search((name or '').strip())
+    if not found:
+        return None
+    return found.group(1).lower()
+
+
+def media_kind(name):
+    """audio or video for a mirrored media file. Anything else is other."""
+    ext = media_extension(name)
+    if ext in ('mp4', 'webm', 'mov', 'mkv'):
+        return 'video'
+    if ext in ('mp3', 'm4a', 'wav', 'aac', 'ogg'):
+        return 'audio'
+    return 'other'
 
 
 def parse_folder_html(page):

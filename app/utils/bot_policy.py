@@ -77,8 +77,8 @@ SWITCHES = [
         "id": "sermons",
         "kind": "read",
         "group": "Church life",
-        "label": "Read the public sermon library",
-        "detail": "Uploaded sermon titles and a short note. The sermon builder is its own switch.",
+        "label": "Public sermon library",
+        "detail": "List the messages at /sermons/, link a Drive folder, refresh it, add one message from a Drive file link with a title, speaker, and date, edit its site fields, hide it, and add speakers. A guest speaker needs no account. Uploading a new file into Drive stays off until the owner turns it on. The sermon builder is its own switch.",
     },
     {
         "id": "sermon_builder",
@@ -241,9 +241,13 @@ READS = {
         "LEFT(content, 280) AS content FROM announcements ORDER BY id DESC LIMIT %s"
     ),
     "sermons": (
-        "SELECT id, title, visibility, uploaded_at, "
-        "LEFT(COALESCE(notes, details, ''), 240) AS notes "
-        "FROM sermons ORDER BY id DESC LIMIT %s"
+        "SELECT i.id, i.title, i.speaker, i.series, i.preached_on, i.visibility, "
+        "LEFT(COALESCE(i.summary, ''), 240) AS summary "
+        "FROM sermon_drive_items i "
+        "JOIN sermon_drive_sources s ON s.id = i.source_id AND s.enabled = 1 "
+        "WHERE COALESCE(i.hidden, 0) = 0 AND COALESCE(i.missing_on_drive, 0) = 0 "
+        "AND i.visibility = 'public' "
+        "ORDER BY i.preached_on DESC, i.id DESC LIMIT %s"
     ),
     "prayers": (
         "SELECT id, title, visibility, date_posted, "
@@ -297,6 +301,7 @@ CLOSED = [
     "Only the owner allows an admin to use a bot. That bot acts only as that admin. The owner chooses the one account every bot acts as.",
     "The desk catalog does not return child check-in PINs or pickup codes, mail passwords, API keys, payment secrets, private messages, or payroll. Adding a member emails a temporary password and does not return it.",
     "POST /api/bot/upload does not delete the previous file. Reverse does not remove a picture, a study course, an apps-menu change, a moderation action, or an insight run.",
+    "The message library can link a Drive folder, refresh it, add one message from a Drive file link, edit its site fields, and add speakers. A folder or message is hidden, not deleted. Uploading a new file into Drive is off until the owner sets DRIVE_WRITE_MODE, and this key never deletes a Drive file.",
 ]
 
 
@@ -306,7 +311,7 @@ READ_ABOUT = {
     "attendance": "How many people checked in on each service date: service_date and people. Checking someone in is POST /api/bot/attendance when Church office is on.",
     "events": "Event rows: id, event_name, event_date, event_time, location, visibility, and a short description. The full row is GET /api/bot/desk/events when Church office is on.",
     "announcements": "Announcement rows: id, title, visibility, is_active, created_at, and a short body. The full row is the announcements desk.",
-    "sermons": "Public sermon rows: id, title, visibility, uploaded_at, and a short note. Sermon builder drafts are a different switch.",
+    "sermons": "The live public message library behind /sermons/: id, title, speaker, series, preached_on, visibility, and a short summary, newest first. Adding a message from a Drive file link, editing its fields, linking a folder, refreshing, and speakers are the /api/bot/sermons/library calls on this same switch. Sermon builder drafts are a different switch.",
     "prayers": "Prayer rows: id, title, visibility, date_posted, and a short request.",
     "dreams": "Dream titles and a short description. Only public and private rows that are not hidden and not waiting on journal acceptance.",
     "prophecies": "Prophecy titles and a short description. Only public and private rows that are not hidden and not waiting on journal acceptance.",
@@ -721,6 +726,12 @@ UNDO_STEPS = {
     "bot_event_update": ("restore", "reapply"),
     "bot_event_delete": ("show", "hide"),
     "bot_event_signup": ("show", "hide"),
+    "bot_drive_source_create": ("hide", "show"),
+    "bot_drive_source_update": ("restore", "reapply"),
+    "bot_drive_item_create": ("hide", "show"),
+    "bot_drive_item_update": ("restore", "reapply"),
+    "bot_drive_item_hide": ("show", "hide"),
+    "bot_drive_upload": ("hide", "show"),
     "bot_sermon_delete": ("show", "hide"),
     "bot_sermon_unhide": ("hide", "show"),
     "bot_section_delete": ("show", "hide"),
@@ -940,6 +951,28 @@ def call_map(controls, blocked_why: str | None = None) -> list[dict]:
          "about": "Edits and this key's bot log for that sermon. The response does not include the stored bodies."},
         {"method": "POST", "path": "/api/bot/sermons/<id>/history/restore", "switch": "sermon_builder",
          "about": "Put back one logged change for this sermon. Body: {\"log_id\": N}."},
+        {"method": "GET", "path": "/api/bot/sermons/library/sources", "switch": "sermons",
+         "about": "Drive folders this library mirrors: id, label, enabled, messages, folder_id, default_visibility."},
+        {"method": "POST", "path": "/api/bot/sermons/library/sources", "switch": "sermons",
+         "about": "Owner only. Link a Drive folder. Body: {\"folder\":\"https://drive.google.com/drive/folders/<id>\", \"label\":\"Sunday messages\"}. Then POST /api/bot/sermons/library/refresh. A folder link or folder id, never a file link."},
+        {"method": "POST", "path": "/api/bot/sermons/library/sources/<id>", "switch": "sermons",
+         "about": "Owner only. Rename a folder or turn it off. Body: {\"label\":\"\", \"enabled\":true|false}. A folder that is off leaves the library; its messages stay saved."},
+        {"method": "POST", "path": "/api/bot/sermons/library/refresh", "switch": "sermons",
+         "about": "Read every linked Drive folder now. 409 when a refresh is already running, 502 when a folder cannot be read. 10 an hour. No undo."},
+        {"method": "GET", "path": "/api/bot/sermons/library", "switch": "sermons",
+         "about": "Messages with a public URL on each row. ?speaker= &from=YYYY-MM-DD &to= &q= &source_id= &visibility= &hidden=0|1|all &sort=date|speaker|folder &limit= &offset=."},
+        {"method": "POST", "path": "/api/bot/sermons/library", "switch": "sermons",
+         "about": "Add one message from a Drive file link. Body: {\"title\":\"\", \"speaker\":\"\", \"date\":\"YYYY-MM-DD\", \"scripture\":\"\", \"series\":\"\", \"summary\":\"\", \"visibility\":\"public|members|leaders\", \"drive_url\":\"https://drive.google.com/file/d/<id>/view\", \"source_id\":1}. A guest speaker needs no account. A file already in the library is 409. 60 an hour."},
+        {"method": "GET", "path": "/api/bot/sermons/library/<id>", "switch": "sermons",
+         "about": "One message with its site fields and public URL."},
+        {"method": "POST", "path": "/api/bot/sermons/library/<id>", "switch": "sermons",
+         "about": "PATCH also works. Change title, speaker, date, scripture, series, summary, visibility, or hidden. The Drive file id is not editable. Reverse puts the previous words back."},
+        {"method": "GET", "path": "/api/bot/sermons/library/speakers", "switch": "sermons",
+         "about": "Speaker names: id, display_name, names, messages, linked, listen_rule. No emails."},
+        {"method": "POST", "path": "/api/bot/sermons/library/speakers", "switch": "sermons",
+         "about": "Add a speaker name, or get the one already saved. Body: {\"speaker\":\"\"}. No user account is needed."},
+        {"method": "POST", "path": "/api/bot/sermons/library/upload", "switch": "sermons",
+         "about": "Multipart: one mp3, m4a, wav, aac, ogg, mp4, webm, mov, or mkv file as file= plus the same fields as the create call. Names the Drive file from the fields. 503 until the owner sets DRIVE_WRITE_MODE. 20 an hour. Reverse hides the library row and never deletes the Drive file."},
         {"method": "GET", "path": "/api/bot/notifications", "switch": "notifications",
          "about": "Notices for the account the owner chose."},
         {"method": "POST", "path": "/api/bot/notifications", "switch": "notifications",
@@ -1179,7 +1212,7 @@ def help_payload(controls, voices: list[dict] | None = None, blocked_why: str | 
         "switches": normalize_controls(controls),
         "voices": voice_rows,
         "closed": list(CLOSED),
-        "undo": "POST /api/bot/reverse with {\"log_id\": N} hides a post, sermon draft, illustration, or section, or puts the previous text, group role, worship defaults, bill, stock change, attendance check-in, or desk edit back. A recorded gift or expense is not voided. A study course, an uploaded file, an apps-menu change, a moderation action, and an insight run are not reversed.",
+        "undo": "POST /api/bot/reverse with {\"log_id\": N} hides a post, sermon draft, illustration, section, or message-library row, or puts the previous text, group role, worship defaults, bill, stock change, attendance check-in, desk edit, or message details back. A recorded gift or expense is not voided. A Drive file is never deleted by reverse, and a refresh cannot be reversed. A study course, an uploaded file, an apps-menu change, a moderation action, and an insight run are not reversed.",
         "sign_in": {
             "api_key": "Does not expire. Emailed only to the API-key inbox. Never shown on the dashboard. After a reset, the previous key works for 15 minutes.",
             "twofa_key": "Expires in 1 hour. Emailed only to the other inbox by POST /api/bot/login. A second sign-in keeps the previous unused code. Asking for one does not close an open session. Up to three unused codes stay valid.",
