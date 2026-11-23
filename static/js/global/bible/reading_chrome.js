@@ -22,6 +22,37 @@
   const focusTabHome = focusTab ? focusTab.parentNode : null;
   const focusTabNext = focusTab ? focusTab.nextSibling : null;
 
+  /* The bar leaves the top of the screen as soon as the reader scrolls into a
+     chapter, and until now it only came back by scrolling all the way up.
+     When it goes out of sight the same edge tab appears, so the bar is one tap
+     away instead of a full scroll back to the top. */
+  function syncBarOffscreen(off) {
+    if (!focusMq.matches) off = false;
+    body.classList.toggle('bible-bar-offscreen', off);
+  }
+
+  function nearestScroller() {
+    let el = toolbar ? toolbar.parentElement : null;
+    while (el && el !== document.body && el !== document.documentElement) {
+      const style = window.getComputedStyle(el);
+      if (/(auto|scroll)/.test(style.overflowY) && el.scrollHeight > el.clientHeight + 4) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  function scrollReaderToTop() {
+    const scroller = nearestScroller();
+    if (scroller) scroller.scrollTo({ top: 0, behavior: 'smooth' });
+    else window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  if (toolbar && 'IntersectionObserver' in window) {
+    new IntersectionObserver((entries) => {
+      entries.forEach((entry) => syncBarOffscreen(!entry.isIntersecting));
+    }, { threshold: 0 }).observe(toolbar);
+  }
+
   /* The tools panel starts inside the sticky toolbar. On a phone that
      toolbar is a stacking context, so a fixed drawer paints under the
      chapter. Parking the side controls on the body lets them cover the page. */
@@ -111,9 +142,17 @@
   if (focusTab) {
     focusTab.addEventListener('click', (event) => {
       event.preventDefault();
-      applyFocus(false, true);
-      syncHidden();
-      if (hideBarBtn && focusMq.matches) hideBarBtn.focus();
+      if (focusActive()) {
+        applyFocus(false, true);
+        syncHidden();
+        /* The bar was folded, so bring it back into view rather than leaving
+           the reader halfway down a chapter with nothing on screen. */
+        if (body.classList.contains('bible-bar-offscreen')) scrollReaderToTop();
+      } else {
+        /* Not folded: the bar is simply off-screen, so go back to it. */
+        scrollReaderToTop();
+      }
+      if (hideBarBtn && focusMq.matches) hideBarBtn.focus({ preventScroll: true });
     });
   }
 
@@ -215,6 +254,7 @@
     if (!mq.matches) closeAll();
     else syncHidden();
     applyFocus(focusActive(), false);
+    if (!focusMq.matches) body.classList.remove('bible-bar-offscreen');
   }
   if (mq.addEventListener) mq.addEventListener('change', onViewportChange);
   else if (mq.addListener) mq.addListener(onViewportChange);
