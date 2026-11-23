@@ -1,0 +1,211 @@
+/* Phone Bible reading: site menu and reader tools sit on the side edges.
+   The chapter row keeps Books, the title, and previous/next. A sideways
+   swipe on the chapter also moves one chapter. Desktop layout is unchanged. */
+(function () {
+  const body = document.body;
+  if (!body.classList.contains('bible-reading')) return;
+
+  const mq = window.matchMedia('(max-width: 767px)');
+  const menuBtn = document.querySelector('.bible-edge-menu');
+  const toolsBtn = document.querySelector('.bible-edge-tools');
+  const topBar = document.querySelector('header.top-bar');
+  const actions = document.querySelector('.bible-stage-toolbar-actions');
+  const toolbar = document.querySelector('.bible-stage-toolbar');
+  const title = document.querySelector('.bible-stage-title');
+  const books = document.getElementById('member-open-canon') || document.getElementById('bible-open-canon');
+  const hideBarBtn = document.querySelector('.bible-bar-hide');
+  const focusTab = document.querySelector('.bible-edge-focus');
+  const focusMq = window.matchMedia('(max-width: 900px)');
+  const FOCUS_KEY = 'mvos.bible.barHidden';
+
+  /* The tools panel starts inside the sticky toolbar. On a phone that
+     toolbar is a stacking context, so a fixed drawer paints under the
+     chapter. Parking the side controls on the body lets them cover the page. */
+  function parkChrome() {
+    if (!toolbar) return;
+    if (mq.matches) {
+      if (menuBtn && menuBtn.parentNode !== document.body) document.body.appendChild(menuBtn);
+      if (toolsBtn && toolsBtn.parentNode !== document.body) document.body.appendChild(toolsBtn);
+      if (actions && actions.parentNode !== document.body) document.body.appendChild(actions);
+      if (focusTab && focusTab.parentNode !== document.body) document.body.appendChild(focusTab);
+      return;
+    }
+    if (menuBtn && menuBtn.parentNode !== toolbar) toolbar.insertBefore(menuBtn, toolbar.firstChild);
+    if (actions && actions.parentNode !== toolbar) toolbar.appendChild(actions);
+    if (toolsBtn && actions && toolsBtn.parentNode !== toolbar) toolbar.insertBefore(toolsBtn, actions);
+    else if (toolsBtn && toolsBtn.parentNode !== toolbar) toolbar.appendChild(toolsBtn);
+  }
+
+  if (topBar && !topBar.id) topBar.id = 'site-top-bar';
+  if (actions && !actions.id) actions.id = 'bible-tools-drawer';
+  if (toolsBtn && actions) toolsBtn.setAttribute('aria-controls', actions.id);
+
+  function closeFlyouts() {
+    document.querySelectorAll('.bible-flyout.open, .bible-flyout-backdrop.open').forEach((node) => {
+      node.classList.remove('open');
+      if (node.classList.contains('bible-flyout')) node.setAttribute('aria-hidden', 'true');
+    });
+    document.querySelectorAll('.bible-flyout-trigger.active').forEach((node) => {
+      node.classList.remove('active');
+    });
+  }
+
+  function syncHidden() {
+    const phone = mq.matches;
+    const menuOpen = body.classList.contains('bible-menu-open');
+    const toolsOpen = body.classList.contains('bible-tools-open');
+    if (topBar) topBar.setAttribute('aria-hidden', phone && !menuOpen ? 'true' : 'false');
+    if (actions) actions.setAttribute('aria-hidden', phone && !toolsOpen ? 'true' : 'false');
+    if (title) {
+      if (phone) {
+        title.setAttribute('role', 'button');
+        title.tabIndex = 0;
+        title.title = 'Choose a book or chapter';
+      } else {
+        title.removeAttribute('role');
+        title.removeAttribute('tabindex');
+        title.removeAttribute('title');
+      }
+    }
+  }
+
+  /* Focus reading folds the chapter bar away to one edge tab. */
+  function focusActive() {
+    return body.classList.contains('bible-focus');
+  }
+
+  function applyFocus(on, remember) {
+    if (!focusMq.matches) on = false;
+    body.classList.toggle('bible-focus', on);
+    if (hideBarBtn) hideBarBtn.setAttribute('aria-expanded', on ? 'false' : 'true');
+    if (focusTab) focusTab.setAttribute('aria-expanded', on ? 'true' : 'false');
+    if (toolbar) toolbar.setAttribute('aria-hidden', on ? 'true' : 'false');
+    if (remember) {
+      try { localStorage.setItem(FOCUS_KEY, on ? '1' : '0'); } catch (err) { /* private mode */ }
+    }
+  }
+
+  if (hideBarBtn) {
+    hideBarBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      applyFocus(true, true);
+      syncHidden();
+      if (focusTab) focusTab.focus();
+    });
+  }
+  if (focusTab) {
+    focusTab.addEventListener('click', (event) => {
+      event.preventDefault();
+      applyFocus(false, true);
+      syncHidden();
+      if (hideBarBtn && focusMq.matches) hideBarBtn.focus();
+    });
+  }
+
+  let storedFocus = null;
+  try { storedFocus = localStorage.getItem(FOCUS_KEY); } catch (err) { /* private mode */ }
+
+  function closeAll() {
+    body.classList.remove('bible-menu-open', 'bible-tools-open');
+    if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
+    if (toolsBtn) toolsBtn.setAttribute('aria-expanded', 'false');
+    syncHidden();
+  }
+
+  function toggleDrawer(which) {
+    if (!mq.matches) return;
+    const open = !body.classList.contains(which);
+    closeAll();
+    if (!open) return;
+    closeFlyouts();
+    body.classList.add(which);
+    const btn = which === 'bible-menu-open' ? menuBtn : toolsBtn;
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+    syncHidden();
+  }
+
+  if (menuBtn) {
+    menuBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleDrawer('bible-menu-open');
+    });
+  }
+  if (toolsBtn) {
+    toolsBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleDrawer('bible-tools-open');
+    });
+  }
+
+  document.addEventListener('click', (event) => {
+    if (!mq.matches) return;
+    if (!body.classList.contains('bible-menu-open') && !body.classList.contains('bible-tools-open')) return;
+    if (event.target.closest('header.top-bar, .bible-stage-toolbar-actions, .bible-edge-tab')) return;
+    closeAll();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeAll();
+      applyFocus(false, true);
+    }
+  });
+
+  document.querySelectorAll('.bible-flyout-trigger').forEach((btn) => {
+    btn.addEventListener('click', () => closeAll());
+  });
+
+  function openBooks(event) {
+    if (!mq.matches || !books) return;
+    if (event) event.preventDefault();
+    books.click();
+  }
+  if (title) {
+    title.addEventListener('click', () => {
+      if (mq.matches) books && books.click();
+    });
+    title.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') openBooks(event);
+    });
+  }
+
+  const reader = document.querySelector('.bible-stage-main');
+  if (reader) {
+    let start = null;
+    reader.addEventListener('touchstart', (event) => {
+      if (!mq.matches || event.touches.length !== 1) return;
+      if (body.classList.contains('bible-menu-open') || body.classList.contains('bible-tools-open')) return;
+      const target = event.target;
+      if (target && target.closest && target.closest('button, a, input, textarea, select, label')) return;
+      start = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+    }, { passive: true });
+
+    reader.addEventListener('touchend', (event) => {
+      if (!start || !event.changedTouches.length) return;
+      const dx = event.changedTouches[0].clientX - start.x;
+      const dy = event.changedTouches[0].clientY - start.y;
+      start = null;
+      if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+      const prev = document.getElementById('member-bible-prev') || document.getElementById('bible-prev-chapter');
+      const next = document.getElementById('member-bible-next') || document.getElementById('bible-next-chapter');
+      const button = dx < 0 ? next : prev;
+      if (button && !button.disabled) button.click();
+    }, { passive: true });
+
+    reader.addEventListener('touchcancel', () => { start = null; }, { passive: true });
+  }
+
+  function onViewportChange() {
+    parkChrome();
+    if (!mq.matches) closeAll();
+    else syncHidden();
+    applyFocus(focusActive(), false);
+  }
+  if (mq.addEventListener) mq.addEventListener('change', onViewportChange);
+  else if (mq.addListener) mq.addListener(onViewportChange);
+  if (focusMq.addEventListener) focusMq.addEventListener('change', onViewportChange);
+  else if (focusMq.addListener) focusMq.addListener(onViewportChange);
+  parkChrome();
+  syncHidden();
+  if (storedFocus === '1') applyFocus(true, false);
+})();

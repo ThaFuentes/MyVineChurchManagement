@@ -2,9 +2,10 @@
 {% extends base_layout %}
 
 {% block title %}Bible{% endblock %}
+{% block body_style %}class="bible-reading"{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/global/bible/bible_flyout.css') }}?v=20260902n2">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/global/bible/bible_flyout.css') }}?v=20261123focus">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/global/bible/member_bible.css') }}?v=20260902n2">
 {% endblock %}
 
@@ -32,9 +33,16 @@
 </div>
 
 <div class="bible-stage is-study{% if not is_logged_in %} is-guest{% endif %}" id="member-bible-stage">
-    <div class="bible-stage-toolbar glass-panel" style="padding:0.5rem 0.65rem;">
+    <div class="bible-stage-toolbar glass-panel" id="member-bible-bar" style="padding:0.5rem 0.65rem;">
+        <button type="button" class="bible-edge-tab bible-edge-menu" aria-expanded="false" aria-controls="site-top-bar">Menu</button>
         <button type="button" id="member-open-canon" class="btn btn-secondary btn-sm bible-flyout-trigger"><i class="fa-solid fa-book-open" aria-hidden="true"></i> Books</button>
         <h2 id="member-bible-title" class="bible-stage-title">Select a book</h2>
+        <div class="bible-ch-nav">
+            <button type="button" id="member-bible-back" class="btn btn-outline-secondary btn-sm" style="display:none;" aria-label="Back to chapter"><span class="bible-ch-word">Chapter</span><span class="bible-ch-mark" aria-hidden="true">↩</span></button>
+            <button type="button" id="member-bible-prev" class="btn btn-secondary btn-sm" disabled aria-label="Previous chapter"><span class="bible-ch-word">Prev</span><span class="bible-ch-mark" aria-hidden="true">‹</span></button>
+            <button type="button" id="member-bible-next" class="btn btn-secondary btn-sm" disabled aria-label="Next chapter"><span class="bible-ch-word">Next</span><span class="bible-ch-mark" aria-hidden="true">›</span></button>
+        </div>
+        <button type="button" class="bible-edge-tab bible-edge-tools" aria-expanded="false">Tools</button>
         <div class="bible-stage-toolbar-actions">
             <div class="bible-mode-toggle" role="group" aria-label="Layout">
                 <button type="button" id="member-mode-read" class="btn btn-secondary btn-sm active" title="Text first — books and study slide in">Read</button>
@@ -72,15 +80,14 @@
                 <span id="bible-font-label" class="bible-font-label">MD</span>
                 <button type="button" id="bible-font-larger" class="btn btn-secondary btn-sm" aria-label="Larger">A+</button>
             </div>
-            <button type="button" id="member-bible-back" class="btn btn-outline-secondary btn-sm" style="display:none;"><- Chapter</button>
-            <button type="button" id="member-bible-prev" class="btn btn-secondary btn-sm" disabled>Prev</button>
-            <button type="button" id="member-bible-next" class="btn btn-secondary btn-sm" disabled>Next</button>
             <button type="button" id="member-open-tools" class="btn btn-primary btn-sm bible-flyout-trigger"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Study</button>
             {% if not is_logged_in %}
             <a href="{{ login_url }}" class="btn btn-sm btn-primary" id="member-bible-login-cta">Log in to keep notes</a>
             {% endif %}
         </div>
+        <button type="button" class="bible-bar-hide" aria-controls="member-bible-bar" aria-expanded="true" title="Hide the bar above the text" aria-label="Hide the bar above the text"><i class="fa-solid fa-chevron-up" aria-hidden="true"></i></button>
     </div>
+    <button type="button" class="bible-edge-tab bible-edge-focus" aria-controls="member-bible-bar" aria-expanded="false" title="Show the chapter bar" aria-label="Show the chapter bar"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
 
     <div class="bible-stage-center">
     {% if is_logged_in %}
@@ -310,4 +317,5 @@
   };
 </script>
 <script src="{{ url_for('static', filename='js/global/bible/member_bible.js') }}?v=20260902n2"></script>
+<script src="{{ url_for('static', filename='js/global/bible/reading_chrome.js') }}?v=20261123focus"></script>
 {% endblock %}
