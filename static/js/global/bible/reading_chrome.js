@@ -47,11 +47,43 @@
     else window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  if (toolbar && 'IntersectionObserver' in window) {
-    new IntersectionObserver((entries) => {
-      entries.forEach((entry) => syncBarOffscreen(!entry.isIntersecting));
-    }, { threshold: 0 }).observe(toolbar);
+  /* Being on screen is not the same as being usable. The chapter bar is
+     sticky on a phone, and the chapter paints over it the moment it scrolls
+     up — the bar stays parked at the top, buried under the verses and
+     swallowing nothing. So test the bar's actual face: if it left the
+     viewport, or if whatever sits at its own position is not the bar, treat
+     it as gone and let the edge tab take over. */
+  function barUsable() {
+    if (!toolbar) return true;
+    const rect = toolbar.getBoundingClientRect();
+    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    /* Folded by focus mode, or not laid out yet: nothing to rescue. */
+    if (rect.width < 2 || rect.height < 2) return true;
+    if (rect.bottom <= 4 || rect.top >= vh - 4) return false;
+    const x = Math.round(rect.left + Math.min(rect.width * 0.5, 90));
+    const y = Math.round(rect.top + Math.min(rect.height * 0.5, 16));
+    const hit = document.elementFromPoint(x, y);
+    if (!hit) return false;
+    return !!(hit.closest && hit.closest('.bible-stage-toolbar'));
   }
+
+  let barSyncQueued = false;
+  function queueBarSync() {
+    if (barSyncQueued) return;
+    barSyncQueued = true;
+    const run = () => {
+      barSyncQueued = false;
+      syncBarOffscreen(!barUsable());
+    };
+    if (window.requestAnimationFrame) window.requestAnimationFrame(run);
+    else setTimeout(run, 16);
+  }
+
+  /* Capture-phase scroll also catches an inner reader that scrolls itself. */
+  document.addEventListener('scroll', queueBarSync, { capture: true, passive: true });
+  window.addEventListener('resize', queueBarSync);
+  window.addEventListener('orientationchange', queueBarSync);
+  queueBarSync();
 
   /* The tools panel starts inside the sticky toolbar. On a phone that
      toolbar is a stacking context, so a fixed drawer paints under the
@@ -251,6 +283,7 @@
 
   function onViewportChange() {
     parkChrome();
+    queueBarSync();
     if (!mq.matches) closeAll();
     else syncHidden();
     applyFocus(focusActive(), false);
@@ -263,4 +296,5 @@
   parkChrome();
   syncHidden();
   if (storedFocus === '1') applyFocus(true, false);
+  queueBarSync();
 })();
