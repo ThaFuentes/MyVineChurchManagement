@@ -731,28 +731,44 @@ html[data-theme="soft-light"] .bible-chapter-num {
   }
 
   body.bible-reading .bible-edge-focus { display: none; }
+  /* Reads like the Menu/Tools edge tabs, so the folded bar is still findable. */
   body.bible-reading.bible-focus .bible-edge-focus {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     position: fixed;
     left: 0;
-    top: 14%;
-    z-index: 1450;
-    width: 1.5rem;
-    height: 3rem;
-    min-height: 0;
+    top: 18%;
+    z-index: 1500;
+    width: 2rem;
+    min-height: 4.75rem;
+    height: auto;
     margin: 0;
-    padding: 0;
+    padding: 0.8rem 0.3rem;
     border: 1px solid var(--primary-border, rgba(0, 255, 255, 0.35));
     border-left: 0;
-    border-radius: 0 10px 10px 0;
+    border-radius: 0 12px 12px 0;
     background: var(--bg-header, rgba(18, 22, 26, 0.96));
     color: var(--primary, #00ffff);
-    font-size: 0.95rem;
-    writing-mode: horizontal-tb;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    font-size: 0.68rem;
+    line-height: 1;
+    writing-mode: vertical-rl;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    transform: none !important;
     cursor: pointer;
+  }
+  body.bible-reading.bible-focus .bible-focus-word {
+    writing-mode: vertical-rl;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  body.bible-reading.bible-focus .bible-edge-focus:active,
+  body.bible-reading.bible-focus .bible-edge-focus:focus-visible {
+    border-color: var(--primary, #00ffff);
+    background: rgba(0, 255, 255, 0.18);
+    outline: 2px solid rgba(0, 255, 255, 0.55);
+    outline-offset: 1px;
   }
 
   body.bible-reading.bible-focus .bible-stage-toolbar,

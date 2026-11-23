@@ -17,17 +17,30 @@
   const focusTab = document.querySelector('.bible-edge-focus');
   const focusMq = window.matchMedia('(max-width: 900px)');
   const FOCUS_KEY = 'mvos.bible.barHidden';
+  /* Remember where the restore tab lives in the markup, so turning focus off
+     puts it back exactly where it came from. */
+  const focusTabHome = focusTab ? focusTab.parentNode : null;
+  const focusTabNext = focusTab ? focusTab.nextSibling : null;
 
   /* The tools panel starts inside the sticky toolbar. On a phone that
      toolbar is a stacking context, so a fixed drawer paints under the
      chapter. Parking the side controls on the body lets them cover the page. */
   function parkChrome() {
     if (!toolbar) return;
+    /* The restore tab must never sit inside the bar it just folded away, nor
+       under a transformed ancestor, so it lives on the body at every width
+       where focus mode exists. */
+    if (focusTab) {
+      if (focusMq.matches && focusTab.parentNode !== document.body) document.body.appendChild(focusTab);
+      else if (!focusMq.matches && focusTabHome && focusTab.parentNode === document.body) {
+        const anchor = focusTabNext && focusTabNext.parentNode === focusTabHome ? focusTabNext : null;
+        focusTabHome.insertBefore(focusTab, anchor);
+      }
+    }
     if (mq.matches) {
       if (menuBtn && menuBtn.parentNode !== document.body) document.body.appendChild(menuBtn);
       if (toolsBtn && toolsBtn.parentNode !== document.body) document.body.appendChild(toolsBtn);
       if (actions && actions.parentNode !== document.body) document.body.appendChild(actions);
-      if (focusTab && focusTab.parentNode !== document.body) document.body.appendChild(focusTab);
       return;
     }
     if (menuBtn && menuBtn.parentNode !== toolbar) toolbar.insertBefore(menuBtn, toolbar.firstChild);
@@ -76,6 +89,7 @@
 
   function applyFocus(on, remember) {
     if (!focusMq.matches) on = false;
+    if (on && focusTab && focusTab.parentNode !== document.body) document.body.appendChild(focusTab);
     body.classList.toggle('bible-focus', on);
     if (hideBarBtn) hideBarBtn.setAttribute('aria-expanded', on ? 'false' : 'true');
     if (focusTab) focusTab.setAttribute('aria-expanded', on ? 'true' : 'false');
@@ -83,6 +97,7 @@
     if (remember) {
       try { localStorage.setItem(FOCUS_KEY, on ? '1' : '0'); } catch (err) { /* private mode */ }
     }
+    parkChrome();
   }
 
   if (hideBarBtn) {

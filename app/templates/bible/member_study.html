@@ -5,7 +5,7 @@
 {% block body_style %}class="bible-reading"{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/global/bible/bible_flyout.css') }}?v=20261123focus">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/global/bible/bible_flyout.css') }}?v=20261123focus2">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/global/bible/member_bible.css') }}?v=20260902n2">
 {% endblock %}
 
@@ -87,7 +87,7 @@
         </div>
         <button type="button" class="bible-bar-hide" aria-controls="member-bible-bar" aria-expanded="true" title="Hide the bar above the text" aria-label="Hide the bar above the text"><i class="fa-solid fa-chevron-up" aria-hidden="true"></i></button>
     </div>
-    <button type="button" class="bible-edge-tab bible-edge-focus" aria-controls="member-bible-bar" aria-expanded="false" title="Show the chapter bar" aria-label="Show the chapter bar"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+    <button type="button" class="bible-edge-tab bible-edge-focus" aria-controls="member-bible-bar" aria-expanded="false" title="Show the chapter bar" aria-label="Show the chapter bar"><span class="bible-focus-word" aria-hidden="true">Bar</span></button>
 
     <div class="bible-stage-center">
     {% if is_logged_in %}
@@ -317,5 +317,5 @@
   };
 </script>
 <script src="{{ url_for('static', filename='js/global/bible/member_bible.js') }}?v=20260902n2"></script>
-<script src="{{ url_for('static', filename='js/global/bible/reading_chrome.js') }}?v=20261123focus"></script>
+<script src="{{ url_for('static', filename='js/global/bible/reading_chrome.js') }}?v=20261123focus2"></script>
 {% endblock %}
